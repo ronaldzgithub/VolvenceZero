@@ -16,6 +16,7 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductSettlementInput,
     RelationshipProductV2CollectedCreditBatch,
     RelationshipProductV2CollectionSegment,
+    RelationshipProductV2CondensedTheta0FrozenPulseAuthorization,
     RelationshipProductV2ExecutorCommand,
     RelationshipProductV2FederatedCollectedCreditBatch,
     RelationshipProductV2FederatedMatchedGateTransitions,
@@ -272,6 +273,9 @@ async def _collect_settlements(
             forecast_runtime=_ForecastRuntime(),
             authorization=authorization,
             substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=(
+                request.forecast_request.turn_index * 1000
+            ),
         )
         settlement = await settle_relationship_product_v2_forced_collection(
             preaction=preaction,
@@ -373,6 +377,9 @@ async def _collect_segmented_batch(
                 forecast_runtime=_ForecastRuntime(),
                 authorization=authorization,
                 substrate_snapshot=_placeholder_substrate(),
+                temporal_delivery_timestamp_ms=(
+                    request.forecast_request.turn_index * 1000
+                ),
             )
             settlement = await settle_relationship_product_v2_forced_collection(
                 preaction=preaction,
@@ -415,6 +422,37 @@ def _federated_schedule(
         schedule_scope_id=f"v2-pulse-federation:{scope_suffix}",
         segments=tuple(segments),
     )
+
+
+async def _federated_condensed_theta0(*, start_index: int):
+    seed = _seed()
+    _first_segments, first = await _collect_segmented_batch(
+        seed,
+        start_index=start_index,
+    )
+    _second_segments, second = await _collect_segmented_batch(
+        seed,
+        start_index=start_index + 10,
+    )
+    children = (first, second)
+    parent = _federated_schedule(
+        children,
+        scope_suffix=f"condensed-theta0:{start_index}",
+    )
+    collection = build_relationship_product_v2_federated_collected_credit_batch(
+        federated_schedule_artifact=parent,
+        child_collected_batches=children,
+    )
+    matched = commit_relationship_product_v2_federated_matched_gate_transitions(
+        artifact=seed,
+        collected_batch=collection,
+    )
+    learned_theta0 = RelationshipActionGateV2Artifact.create_learned_theta0_from_federation(
+        parent_artifact=matched.applied.artifact,
+        source_batch=matched.applied.batch,
+        apply_receipt=matched.applied.gate_receipt,
+    )
+    return seed, matched, learned_theta0
 
 
 async def _trained_theta_and_online_batch():
@@ -1043,6 +1081,268 @@ def test_v2_federated_collection_rejects_partial_reorder_credit_time_and_mutatio
         )
 
 
+def test_v2_condensed_theta0_authorization_replays_source_and_freezes_identity() -> None:
+    seed, matched, learned_theta0 = asyncio.run(
+        _federated_condensed_theta0(start_index=160)
+    )
+    pulse_authorization = _pulse_authorization(
+        learned_theta0,
+        suffix="condensed-theta0:authorization",
+    )
+    authorization = RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+        pulse_authorization=pulse_authorization,
+        learned_theta0_artifact=learned_theta0,
+        source_federated_matched_transitions=matched,
+    )
+
+    assert any(value != 0.0 for value in learned_theta0.weights)
+    assert authorization.source_disposition is RelationshipActionGateBatchDisposition.APPLY
+    assert authorization.frozen_policy.artifact == learned_theta0
+    assert authorization.frozen_policy.transition_batch is None
+    assert authorization.frozen_policy.transition_receipt is None
+    assert authorization.frozen_policy.checkpoint.update_count == 0
+    assert authorization.frozen_policy.checkpoint.informative_update_count == 0
+    assert authorization.frozen_policy.checkpoint.processed_credit_ids == ()
+    assert authorization.frozen_policy.checkpoint.weights == learned_theta0.weights
+    payload = authorization.to_payload()
+    assert matched.transitions_id == (
+        "relationship-product-v2-federated-matched-transitions-sha256:"
+        "af831926991d4c392aa3e35d613ea101dd8fdd4c8494331aed14e9ddf980a26b"
+    )
+    assert learned_theta0.artifact_id == (
+        "relationship-action-gate-v2-artifact-sha256:"
+        "6f8d51219edddc438160339324f391c05d74a67988db9aedcdee95ae3d8fb097"
+    )
+    assert authorization.authorization_id == (
+        "relationship-product-v2-condensed-theta0-authorization-sha256:"
+        "03cef9b06848809f9ecd0666a9660705b60b64163937e60c3bc8fd51b23b9a4f"
+    )
+    assert payload["source_transition_disposition"] == "apply"
+    assert payload["evaluation_transition_disposition"] is None
+    assert (
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization.from_payload(
+            payload,
+            pulse_authorization=pulse_authorization,
+            learned_theta0_artifact=learned_theta0,
+            source_federated_matched_transitions=matched,
+        )
+        == authorization
+    )
+
+    with pytest.raises(ValueError, match="learned theta0 artifact"):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=_pulse_authorization(
+                seed,
+                suffix="condensed-theta0:bootstrap",
+            ),
+            learned_theta0_artifact=seed,
+            source_federated_matched_transitions=matched,
+        )
+
+    _flat_settlements, flat_batch, _flat_persistence = asyncio.run(
+        _collect_batch(seed, start_index=180)
+    )
+    flat_matched = commit_relationship_product_v2_matched_gate_transitions(
+        artifact=seed,
+        collected_batch=flat_batch,
+    )
+    flat_theta0 = RelationshipActionGateV2Artifact.create_learned_theta0(
+        parent_artifact=seed,
+        source_batch=flat_batch.gate_batch,
+        apply_receipt=flat_matched.applied.gate_receipt,
+    )
+    with pytest.raises(ValueError, match="canonical federated condensation"):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=_pulse_authorization(
+                flat_theta0,
+                suffix="condensed-theta0:flat",
+            ),
+            learned_theta0_artifact=flat_theta0,
+            source_federated_matched_transitions=matched,
+        )
+
+    _other_seed, other_matched, other_theta0 = asyncio.run(
+        _federated_condensed_theta0(start_index=200)
+    )
+    drifted_rate_theta0 = RelationshipActionGateV2Artifact._create(
+        artifact_kind=learned_theta0.artifact_kind,
+        weights=learned_theta0.weights,
+        bootstrap_learning_rate=learned_theta0.bootstrap_learning_rate,
+        online_learning_rate=learned_theta0.online_learning_rate / 2.0,
+        max_abs_parameter=learned_theta0.max_abs_parameter,
+        bootstrap_source_artifact_id=(
+            learned_theta0.bootstrap_source_artifact_id
+        ),
+        source_parent_artifact_id=matched.applied.artifact.artifact_id,
+        source_credit_batch_id=matched.applied.batch.batch_id,
+        source_apply_receipt_id=matched.applied.gate_receipt.receipt_id,
+        source_checkpoint_content_sha256=(
+            matched.applied.terminal_checkpoint.content_sha256
+        ),
+        source_parent=matched.applied.artifact,
+        source_batch=matched.applied.batch,
+        source_apply_receipt=matched.applied.gate_receipt,
+    )
+    with pytest.raises(ValueError, match="canonical federated condensation"):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=_pulse_authorization(
+                drifted_rate_theta0,
+                suffix="condensed-theta0:drifted-rate",
+            ),
+            learned_theta0_artifact=drifted_rate_theta0,
+            source_federated_matched_transitions=matched,
+        )
+
+    with pytest.raises(ValueError, match="canonical federated condensation"):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=pulse_authorization,
+            learned_theta0_artifact=learned_theta0,
+            source_federated_matched_transitions=other_matched,
+        )
+    with pytest.raises(ValueError, match="outside pulse authorization"):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=_pulse_authorization(
+                seed,
+                suffix="condensed-theta0:wrong-pulse-artifact",
+            ),
+            learned_theta0_artifact=learned_theta0,
+            source_federated_matched_transitions=matched,
+        )
+
+    other_target = (
+        other_matched.collected_batch.child_collected_batches[1]
+        .segments[1]
+        .segment_start_owner_persistence_snapshot.payload
+    )
+    other_replacement = (
+        other_matched.collected_batch.child_collected_batches[1]
+        .segments[0]
+        .segment_start_owner_persistence_snapshot.payload
+    )
+    assert isinstance(other_target, dict)
+    assert isinstance(other_replacement, dict)
+    other_target.clear()
+    other_target.update(dict(other_replacement))
+    with pytest.raises(ValueError):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+            pulse_authorization=_pulse_authorization(
+                other_theta0,
+                suffix="condensed-theta0:mutated-before-load",
+            ),
+            learned_theta0_artifact=other_theta0,
+            source_federated_matched_transitions=other_matched,
+        )
+
+    frozen_authorization_id = authorization.authorization_id
+    frozen_payload = authorization.to_payload()
+    frozen_policy = authorization.frozen_policy
+    target = (
+        matched.collected_batch.child_collected_batches[1]
+        .segments[1]
+        .segment_start_owner_persistence_snapshot.payload
+    )
+    replacement_payload = (
+        matched.collected_batch.child_collected_batches[1]
+        .segments[0]
+        .segment_start_owner_persistence_snapshot.payload
+    )
+    assert isinstance(target, dict)
+    assert isinstance(replacement_payload, dict)
+    target.clear()
+    target.update(dict(replacement_payload))
+    assert authorization.authorization_id == frozen_authorization_id
+    assert authorization.to_payload() == frozen_payload
+    assert authorization.frozen_policy == frozen_policy
+    with pytest.raises(ValueError):
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization.from_payload(
+            frozen_payload,
+            pulse_authorization=pulse_authorization,
+            learned_theta0_artifact=learned_theta0,
+            source_federated_matched_transitions=matched,
+        )
+
+
+def test_v2_condensed_theta0_candidate_and_strict_share_exact_cold_core(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_artifact, matched, learned_theta0 = asyncio.run(
+        _federated_condensed_theta0(start_index=220)
+    )
+    authorization = RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+        pulse_authorization=_pulse_authorization(
+            learned_theta0,
+            suffix="condensed-theta0:evaluation",
+        ),
+        learned_theta0_artifact=learned_theta0,
+        source_federated_matched_transitions=matched,
+    )
+
+    def _reject_training_replay(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("cold evaluation attempted to replay training")
+
+    monkeypatch.setattr(
+        RelationshipActionGateV2,
+        "from_applied_federated_credit_batch",
+        _reject_training_replay,
+    )
+    persistence = SocialRecordStore().export_persistence_snapshot()
+    request = _request(240)
+
+    async def _prepare(executor_disposition):
+        return await prepare_relationship_product_v2_frozen_preaction(
+            request=request,
+            owner_persistence_snapshot=persistence,
+            forecast_runtime=_ForecastRuntime(),
+            executor_disposition=executor_disposition,
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+        )
+
+    candidate = asyncio.run(
+        _prepare(RelationshipProductExecutorDisposition.APPLY_CANDIDATE)
+    )
+    strict = asyncio.run(
+        _prepare(RelationshipProductExecutorDisposition.FORCE_STRICT_NOOP)
+    )
+
+    assert candidate.execution_receipt.command.command_id == (
+        "relationship-product-v2-executor-command-sha256:"
+        "1dc50005a613d39d42dd4cfc57fe255cebfb583f72266b0817cd6ed8aec441d7"
+    )
+    assert strict.execution_receipt.command.command_id == (
+        "relationship-product-v2-executor-command-sha256:"
+        "2eb9983f36add4bd8210e431429be09a394b023084a38fb5398e328b02d272c4"
+    )
+    assert candidate.forecast == strict.forecast
+    assert candidate.frozen_decision == strict.frozen_decision
+    assert candidate.execution_receipt.command.frozen_policy == authorization.frozen_policy
+    assert strict.execution_receipt.command.frozen_policy == authorization.frozen_policy
+    assert (
+        candidate.execution_receipt.candidate_advisory
+        == strict.execution_receipt.candidate_advisory
+    )
+    candidate_command = candidate.execution_receipt.command.to_payload(
+        include_command_id=False
+    )
+    strict_command = strict.execution_receipt.command.to_payload(
+        include_command_id=False
+    )
+    candidate_command.pop("executor_disposition")
+    strict_command.pop("executor_disposition")
+    assert candidate_command == strict_command
+    assert candidate.frozen_decision.decision.gate_action is RelationshipGateAction.STEER
+    assert candidate.delivered_action_id != RelationshipAction.NEUTRAL_NOOP.value
+    assert candidate.delivered_action_id == candidate.frozen_decision.decision.selected_action_id
+    assert strict.delivered_action_id == RelationshipAction.NEUTRAL_NOOP.value
+    assert strict.execution_receipt.action_diverged is True
+    for prepared in (candidate, strict):
+        receipt_payload = prepared.execution_receipt.to_payload()
+        assert receipt_payload["gate_transition_disposition"] is None
+        assert receipt_payload["evaluation_gate_update_delta"] == 0
+        assert prepared.execution_receipt.command.frozen_policy.checkpoint.update_count == 0
+
+
 def test_v2_apply_withhold_transition_is_full_and_replayable() -> None:
     _seed_settlements, theta0, _online_settlements, collection, _persistence = asyncio.run(
         _trained_theta_and_online_batch()
@@ -1153,6 +1453,25 @@ def test_v2_strict_noop_changes_only_executor_bit() -> None:
         assert candidate.delivered_action_id == candidate.frozen_decision.decision.selected_action_id
         assert strict.delivered_action_id == RelationshipAction.NEUTRAL_NOOP.value
         assert strict.execution_receipt.action_diverged is True
+        assert (
+            candidate.execution_receipt.to_payload()[
+                "gate_transition_disposition"
+            ]
+            == gate_disposition.value
+        )
+        if gate_disposition is RelationshipActionGateBatchDisposition.APPLY:
+            assert candidate.execution_receipt.command.authorization.authorization_id == (
+                "relationship-product-v2-frozen-authorization-sha256:"
+                "e2566018e8173364472f750296c83910cce10c17687531fab3ac4f4fe8a7443d"
+            )
+            assert candidate.execution_receipt.command.command_id == (
+                "relationship-product-v2-executor-command-sha256:"
+                "a5ec1ebba9771a945376f059f0399fd35c0712da4ca19127b4598ab542c30cab"
+            )
+            assert strict.execution_receipt.command.command_id == (
+                "relationship-product-v2-executor-command-sha256:"
+                "15cdbee1e7fdbf8bf24fd9024988abc13fd15cf5fde9ccb486b0a5c0fea83a20"
+            )
         prepared[gate_disposition] = (candidate, strict)
 
     applied, strict = prepared[RelationshipActionGateBatchDisposition.WITHHOLD]

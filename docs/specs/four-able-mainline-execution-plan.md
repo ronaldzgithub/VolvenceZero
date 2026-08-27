@@ -201,7 +201,8 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-theta0 v3 的机制路线冻结为三个小包；gate、pulse 与 bootstrap materialization/validation 均已闭合。protocol.v1 attempt01 因 typed assignment
+theta0 v3 的机制路线冻结为三个小包加一个 cold evaluation 接缝；gate、pulse、bootstrap materialization/validation
+与 condensed-theta0 authorization 均已闭合。protocol.v1 attempt01 因 typed assignment
 ID 误用在首条 persisted preaction 前失败；attempt02 虽完成 112×8 materialization，却因 temporal publisher
 墙钟进入 forced receipt 而未通过 byte-exact `validate-existing`。两根均禁止续跑/覆盖且无下游 authority。
 live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 publisher/pulse lineage；theta0 v3 bootstrap
@@ -256,12 +257,25 @@ attempt03 已在新 create-only 根完成正式 materialization，并在 detache
    artifact content drift；随后 detached `af6cc60b` worktree 的 external 双 ID `validate-existing` 全量 replay PASS，
    六文件 fingerprints 不变。compact acceptance receipt `4c3c414b…aab5`（raw `cae85ed0…af6c`）只接受 development mechanism terminal，
    `effect_scientific_terminal=false`。
+4. **已闭合 condensed learned-theta0 cold evaluation authorization seam**：新增 add-only
+   `RelationshipProductV2CondensedTheta0FrozenPulseAuthorization`，构造与 payload 恢复都必须取得完整 pulse
+   federated matched wrapper，并在 load 边界重放 wrapper integrity、parent APPLY/WITHHOLD，再由 gate canonical
+   factory 重导完整 learned artifact 并 exact-equal（含 learning rate/cap）；随后只保存深不可变 lineage
+   projection、learned artifact 与 cold policy，不把含
+   shallow-frozen owner payload 的 producer graph 带入 consumer snapshot。evaluation policy 必须为
+   `update=0 / informative=0 / processed_credit_ids=()` 且无 transition batch/receipt；source APPLY 只记录在新
+   authorization payload，executor receipt 的 evaluation `gate_transition_disposition=null`，不得伪装成 APPLY/WITHHOLD
+   在线更新。candidate 与 strict-noop 共享 exact forecast/policy/decision/advisory，唯一 command treatment 仍是
+   executor disposition。legacy continuous v2 authorization/payload/ID 分支保持原样。model-free fixture 为构造
+   authorization 重放了 synthetic forced settlement→PE→credit 与一次 parent APPLY/WITHHOLD；condensation 后的
+   candidate/strict evaluation preaction 没有新增 outcome、PE、credit 或 gate update。全程未运行模型、CUDA、campaign
+   或彩排，也尚未把 attempt03 artifact 用作新 source 的 treatment-reachability 证据。
 
-三个机制包现已闭合。下一包先补 add-only condensed learned-theta0 cold evaluation authorization seam；随后另立
-permanent treatment-reachability admission，它只读新 source 的 public/outcome-free surface，不生成
+三个机制包与 cold evaluation authorization seam 现已闭合。下一包另立 permanent
+treatment-reachability admission；它只读新 source 的 public/outcome-free surface，不生成
 outcome/PE/credit/update，不是 rehearsal。当前 `treatment_reachability_admitted=false`。
 
-condensed learned-theta0 cold evaluation authorization seam 与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
+permanent admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
 预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
@@ -540,5 +554,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   protocol/artifact 双 ID 完整 replay PASS，六文件 size/mtime/SHA fingerprints 不变；compact acceptance receipt
   `4c3c414b…aab5`（raw `cae85ed0…af6c`）。本终局只接受 development mechanism，reader qualification、treatment reachability、
   campaign/effect/formal/unseen/integrated/四轴/真人/production 均未建立，model/CUDA/rehearsal count 仍为 0。
-  下一步先闭合 condensed learned-theta0 cold evaluation authorization seam，再冻结独立 permanent
+  当时下一步为先闭合 condensed learned-theta0 cold evaluation authorization seam，再冻结独立 permanent
   public/outcome-free treatment-reachability admission。
+- 2026-08-27 · condensed learned-theta0 cold evaluation authorization seam 已以 add-only pulse contract
+  闭合：full federated wrapper 只在构造/恢复边界用于完整 replay，冻结授权仅保留不可变 lineage projection 与
+  `0/0/()` cold policy；source APPLY 与 evaluation transition 分账，后者固定为 `null`。candidate/strict 只差
+  executor disposition，旧 continuous v2 payload/identity 保持原样。15 项 pulse v2 model-free 测试全过，未运行
+  model/CUDA/rehearsal/campaign；下一动作只剩独立 permanent public/outcome-free treatment-reachability admission。

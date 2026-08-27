@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field, replace
+from dataclasses import InitVar, dataclass, field, replace
 from enum import Enum
 
 from volvence_zero.credit import (
@@ -148,6 +148,9 @@ _FORCED_COLLECTION_RECEIPT_PREFIX = (
 RELATIONSHIP_PRODUCT_V2_FROZEN_PULSE_SCHEMA_VERSION = (
     "relationship-product-frozen-pulse.v2"
 )
+RELATIONSHIP_PRODUCT_V2_CONDENSED_THETA0_AUTHORIZATION_SCHEMA_VERSION = (
+    "relationship-product-condensed-theta0-authorization.v2"
+)
 RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION = (
     "relationship-product-executor-receipt.v2"
 )
@@ -183,6 +186,9 @@ RELATIONSHIP_PRODUCT_V2_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
 )
 _V2_FROZEN_AUTHORIZATION_PREFIX = (
     "relationship-product-v2-frozen-authorization-sha256:"
+)
+_V2_CONDENSED_THETA0_AUTHORIZATION_PREFIX = (
+    "relationship-product-v2-condensed-theta0-authorization-sha256:"
 )
 _V2_FORCED_AUTHORIZATION_PREFIX = (
     "relationship-product-v2-forced-authorization-sha256:"
@@ -2721,6 +2727,244 @@ class RelationshipProductV2FrozenPulseAuthorization:
 
 
 @dataclass(frozen=True)
+class RelationshipProductV2CondensedTheta0FrozenPulseAuthorization:
+    """Authorize one cold policy condensed from an exact federated APPLY."""
+
+    pulse_authorization: RelationshipProductPulseAuthorization
+    learned_theta0_artifact: RelationshipActionGateV2Artifact
+    source_federated_matched_transitions: InitVar[
+        RelationshipProductV2FederatedMatchedGateTransitions
+    ]
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_CONDENSED_THETA0_AUTHORIZATION_SCHEMA_VERSION
+    )
+    _source_pulse_transitions_id: str = field(init=False, repr=False)
+    _source_gate_transitions_id: str = field(init=False, repr=False)
+    _source_parent_artifact_id: str = field(init=False, repr=False)
+    _source_federated_batch_id: str = field(init=False, repr=False)
+    _source_apply_receipt_id: str = field(init=False, repr=False)
+    _source_apply_transition_id: str = field(init=False, repr=False)
+    _source_checkpoint_content_sha256: str = field(init=False, repr=False)
+    _frozen_policy: RelationshipActionGateV2FrozenPolicy = field(
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(
+        self,
+        source_federated_matched_transitions: (
+            RelationshipProductV2FederatedMatchedGateTransitions
+        ),
+    ) -> None:
+        if type(self.pulse_authorization) is not RelationshipProductPulseAuthorization:
+            raise TypeError(
+                "pulse_authorization must be RelationshipProductPulseAuthorization"
+            )
+        if type(self.learned_theta0_artifact) is not RelationshipActionGateV2Artifact:
+            raise TypeError(
+                "learned_theta0_artifact must be RelationshipActionGateV2Artifact"
+            )
+        if (
+            type(source_federated_matched_transitions)
+            is not RelationshipProductV2FederatedMatchedGateTransitions
+        ):
+            raise TypeError(
+                "source_federated_matched_transitions must be exact pulse federated transitions"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_CONDENSED_THETA0_AUTHORIZATION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product v2 condensed theta0 authorization schema mismatch"
+            )
+
+        source_federated_matched_transitions._assert_integrity()
+        applied = source_federated_matched_transitions.applied
+        withheld = source_federated_matched_transitions.withheld
+        credit_count = len(applied.batch.credits)
+        if (
+            applied.disposition is not RelationshipActionGateBatchDisposition.APPLY
+            or withheld.disposition
+            is not RelationshipActionGateBatchDisposition.WITHHOLD
+        ):
+            raise ValueError(
+                "condensed theta0 source requires one exact federated APPLY/WITHHOLD pair"
+            )
+        if (
+            applied.gate_receipt.atomic_commit_count != 1
+            or applied.gate_receipt.update_count_delta != credit_count
+            or applied.gate_receipt.child_transition_count != 0
+            or applied.terminal_checkpoint.update_count != credit_count
+            or applied.terminal_checkpoint.informative_update_count < 1
+        ):
+            raise ValueError(
+                "condensed theta0 source APPLY is not one informative atomic parent transition"
+            )
+        if (
+            withheld.gate_receipt.atomic_commit_count != 0
+            or withheld.gate_receipt.update_count_delta != 0
+            or withheld.gate_receipt.informative_update_count_delta != 0
+            or withheld.gate_receipt.child_transition_count != 0
+            or withheld.terminal_checkpoint.update_count != 0
+            or withheld.terminal_checkpoint.informative_update_count != 0
+            or withheld.terminal_checkpoint.processed_credit_ids != ()
+        ):
+            raise ValueError(
+                "condensed theta0 source WITHHOLD changed the parent checkpoint"
+            )
+        if (
+            self.learned_theta0_artifact.artifact_kind
+            is not RelationshipActionGateV2ArtifactKind.LEARNED_THETA0
+        ):
+            raise ValueError(
+                "condensed theta0 authorization requires a learned theta0 artifact"
+            )
+        expected_learned_theta0 = (
+            RelationshipActionGateV2Artifact.create_learned_theta0_from_federation(
+                parent_artifact=applied.artifact,
+                source_batch=applied.batch,
+                apply_receipt=applied.gate_receipt,
+            )
+        )
+        if self.learned_theta0_artifact != expected_learned_theta0:
+            raise ValueError(
+                "learned theta0 differs from the canonical federated condensation"
+            )
+
+        frozen_policy = RelationshipActionGateV2(
+            artifact=self.learned_theta0_artifact
+        ).freeze_for_evaluation()
+        if (
+            frozen_policy.transition_batch is not None
+            or frozen_policy.transition_receipt is not None
+            or frozen_policy.checkpoint.update_count != 0
+            or frozen_policy.checkpoint.informative_update_count != 0
+            or frozen_policy.checkpoint.processed_credit_ids != ()
+            or frozen_policy.checkpoint.weights
+            != self.learned_theta0_artifact.weights
+        ):
+            raise ValueError(
+                "condensed theta0 evaluation policy is not an exact cold checkpoint"
+            )
+        _validate_relationship_product_v2_policy_authorization(
+            self.pulse_authorization,
+            frozen_policy,
+        )
+
+        object.__setattr__(
+            self,
+            "_source_pulse_transitions_id",
+            source_federated_matched_transitions.transitions_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_gate_transitions_id",
+            source_federated_matched_transitions.gate_matched_transitions.transitions_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_parent_artifact_id",
+            applied.artifact.artifact_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_federated_batch_id",
+            applied.batch.batch_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_apply_receipt_id",
+            applied.gate_receipt.receipt_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_apply_transition_id",
+            applied.transition_id,
+        )
+        object.__setattr__(
+            self,
+            "_source_checkpoint_content_sha256",
+            applied.terminal_checkpoint.content_sha256,
+        )
+        object.__setattr__(self, "_frozen_policy", frozen_policy)
+
+    @property
+    def frozen_policy(self) -> RelationshipActionGateV2FrozenPolicy:
+        return self._frozen_policy
+
+    @property
+    def source_disposition(self) -> RelationshipActionGateBatchDisposition:
+        return RelationshipActionGateBatchDisposition.APPLY
+
+    @property
+    def authorization_id(self) -> str:
+        return (
+            f"{_V2_CONDENSED_THETA0_AUTHORIZATION_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "pulse_authorization": _pulse_authorization_to_payload(
+                self.pulse_authorization
+            ),
+            "source_pulse_federated_matched_transitions_id": (
+                self._source_pulse_transitions_id
+            ),
+            "source_gate_federated_matched_transitions_id": (
+                self._source_gate_transitions_id
+            ),
+            "source_parent_artifact_id": self._source_parent_artifact_id,
+            "source_federated_credit_batch_id": self._source_federated_batch_id,
+            "source_apply_receipt_id": self._source_apply_receipt_id,
+            "source_apply_transition_id": self._source_apply_transition_id,
+            "source_checkpoint_content_sha256": (
+                self._source_checkpoint_content_sha256
+            ),
+            "source_transition_disposition": self.source_disposition.value,
+            "learned_theta0_artifact": self.learned_theta0_artifact.to_payload(),
+            "frozen_policy": _relationship_product_v2_policy_payload(
+                self.frozen_policy
+            ),
+            "evaluation_transition_disposition": None,
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"authorization_id": self.authorization_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        pulse_authorization: RelationshipProductPulseAuthorization,
+        learned_theta0_artifact: RelationshipActionGateV2Artifact,
+        source_federated_matched_transitions: (
+            RelationshipProductV2FederatedMatchedGateTransitions
+        ),
+    ) -> "RelationshipProductV2CondensedTheta0FrozenPulseAuthorization":
+        if type(payload) is not dict:
+            raise TypeError(
+                "v2 condensed theta0 authorization payload must be an exact dict"
+            )
+        authorization = cls(
+            pulse_authorization=pulse_authorization,
+            learned_theta0_artifact=learned_theta0_artifact,
+            source_federated_matched_transitions=(
+                source_federated_matched_transitions
+            ),
+        )
+        expected = authorization.to_payload()
+        if expected != payload or _canonical_sha256(expected) != _canonical_sha256(
+            payload
+        ):
+            raise ValueError("v2 condensed theta0 authorization payload mismatch")
+        return authorization
+
+
+@dataclass(frozen=True)
 class RelationshipProductV2ForcedCollectionAuthorization:
     """Authorize one full v2 assignment receipt under a cold policy."""
 
@@ -2784,11 +3028,14 @@ class RelationshipProductV2ForcedCollectionAuthorization:
 
 @dataclass(frozen=True)
 class RelationshipProductV2ExecutorCommand:
-    """Evaluation command with independent gate-transition and executor bits."""
+    """Evaluation command with immutable policy authorization and executor bit."""
 
     forecast: PreferenceActionForecast
     frozen_decision: RelationshipActionGateV2FrozenDecision
-    authorization: RelationshipProductV2FrozenPulseAuthorization
+    authorization: (
+        RelationshipProductV2FrozenPulseAuthorization
+        | RelationshipProductV2CondensedTheta0FrozenPulseAuthorization
+    )
     owner_prestate_sha256: str
     executor_disposition: RelationshipProductExecutorDisposition
     schema_version: str = RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION
@@ -2798,8 +3045,11 @@ class RelationshipProductV2ExecutorCommand:
             raise TypeError("forecast must be PreferenceActionForecast")
         if type(self.frozen_decision) is not RelationshipActionGateV2FrozenDecision:
             raise TypeError("frozen_decision must be RelationshipActionGateV2FrozenDecision")
-        if type(self.authorization) is not RelationshipProductV2FrozenPulseAuthorization:
-            raise TypeError("authorization must be RelationshipProductV2FrozenPulseAuthorization")
+        if type(self.authorization) not in (
+            RelationshipProductV2FrozenPulseAuthorization,
+            RelationshipProductV2CondensedTheta0FrozenPulseAuthorization,
+        ):
+            raise TypeError("authorization must be an exact v2 evaluation authorization")
         _require_sha256(self.owner_prestate_sha256, "owner_prestate_sha256")
         if type(self.executor_disposition) is not RelationshipProductExecutorDisposition:
             raise TypeError("executor_disposition must be RelationshipProductExecutorDisposition")
@@ -2966,10 +3216,16 @@ class RelationshipProductV2ExecutorReceipt:
         return self.delivered_action_id != self.command.candidate_action_id
 
     def _core_payload(self) -> dict[str, object]:
+        gate_transition_disposition = (
+            self.command.authorization.disposition.value
+            if type(self.command.authorization)
+            is RelationshipProductV2FrozenPulseAuthorization
+            else None
+        )
         return {
             "schema_version": self.schema_version,
             "command": self.command.to_payload(),
-            "gate_transition_disposition": self.command.authorization.disposition.value,
+            "gate_transition_disposition": gate_transition_disposition,
             "executor_apply_bit": self.executor_apply_bit,
             "executor_status": self.executor_status.value,
             "candidate_non_noop": self.command.non_noop_opportunity,
@@ -4216,14 +4472,20 @@ async def prepare_relationship_product_v2_frozen_preaction(
     owner_persistence_snapshot: OwnerPersistenceSnapshot,
     forecast_runtime: PreferenceActionForecastRuntime,
     executor_disposition: RelationshipProductExecutorDisposition,
-    authorization: RelationshipProductV2FrozenPulseAuthorization,
+    authorization: (
+        RelationshipProductV2FrozenPulseAuthorization
+        | RelationshipProductV2CondensedTheta0FrozenPulseAuthorization
+    ),
     substrate_snapshot: SubstrateSnapshot,
 ) -> RelationshipProductV2FrozenPreActionSnapshot:
-    """Publish and deliver one transition-authorized v2 evaluation action."""
+    """Publish and deliver one policy-authorized v2 evaluation action."""
 
     _validate_placeholder_substrate(substrate_snapshot)
-    if type(authorization) is not RelationshipProductV2FrozenPulseAuthorization:
-        raise TypeError("authorization must be RelationshipProductV2FrozenPulseAuthorization")
+    if type(authorization) not in (
+        RelationshipProductV2FrozenPulseAuthorization,
+        RelationshipProductV2CondensedTheta0FrozenPulseAuthorization,
+    ):
+        raise TypeError("authorization must be an exact v2 evaluation authorization")
     if type(executor_disposition) is not RelationshipProductExecutorDisposition:
         raise TypeError("executor_disposition must be RelationshipProductExecutorDisposition")
     store = SocialRecordStore()
@@ -5192,6 +5454,7 @@ __all__ = [
     "RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_CONDENSED_THETA0_AUTHORIZATION_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_COLLECTED_BATCH_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_FEDERATED_COLLECTED_BATCH_SCHEMA_VERSION",
@@ -5228,6 +5491,7 @@ __all__ = [
     "RelationshipProductTemporalDelivery",
     "RelationshipProductV2CollectedCreditBatch",
     "RelationshipProductV2CollectionSegment",
+    "RelationshipProductV2CondensedTheta0FrozenPulseAuthorization",
     "RelationshipProductV2ExecutorCommand",
     "RelationshipProductV2ExecutorReceipt",
     "RelationshipProductV2FederatedCollectedCreditBatch",
