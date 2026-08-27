@@ -2441,8 +2441,9 @@ parameter cap 约束；它是 PE-credit 驱动的 development update rule，不�
 chain、pre/candidate/post checkpoint、delta/count/cap 与 APPLY/WITHHOLD。恢复只能从 cold learned theta0 + 从 0
 连续的完整 typed chain exact replay，禁止裸 checkpoint、跳拍、重排、重复 credit、stale decision、compact credit
 projection 或 evaluator/judge 输入。owner recommendation 为 noop 时没有 gate-vs-noop 对照，credit 仍处理但参数贡献与
-informative delta 为零。gate owner、pulse logical consumer 与 durable multi-arm ledger mechanism 现已闭合；
-source-v5 admission、scientific campaign protocol、always/random controls 与实际 experiment 仍待后续独立收敛包。
+informative delta 为零。gate owner、pulse logical consumer、durable multi-arm ledger mechanism 与 source-v5 input
+admission 现已闭合；v5-only embedding table、scientific campaign protocol、always/random controls 与实际 experiment
+仍待后续独立收敛包。
 
 处理位现由 online session 在任何 evaluation outcome 前一次性冻结，并进入 chain identity；逐拍 commit 不再接收
 APPLY/WITHHOLD 参数，因此不能看见 credit 后选择性应用。行为 policy identity 只绑定 artifact + checkpoint，不绑定
@@ -2481,8 +2482,9 @@ forecast 与 arm-local session/scope，也不携带 barrier/receipt/stream-prefi
 规范化的 actual action 集，不能用 full/frozen 物理顺序侧漏 arm。source 对每个 action 只能返回一个 typed branch receipt；同拍同 action 的 outcome、reaction、environment
 reference/version 必须 exact shared，credit timestamp 与 external/owner evidence 均由 campaign owner 派生，禁止 source
 按 arm 改结局或控制 owner writeback。公开 source-open capability 本身可构造、可预测；它只记录 physical owner 在
-preaction fsync 返回后才调用 opener 的 live 顺序，不证明 durability、不可伪造性、source 独占或外部未旁路调用，后者仍由
-future source-v5 admission 资格化。
+preaction fsync 返回后才调用 opener 的 live 顺序，不证明 durability、不可伪造性、source 独占或外部未旁路调用；
+现有 source-v5 input admission 只闭合输入身份与 owner-defined branch commitments，后述 runtime exclusivity 仍须由未来
+campaign/runtime admission 独立证明。
 
 postaction rows 与 post receipt durable 后才更新 next-slot capability；最终 terminal row 的 fsync 返回前，
 `completed_slot_count` 不前移且 `ledger_complete=false`。只读 scanner 从一次冻结的 regular-file bytes 解析，并把
@@ -2568,12 +2570,13 @@ materializer 复用既有 v4 causal engine 的公开 commitment seam，但先强
 protocol、public plan、sealed evaluator、compact commitments、七本 exact digest-text inventory 与 manifest；输出
 create-only，六个 pre-manifest 文件写完后再做第二次完整 semantic rebuild 和 byte compare，最后才写 manifest。
 Windows scanner 拒绝 symlink/reparse/hardlink；这仍是 cooperative live ordering，不是断电、ADS 或恶意同用户的
-security/process-independence 证明。当前 owner/protocol 在临时目录的 5 项 model-free test 已 PASS；但永久 root
-必须等 exact implementation commit 冻结后再由 CLI 单次生成，所以此处仍不把 protocol 的
-`campaign_input_admission_may_be_derived=true` 写成 repository evidence 的 `campaign_input_admitted=true`。
+security/process-independence 证明。implementation `8fb2e751…5a12` 已由官方 CLI 单次生成永久七文件 root
+`79a51e54…02da`：pre-manifest 第二次完整 rebuild 与 byte compare PASS，随后以外传
+`protocol=d07bdb21…fcd4 / artifact=79a51e54…02da` 立即执行 read-only `validate-existing` 全量重建 PASS。
+因此现在只可登记 `campaign_input_admitted=true`；`campaign_protocol_frozen / campaign_materialized /
+campaign_execution_authorized` 仍全为 false。
 
-永久 manifest 经外传 protocol/artifact 双 ID read-only `validate-existing` PASS 后，才可只为 v5 public texts
-生成 pinned embedding table，旧 frozen reader 不重训
+现在才允许只为 v5 public texts 生成 pinned embedding table，旧 frozen reader 不重训
 （`reader_fit_count=0`）。attempt03 完整 typed federation 跨 exact implementation commit 的 handoff 仍是另一项
 硬前置，禁止用 compact theta JSON、pickle、monkeypatch 或放宽 exact-HEAD guard 绕过。
 

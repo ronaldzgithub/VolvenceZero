@@ -107,13 +107,13 @@
 > public/sealed/inventory identity；model-free projections 为 `public=bab2ff22…9f6c / sealed=01026dd6…b0ab`，
 > 5,824 次 reader occurrence 的 3,946 条 unique text 与 spent source-v4 exact 零交集，subject/session/decision/seed/world/scene/environment identity 及去身份 `causal_tape_signature` 也不相交。
 > 这只建立 identity-disjoint、尚未消费的 synthetic candidate，不证明 semantic novelty、DGP independence 或 unseen。
-> 它尚未 source-admit，且未对
-> source-v3/全部 adaptive inputs 闭合 disjoint。add-only source-v5 admission owner/protocol
-> `d07bdb21…fcd4` 现已冻结 protocol-freeze 时的 closed registry：development 2,109 + attempt03 30
+> 它已经 source-admit，但尚未被 embedding、reader、gate 或 campaign 消费；对
+> source-v3/全部 protocol-freeze 时 adaptive inputs 的 exact-string disjoint 已闭合。add-only source-v5 admission owner/protocol
+> `d07bdb21…fcd4` 已冻结 protocol-freeze 时的 closed registry：development 2,109 + attempt03 30
 > 的全文 union 为 2,135，qualification-v5 228、source-v3 224、source-v4 1,881 均作为已证明
-> development-table subset 建账；临时目录 model-free materialization 5 tests PASS，并重算 16,128 个
-> 三动作 commitment。永久 evidence root 仍须等 exact implementation commit 后单次生成，故此刻不登记
-> `campaign_input_admitted=true`。下一合法顺序是该永久 source-v5 admission→v5-only embedding table
+> development-table subset 建账；implementation `8fb2e751…5a12` 的永久七文件 artifact
+> `79a51e54…02da` 已经 create-only 双重 rebuild、16,128 个三动作 commitment 与外传双 ID只读复验 PASS，
+> 最高正结论为 `campaign_input_admitted=true`。下一合法顺序是 v5-only embedding table
 >（旧 reader 不重训）→attempt03 full typed federation 跨 commit handoff→permanent public/outcome-free
 > treatment-reachability admission；后者不是 rehearsal。reader qualification、reachability admission、campaign、模型/CUDA、formal/unseen/integrated/四轴效果与
 > production 继续全部 false。
@@ -582,7 +582,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑；A1 formal（nplus1 prereg）已封存 `passed=false`，判词限定为「v1 raw-cosine readout 下无净增益」，重开须过分辨力 + 传导双预检（主线方案 §0 不变量 7/8） |
 | [coding-lab.md](./coding-lab.md) | 编程域持续学习证据 lane：受控演进式合成仓库（隐藏不变量 + pytest oracle 机械判决 + 内容寻址轨迹落盘）；A1 判词收窄后升格为主证据 lane，语义级 PE 不依赖残差 readout 标度。Packet 0 标定 PASS（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体哈希封存）；Packet 1 SHADOW 观察者：语义 PE 分辨力 p≈1e-4、跨进程恢复、`dialogue_external_outcome` 外部结局通道三项 PASS，`forecast_skill=False` 如实封存（scope=合成基底×scripted 轨迹）；Packet 2 记忆注入 vs 长上下文 steelman 进行中 |
-| [four-able-mainline-execution-plan.md](./four-able-mainline-execution-plan.md) | 四能力因果主线执行计划（2026-08-27 状态）：Phase 0 已于 `15887ed1` 收口、Phase 1a 已由 `7c2f24ba`/`b7d1796e` 闭合；开发档/正式档分层、轻量 artifact-plumbing 单测先于唯一执行、3–8 文件单 owner、主任务单写入、本地小包自动提交、外部授权攒批、A1/A2/Horizon 三本账分离。既有三臂 campaign 已诚实封存 Learnable treatment 退化；versioned gate v2、pulse/federation/condensed theta0 与 corrected-online create-only/fsync physical ledger 机制已闭合。theta0 v3 attempt03 artifact `dde0fc78…9777` 的 compact receipt `4c3c414b…aab5` 只接受 development mechanism terminal。下一合法顺序是独立 source-v5 admission→v5-only embedding table（旧 reader 不重训）→attempt03 typed theta 跨 commit handoff→geometric reachability 与 credit achievability 分账；scientific campaign 另需 always-on/random-gate controls 与新 prereg。reader/campaign 彩排继续关闭；P4.6 development PASS 与 formal host-block 分账，正式 host-dependent 线暂停；四轴 12 槽齐全前不授权 integrated run，不改写既有判词 |
+| [four-able-mainline-execution-plan.md](./four-able-mainline-execution-plan.md) | 四能力因果主线执行计划（2026-08-27 状态）：Phase 0 已于 `15887ed1` 收口、Phase 1a 已由 `7c2f24ba`/`b7d1796e` 闭合；开发档/正式档分层、轻量 artifact-plumbing 单测先于唯一执行、3–8 文件单 owner、主任务单写入、本地小包自动提交、外部授权攒批、A1/A2/Horizon 三本账分离。既有三臂 campaign 已诚实封存 Learnable treatment 退化；versioned gate v2、pulse/federation/condensed theta0 与 corrected-online create-only/fsync physical ledger 机制已闭合。theta0 v3 attempt03 artifact `dde0fc78…9777` 的 compact receipt `4c3c414b…aab5` 只接受 development mechanism terminal。source-v5 admission artifact `79a51e54…02da` 已使该 exact synthetic source 成为 development campaign input；下一合法顺序是 v5-only embedding table（旧 reader 不重训）→attempt03 typed theta 跨 commit handoff→geometric reachability 与 credit achievability 分账；scientific campaign 另需 always-on/random-gate controls 与新 prereg。reader/campaign 彩排继续关闭；P4.6 development PASS 与 formal host-block 分账，正式 host-dependent 线暂停；四轴 12 槽齐全前不授权 integrated run，不改写既有判词 |
 | [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1m：P1j v4 one-shot unseen failure 与 P1k-R1 已披露策略应用失败均已封存；P1m 用冻结 recipe/v5 typed realizer 生成 24 对，并完成首轮唯一 Wilson qualification。Qwen prompt/RAG 仍固定选 A（各 24/48、0 flip），fresh structured named reader 为 46/48、24/24 flip；report `9580ddff…fc56` 判 baseline too weak、整体失败并关闭场景版本化。P1l human anchor 仍待 3 rater；fresh reader 只作方向性机制证据，consumer qualification、Volvence advantage、formal/P2/四能力继续关闭 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |

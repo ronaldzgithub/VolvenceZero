@@ -302,10 +302,10 @@ attempt03 已在新 create-only 根完成正式 materialization，并在 detache
    campaign 必须另证整组 preaction+barrier fsync 先于 reactive branch，postaction+transition fsync 先于下一拍，
    durable unresolved tail 一律 fail-stop。
 
-gate owner、cold authorization 与 pulse logical consumer 现已闭合。下一独立 owner 包只实现 Product Horizon 的
-多臂 durable barrier/恢复扫描和 40-slot online campaign 接线，不执行矩阵；permanent treatment-reachability
-admission 仍须另立协议，只读新 source 的 public/outcome-free surface，不生成 outcome/PE/credit/update，也不是
-rehearsal。当前 `treatment_reachability_admitted=false`，source-v5 admission 与 achievability 账也均未闭合。
+gate owner、cold authorization、pulse logical consumer、多臂 durable barrier/恢复扫描机制与 source-v5 input
+admission 现已闭合。下一独立包只为 admitted source-v5 public texts 生成 pinned embedding table，不执行矩阵；
+permanent treatment-reachability admission 仍须另立协议，只读新 source 的 public/outcome-free surface，不生成
+outcome/PE/credit/update，也不是 rehearsal。当前 `treatment_reachability_admitted=false`，achievability 账仍未闭合。
 
 permanent admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
 预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。
@@ -601,7 +601,7 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   root/tape/world/subject/session/decision/scene/environment identities 也全不相交。该包只冻结 source owner，
   public history 保留 448 条已观察 onboarding outcome/reaction；current-decision settlement、environment
   construction、model/CUDA/rehearsal/embedding/reader fit/PE/credit/update 均为零。exact-disjoint 不等于 semantic、
-  DGP-independent 或 unseen。下一顺序固定为：source-v5 admission 与全 adaptive-input
+  DGP-independent 或 unseen。当时冻结的下一顺序为：source-v5 admission 与全 adaptive-input
   disjoint closure → v5-only embedding table（旧 reader `fit_count=0`）→ attempt03 typed federation 跨 commit
   handoff → permanent public/outcome-free reachability；任何一步不得用 compact projection bypass。
 - 2026-08-27 · Learnable estimand 经重新操作化审计后修正：旧 attempt03 的三个 arm 在 40 拍 evaluation 内
@@ -616,14 +616,14 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   定向 contract 固定 40 APPLY=`generated/applied/update 40/40/40`，40 WITHHOLD=`40/0/0` 且 terminal
   exact initial；但只有前 39 次 update 在原 40-slot horizon 内拥有 downstream action exposure。
   该包只闭合 gate owner completed-transition 机制；当时仍待 pulse logical barrier 与 campaign durable receipt。
-  pulse 与 add-only physical ledger mechanism 现均已闭合；source-v5 admission、scientific protocol/matrix/effect
-  仍未执行，model/CUDA/rehearsal count=0。
+  pulse 与 add-only physical ledger mechanism 现均已闭合；source-v5 admission artifact `79a51e54…02da`
+  随后已只读复验 PASS，scientific protocol/matrix/effect 仍未执行，model/CUDA/rehearsal count=0。
 - 2026-08-27 · 后续三条设计同时冻结边界但尚未实现：其一，reachability 分成 outcome-free binary-gate
   geometric distance 与读取 actual PE-credit receipt 的 achievability dose，二者不得共用 PASS；其二，Steerable
   增加 always-adopt-owner-recommendation 与 pre-outcome rate-matched random-gate，旧 run 因 frozen gate
   4,480/4,480 STEER 而使 always arm 完全退化，未来 conditional-vs-always/random actual divergence 是硬门；
   其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。v2 evaluation pulse 与 corrected-online
-  durable ledger mechanism 随后均已闭合；下一科学顺序仍是 source-v5 admission→v5-only table→typed theta
+  durable ledger mechanism 随后均已闭合；source-v5 admission 已由 `79a51e54…02da` 闭合，下一科学顺序为 v5-only table→typed theta
   handoff→reachability/achievability，再冻结 controls/campaign，不回改 frozen campaign，也不先启动 integrated run。
 - 2026-08-27 · v2 online evaluation pulse consumer 已闭合 model-free **逻辑**边界：online authorization
   exact-wrap condensed cold theta0 并事前固定 APPLY/WITHHOLD；prepare 绑定 current chain/checkpoint、owner forecast、
@@ -662,6 +662,13 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   dedicated matched training source + internal group holdout/selection receipt → pinned embedding/materialization
   → 另一个 owner 的全新 held-out challenge。spent 224 仅可作 failure geometry，source-v5 继续专属
   campaign/reachability；Readable、模型/CUDA/qualification 均仍 false/zero。
+- 2026-08-27 · source-v5 development input admission 已完成：protocol `d07bdb21…fcd4` 以 closed registry
+  冻结 source-v3 224、source-v4 1,881、development 2,109、attempt03 30、qualification-v5 228 条全文谱系，
+  development+attempt03 union 为 2,135；source-v5 的 3,946 条与每本账全文零交集。exact implementation
+  `8fb2e751…5a12` 单次生成永久七文件 artifact `79a51e54…02da`，保存七本 inventory 与 16,128 个
+  owner-defined 三动作 commitment；pre-manifest 双重 rebuild、byte compare 及外传双 ID read-only
+  `validate-existing` 均 PASS。最高正字段仅 `campaign_input_admitted=true`；embedding、reader fit、theta handoff、
+  runtime blinding、reachability/achievability、campaign/effect/model/CUDA/formal/四轴均仍 false/zero。
 - 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
   （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
   的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。
