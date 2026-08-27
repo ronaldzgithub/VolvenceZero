@@ -163,8 +163,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | Product Horizon forced common-batch owner | `lifeform-evolution.relationship_product_horizon_forced_common_batch` | 只消费 dynamic gate 的 PASS manifest（禁止读取 natural trace/outcome/credit）及其既有 source-v4/reader/theta0/scanner lineage；事前发布 112 份 root-local 8-entry schedule 的内容寻址父索引，每 root 只执行一次 forced collection 并保存共同 terminal owner persistence、8-credit batch 与 APPLY/WITHHOLD transition。full 只能由 theta0+exact batch+APPLY receipt 重放，frozen/strict 共享同一 WITHHOLD receipt。只可授权后续 campaign protocol freeze，不拥有 40-decision evaluation、effect 或能力判词 |
 | Product Horizon 112-root development campaign owner | `lifeform-evolution.relationship_product_horizon_development_campaign` | 只消费 forced campaign-input seam 与 dynamic public selected-branch facade；执行 full / frozen_theta0 / strict_noop 三个 fresh arm 的 40-decision evaluation，固定 preaction 三臂全部 durable 后才能 once-only settle branch，postaction 三臂全部 durable 后才能推进 owner。以 whole root 为 bootstrap/分析单元发布 development-only stop/go；不拥有 reader qualification、formal/unseen 单轴门、integrated 四轴或 production claim |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
-| Product Horizon gate v2 federation owner | `lifeform-domain-emogpt.relationship_action_gate_v2`（既有 gate owner 的 add-only v2 contract） | 以 pre-outcome timing 由外部 owner 证明的 parent index 绑定多个完整 root-local child schedule/batch，保持原 v2 ordered feature-moment/cap 数学，只提交一个全局 APPLY/WITHHOLD parent transition与 terminal checkpoint。receipt 精确声明本 parent 内 `child_transition_count=0`；联邦结果必须凝结为 cold learned theta0 后才能 evaluation。gate 机制与下列 pulse federation consumer 已闭合；theta0 v3 protocol、durable timing receipt、campaign/effect 均未成立 |
+| Product Horizon gate v2 federation owner | `lifeform-domain-emogpt.relationship_action_gate_v2`（既有 gate owner 的 add-only v2 contract） | 以 pre-outcome timing 由外部 owner 证明的 parent index 绑定多个完整 root-local child schedule/batch，保持原 v2 ordered feature-moment/cap 数学，只提交一个全局 APPLY/WITHHOLD parent transition与 terminal checkpoint。receipt 精确声明本 parent 内 `child_transition_count=0`；联邦结果必须凝结为 cold learned theta0 后才能 evaluation。gate 机制与下列 pulse federation consumer 已闭合；theta0 v3 owner/protocol 已冻结但尚无 execution receipt/artifact，campaign/effect 均未成立 |
 | Product Horizon v2 pulse/forced consumer seam | `lifeform-domain-emogpt.lab.relationship_product_pulse`（同一 pulse owner 的 versioned contract） | 独立 `.v2` authorization/command/receipt/snapshot 保留完整 v2 assignment receipt、policy+forecast replay、actual temporal delivery、owner persistence、Social PE 与 parent/common-baseline credit；pulse-owned continuous collection 保留 full settlements、owner publication replay 及全程相邻 handoff，add-only segmented collection 则显式绑定唯一 scope/start、段内 handoff，并在 flatten 后完整耗尽同一 schedule。两类 collection 均以 construction-time provenance seal + ID/export/transition 边界重放阻止 shallow-frozen owner payload 的 nested mutation；有效 continuous 的公开 constructor signature、canonical payload 与 ID 不变。两者使用互不兼容的 transition/commit，均拒绝 raw gate-only batch；generic pulse 不把 caller start 命名为 root reset，theta0 v3 owner 必须另证 onboarding-from-`None`。federated collection 要求完整外部 parent + ordered full segmented children，全局拒绝重复 collection/segment/scope 与倒序 credit time；matched wrapper 只接 gate-owned 单次 parent pair，`child_transition_count=0`，不生成旧 `FrozenPolicy`，loader 不能只靠 IDs 恢复。strict-noop 仅切 executor disposition，base authorization 不可直接打开 ACTIVE。legacy v1 identity/payload 不改；当前仅 model-free contract，不证明 durable pre-outcome timing、112×8 execution、campaign、effect 或能力判词 |
+| Product Horizon theta0 v3 bootstrap owner | `lifeform-evolution.relationship_product_horizon_theta0_v3_bootstrap` | development protocol `9c48a8e3…c12b`（raw `c7e2d75f…883f`）事先只加载 admitted source-v4 public surface 与已冻结、未资格化 reader，建立 112 个固定 4/4 child schedule 的唯一 federated parent；首个 preaction fsync 后才延迟读取 pinned sealed evaluator 与全三动作 commitment index，但只把 actual selected branch 的 outcome/commitment 送入 settlement/learning。owner 在任何 onboarding/forecast/outcome 前 create-only 写入 parent、flush/fsync、同句柄与 close/reopen 精确回读，再以 ledger row 0 激活 capability；每 root 从字面 `None` 重放四条 onboarding 和八条 actual forced settlement，不在 collection 期在线 apply，最后只调用一次 parent APPLY/WITHHOLD transition 并在全部终局门通过时凝结 cold learned theta0。当前只冻结 protocol/implementation/CLI 和 model-free tests，尚无 execution artifact；不运行 reader fit、模型、CUDA、campaign 或彩排，不授权 treatment reachability/effect/formal/unseen/四轴/production |
 | Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
 | Product Horizon campaign owner | `lifeform-evolution.relationship_lab_product_horizon` | 执行 5 条 typed Volvence targeted-intervention arm 和 2 条强基线；每个 Volvence logical session 使用 fresh child，父进程在 pre-action receipt fsync 后才提供 typed outcome，全部 action 结束后才发布 sealed sidecar；离线 validator 重算环境、链、指标与报告 |
 | Relationship named-action residual fit owner | corpus adapter：`lifeform-domain-emogpt.lab.relationship_residual_fit_corpus`；数学 owner：`volvence_zero.agent.named_action_steering_artifact_training` | 只把 pre-action owner forecast + 非 oracle、PE-trained typed gate 投影为 disjoint named-action corpus；在冻结 substrate 上拟合 reader / bounded multiplicative executor / matched sensor-off，strict-noop 为零 code；v1 仅为 typed enum residual prerequisite |
@@ -2283,7 +2284,9 @@ versioned operator，不是第二策略 owner，也不替换 v1 loader。它冻�
 - federation 只产生一个 unique parent plan identity 与一个 terminal checkpoint。APPLY receipt 必须
   `atomic_commit_count=1 / child_transition_count=0 / update_count_delta=896`，WITHHOLD 共用同一
   batch/plan/pre/candidate 且零更新。这里 `child_transition_count=0` 只证明本 parent transition 内未提交 child；
-  child 仍是合法旧 v2 batch，future theta0 owner/admission 必须另证没有旁路。parent content identity 也不自证
+  child 仍是合法旧 v2 batch，future theta0 owner 必须从 actual APPLY/WITHHOLD receipts 建立 accepted persisted
+  lineage 内 `child_transition_count=0`，但不证明 external/OS 路径不存在，也不得把该不可证边界转嫁给永久 admission。
+  parent content identity 也不自证
   pre-outcome timing，必须由外部 owner 在首个 forecast/outcome 前持久化并出具 receipt；
 - federated transition 刻意不塞入旧 `RelationshipActionGateV2FrozenPolicy`；它必须先经完整 parent batch + APPLY
   receipt replay 凝结为 cold learned theta0，runtime counts 与 processed IDs 清零后才能 evaluation。有效旧 flat v2
@@ -2315,14 +2318,22 @@ collection + gate pair，固定 `child_transition_count=0`；不循环 child tra
 collection 与 matched loader 均须重新提供完整 typed parent/children/pair 并 exact-match payload，不能仅凭 compact
 `gate_batch_id`、collection ID 或 transition ID 恢复。有效旧 continuous/segmented API 与 identity 未改。
 
-当前尚无 theta0 v3 protocol/artifact、durable pre-outcome parent receipt、outcome-free treatment-reachability
-admission 或新 campaign。下一收敛包必须先冻结 theta0 v3 protocol/owner：`bootstrap=1/512`、
-`root-online=1/4`、112 个 provenance child / 896 credit 的 parent membership、逐 root onboarding-from-`None`、
-首个 forecast/outcome 前 create-only parent receipt、无 child-commit 旁路、唯一 terminal checkpoint 与 cap-hit FAIL
-全部进入 hash；两率来自两个明确时间尺度，禁止在输出后 sweep/挑候选。只有 protocol 与 implementation 提交后，
-唯一 execution 才可产生 root-reset、durable timing、完整 federation 与 transition proof/artifact。pulse 的 content
-identity、顺序和 timestamp ordering 不能替代这些证据。执行前 permanent admission 只可读取未来 source 的 public/outcome-free surface，检查
-cold 两侧 headroom 与实际 candidate/noop 可达性；它不是 2–3 item rehearsal，不生成 outcome/PE/credit/update。
+当前 theta0 v3 owner/protocol/CLI 已随本提交冻结，protocol `9c48a8e3…c12b`（raw
+`c7e2d75f…883f`）将 `bootstrap=1/512`、`root-online=1/4`、cap `4.0`、112 个 provenance child /
+896 credit 的 parent membership、逐 root onboarding-from-`None`、输出前 HEAD/commit + clean package closure、
+source/reader 与仓库 `packages/scripts` 代码域的 input/output 根隔离、首个 onboarding/forecast/outcome 前 create-only parent
+write+flush+fsync+same-handle readback+close/reopen、ledger row 0 durable owner-path receipt、closed-trace 回读、
+448 次 onboarding change / 784 次 handoff / 896 次 outcome writeback、唯一 parent transition、actual receipt 驱动的
+child-transition count 与 cap-hit/零 informative/无限/全零参数 FAIL 全部进入冻结 identity；两率来自两个明确
+时间尺度，禁止在输出后 sweep/挑候选。定向 model-free tests 已验证协议、schedule/seed pins、
+create-only writer/row-zero capability、Git/roots/closed-trace 失败路径、终局计数门和源码只有一个 parent
+commit call；这些仍不是 execution
+receipt。当前没有 theta0 v3 artifact，因此 root-reset、durable owner-path timing receipt、完整 federation 和 accepted-lineage
+无 child transition 均未建立。pulse 的 content identity、顺序和 timestamp ordering 也不能替代唯一执行证据。
+下一合法动作是在本 implementation commit 上进行一次 create-only、model-free 112×8 materialization，然后以
+外部 protocol/artifact ID 运行纯读取 `validate-existing`。仅当该终局 PASS，才可冻结下一个 permanent
+admission；它只可读取未来 source 的 public/outcome-free surface，检查 cold 两侧 headroom 与实际
+candidate/noop 可达性，不是 2–3 item rehearsal，不生成 outcome/PE/credit/update。
 完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
 durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 

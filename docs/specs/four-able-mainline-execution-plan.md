@@ -201,8 +201,9 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-theta0 v3 的机制路线冻结为三个小包；前两包已经闭合，第三包完成后仍须执行独立 permanent admission，
-全程不恢复彩排：
+theta0 v3 的机制路线冻结为三个小包；前两包已经闭合，第三包的 owner / protocol / CLI
+已在本提交冻结、但尚未执行唯一 materialization。该执行终局封存后仍须独立冻结并执行
+permanent admission，全程不恢复彩排：
 
 1. **已闭合** versioned gate operator v2 与 add-only federated parent：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
@@ -229,11 +230,20 @@ theta0 v3 的机制路线冻结为三个小包；前两包已经闭合，第三�
    同时取得完整 typed parent/children，不能靠 compact ID 重建。matched wrapper 只调用 gate-owned parent factory，
    只产生一个 APPLY/WITHHOLD pair，固定 `child_transition_count=0`，不循环 child transition、不生成旧
    `FrozenPolicy`。本机制只能证明 membership/order/timestamp ordering；parent 在首个 forecast/outcome 前 create-only
-   持久化及无 external child-commit 旁路必须由下一包的 durable owner receipt 另证；
-3. **下一包** theta0 v3 owner/protocol：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
-   一个含 112 个 provenance child、合计 896 credit 的全局 federated development transition batch、唯一 terminal
-   checkpoint 与 cap-hit FAIL；parent 必须在首个 forecast/outcome 前由外部 owner 持久化，正式 lineage 另证没有
-   child-commit 旁路。
+   持久化必须由第三包的唯一 materialization receipt 另证；该 receipt 只能从 actual APPLY/WITHHOLD 建立
+   accepted persisted lineage 内 `child_transition_count=0`，不证明 external/OS 路径不存在；
+3. **实现/协议已冻结，待唯一执行** theta0 v3 owner/protocol：protocol
+   `9c48a8e3…c12b`（raw `c7e2d75f…883f`）事前冻结 bootstrap `1/512`、root-online `1/4`、
+   cap `4.0`、一个含 112 个 provenance child / 896 credit 的全局 federated development parent，以及
+   cap-hit、零 informative update、非有限/全零参数与不完整计数的 FAIL 门。在创建输出根之前，owner 必须证明
+   supplied commit 存在且等于 HEAD、owner/protocol/CLI 的 git blob 属于该 commit，且 `packages` 与本 CLI
+   无 tracked/untracked 漂移；输出根还必须与 source/reader 冻结根及仓库 `packages/scripts` 代码域隔离。parent schedule create-only 写入、
+   flush/fsync、同句柄回读、close/reopen byte-exact 后，durable owner-path receipt 才能成为 ledger row 0；
+   每 root 从字面 `None` 重放四条 onboarding，448 次 onboarding write、784 次段内 handoff 和 896 次
+   outcome writeback 均为终局门。收齐后只调用一次 parent transition factory，最终 child count 必须来自
+   APPLY/WITHHOLD actual receipt，不得硬编码为零；closed trace 还必须在 transition/manifest 前 reopen byte-exact。
+   定向 model-free tests 只闭合这些代码/契约与固定 schedule/seed identity；当前没有 theta0 v3 artifact，
+   durable owner-path timing receipt、root reset 与 accepted-lineage 无 child transition 仍为 false，只能由提交后的唯一创建执行建立。
 
 三个机制包之后独立执行 permanent treatment-reachability admission；它只读新 source 的
 public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
@@ -479,5 +489,17 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   小型同序 flat reference 的 candidate checkpoint byte-exact。matched APPLY/WITHHOLD 共享一个 unique parent plan identity、
   pre/candidate checkpoint；APPLY 为一次 atomic parent commit，receipt 报 `child_transition_count=0`，federated terminal
   必须先凝结为 cold learned theta0 才能 evaluation。该字段只证明本 parent 内无 child transition；future owner 仍须证明
-  pre-outcome timing 与无外部 child-commit 旁路。当前仅 gate owner + model-free unit contract 闭合；pulse federation
+  pre-outcome timing，并从 actual APPLY/WITHHOLD receipts 建立 accepted persisted lineage 内
+  `child_transition_count=0`，不扩展为 external/OS 路径不存在。当前仅 gate owner + model-free unit contract 闭合；pulse federation
   consumer、theta0 v3、permanent admission、模型/CUDA/campaign/effect 全部待完成，reader/campaign 彩排继续关闭。
+- 2026-08-27 · pulse federation consumer 已以 `1e267a61` 提交闭合；theta0 v3 development owner、
+  protocol `9c48a8e3…c12b`（raw `c7e2d75f…883f`）、只含 `materialize / validate-existing` 的 CLI 与 model-free
+  定向测试随本提交冻结。协议将 source-v4 和未资格化 development reader 明示标为已花费 adaptive
+  input，不读旧 theta0-v2 / forced-common outcome-credit，不运行模型或 CUDA。当前仅冻结实现：未产生
+  theta0 v3 artifact，未建立 durable/root-reset/no-child-transition execution claim，也未计算任何 effect。
+  提交前红队发现任意 40-hex SHA 可冒充 implementation commit，且 child-transition 失败 artifact 会将实测计数
+  硬写为 0；本包已将两者 fail closed，并增加 input/output 根隔离、closed-trace 回读、
+  448/784/896 owner-state 变化/交接门。这些仍是 implementation safeguards，不是实验结果。
+  下一合法动作是在该 implementation commit 上做一次 create-only、model-free 112×8 materialization，随即用外部
+  protocol/artifact ID 纯读取复验；之后才冻结 permanent public/outcome-free treatment-reachability admission。
+  彩排继续关闭，admission 仍不得被命名为 rehearsal。
