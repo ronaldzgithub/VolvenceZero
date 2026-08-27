@@ -4265,10 +4265,21 @@ async def prepare_relationship_product_v2_forced_collection_preaction(
     forecast_runtime: PreferenceActionForecastRuntime,
     authorization: RelationshipProductV2ForcedCollectionAuthorization,
     substrate_snapshot: SubstrateSnapshot,
+    temporal_delivery_timestamp_ms: int | None = None,
 ) -> RelationshipProductV2ForcedCollectionPreActionSnapshot:
     """Publish and deliver one action derived from a full v2 assignment receipt."""
 
     _validate_placeholder_substrate(substrate_snapshot)
+    if (
+        temporal_delivery_timestamp_ms is not None
+        and type(temporal_delivery_timestamp_ms) is not int
+    ):
+        raise TypeError("temporal_delivery_timestamp_ms must be an int or None")
+    if (
+        temporal_delivery_timestamp_ms is not None
+        and temporal_delivery_timestamp_ms < 0
+    ):
+        raise ValueError("temporal_delivery_timestamp_ms must be non-negative")
     if type(authorization) is not RelationshipProductV2ForcedCollectionAuthorization:
         raise TypeError("authorization must be RelationshipProductV2ForcedCollectionAuthorization")
     authorization.validate_decision_id(request.forecast_request.decision_id)
@@ -4307,6 +4318,7 @@ async def prepare_relationship_product_v2_forced_collection_preaction(
     execution_receipt = await _execute_relationship_product_v2_forced_command(
         command=command,
         substrate_snapshot=substrate_snapshot,
+        temporal_delivery_timestamp_ms=temporal_delivery_timestamp_ms,
     )
     return RelationshipProductV2ForcedCollectionPreActionSnapshot(
         request=request,
@@ -4862,6 +4874,7 @@ async def _execute_relationship_product_v2_forced_command(
     *,
     command: RelationshipProductV2ForcedCollectionCommand,
     substrate_snapshot: SubstrateSnapshot,
+    temporal_delivery_timestamp_ms: int | None,
 ) -> RelationshipProductV2ForcedCollectionReceipt:
     if type(command) is not RelationshipProductV2ForcedCollectionCommand:
         raise TypeError("command must be RelationshipProductV2ForcedCollectionCommand")
@@ -4879,6 +4892,7 @@ async def _execute_relationship_product_v2_forced_command(
     temporal_snapshot = await _apply_typed_environment_advisory(
         delivered_advisory,
         substrate_snapshot=substrate_snapshot,
+        publication_timestamp_ms=temporal_delivery_timestamp_ms,
     )
     return RelationshipProductV2ForcedCollectionReceipt(
         command=command,
@@ -5010,6 +5024,7 @@ async def _apply_typed_environment_advisory(
     advisory: TemporalActionAdvisoryProposal,
     *,
     substrate_snapshot: SubstrateSnapshot,
+    publication_timestamp_ms: int | None = None,
 ) -> Snapshot[TemporalAbstractionSnapshot]:
     module = TrackTemporalModule(
         track=Track.SELF,
@@ -5019,7 +5034,8 @@ async def _apply_typed_environment_advisory(
         action_advisory_level=WiringLevel.ACTIVE,
     )
     snapshot = await module.process_standalone(
-        substrate_snapshot=substrate_snapshot
+        substrate_snapshot=substrate_snapshot,
+        publication_timestamp_ms=publication_timestamp_ms,
     )
     if snapshot.value.action_advisory_status is not TemporalActionAdvisoryStatus.APPLIED:
         raise RuntimeError("relationship product typed advisory was not applied")

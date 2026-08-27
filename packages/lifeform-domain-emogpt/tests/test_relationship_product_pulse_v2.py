@@ -513,6 +513,128 @@ def test_v2_forced_delivery_is_derived_from_full_assignment_receipt() -> None:
     }.intersection(prepare_parameters)
 
 
+def test_v2_forced_receipt_and_collection_provenance_replay_with_logical_time() -> None:
+    artifact = _seed()
+    request = _request(21)
+    sibling_request = _request(210)
+    schedule = RelationshipActionGateV2AssignmentScheduleArtifact(
+        source_artifact_id=f"relationship-product-source-sha256:{'f' * 64}",
+        schedule_scope_id="v2-logical-time-replay",
+        entries=(
+            RelationshipActionGateV2AssignmentScheduleEntry(
+                decision_id=request.forecast_request.decision_id,
+                sequence_index=0,
+                assignment_role=RelationshipActionGateV2AssignmentRole.CANDIDATE,
+            ),
+            RelationshipActionGateV2AssignmentScheduleEntry(
+                decision_id=sibling_request.forecast_request.decision_id,
+                sequence_index=1,
+                assignment_role=RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+            ),
+        ),
+    )
+    authorization = RelationshipProductV2ForcedCollectionAuthorization(
+        pulse_authorization=_pulse_authorization(
+            artifact,
+            suffix="logical-time-replay",
+        ),
+        frozen_policy=RelationshipActionGateV2(
+            artifact=artifact
+        ).freeze_for_evaluation(),
+        assignment=RelationshipActionGateV2AssignmentReceipt(
+            schedule_artifact=schedule,
+            schedule_entry=schedule.entries[0],
+        ),
+    )
+    owner_start = SocialRecordStore().export_persistence_snapshot()
+
+    async def collect(timestamp_ms: int):
+        preaction = await prepare_relationship_product_v2_forced_collection_preaction(
+            request=request,
+            owner_persistence_snapshot=owner_start,
+            forecast_runtime=_ForecastRuntime(),
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=timestamp_ms,
+        )
+        settlement = await settle_relationship_product_v2_forced_collection(
+            preaction=preaction,
+            settlement_input=_settlement_input(preaction),
+        )
+        return preaction, settlement
+
+    first_preaction, first_settlement = asyncio.run(collect(421))
+    replay_preaction, replay_settlement = asyncio.run(collect(421))
+    changed_preaction, _changed_settlement = asyncio.run(collect(423))
+
+    assert first_preaction.execution_receipt.to_payload() == (
+        replay_preaction.execution_receipt.to_payload()
+    )
+    assert pulse_module._relationship_product_v2_forced_settlement_provenance_payload(
+        first_settlement
+    ) == pulse_module._relationship_product_v2_forced_settlement_provenance_payload(
+        replay_settlement
+    )
+    assert first_preaction.execution_receipt.temporal_delivery.timestamp_ms == 421
+    assert changed_preaction.execution_receipt.temporal_delivery.timestamp_ms == 423
+    assert first_preaction.execution_receipt.command == (
+        changed_preaction.execution_receipt.command
+    )
+    assert first_preaction.execution_receipt.receipt_id != (
+        changed_preaction.execution_receipt.receipt_id
+    )
+
+
+@pytest.mark.parametrize("timestamp_ms", [True, 1.5, "421"])
+def test_v2_forced_preaction_rejects_invalid_logical_time(timestamp_ms) -> None:
+    artifact = _seed()
+    request = _request(22)
+    sibling_request = _request(220)
+    schedule = RelationshipActionGateV2AssignmentScheduleArtifact(
+        source_artifact_id=f"relationship-product-source-sha256:{'e' * 64}",
+        schedule_scope_id="v2-invalid-logical-time",
+        entries=(
+            RelationshipActionGateV2AssignmentScheduleEntry(
+                decision_id=request.forecast_request.decision_id,
+                sequence_index=0,
+                assignment_role=RelationshipActionGateV2AssignmentRole.CANDIDATE,
+            ),
+            RelationshipActionGateV2AssignmentScheduleEntry(
+                decision_id=sibling_request.forecast_request.decision_id,
+                sequence_index=1,
+                assignment_role=RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+            ),
+        ),
+    )
+    authorization = RelationshipProductV2ForcedCollectionAuthorization(
+        pulse_authorization=_pulse_authorization(
+            artifact,
+            suffix="invalid-logical-time",
+        ),
+        frozen_policy=RelationshipActionGateV2(
+            artifact=artifact
+        ).freeze_for_evaluation(),
+        assignment=RelationshipActionGateV2AssignmentReceipt(
+            schedule_artifact=schedule,
+            schedule_entry=schedule.entries[0],
+        ),
+    )
+
+    with pytest.raises(TypeError, match="temporal_delivery_timestamp_ms"):
+        asyncio.run(
+            prepare_relationship_product_v2_forced_collection_preaction(
+                request=request,
+                owner_persistence_snapshot=(
+                    SocialRecordStore().export_persistence_snapshot()
+                ),
+                forecast_runtime=_ForecastRuntime(),
+                authorization=authorization,
+                substrate_snapshot=_placeholder_substrate(),
+                temporal_delivery_timestamp_ms=timestamp_ms,
+            )
+        )
+
+
 def test_v2_pulse_replays_policy_before_authorizing_frozen_decision() -> None:
     settlements, _batch, _persistence = asyncio.run(_collect_batch(_seed(), start_index=30))
     command = settlements[0].preaction.execution_receipt.command

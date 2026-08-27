@@ -174,6 +174,12 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 
 契约不变量：
 
+- v2 forced collection 的 `temporal_delivery_timestamp_ms` 是可选的 offline execution-envelope
+  输入：省略时继续使用 temporal owner 的真实 UTC；显式传入时必须是非负整数，并由
+  `TrackTemporalModule` 在发布时进入 `RelationshipProductTemporalDelivery` 与 forced receipt
+  content identity。它不进入 forecast/gate/action/outcome/PE/credit，不能由 evaluation/judge
+  提供，也不授权 consumer 后改 snapshot。需要 byte-exact replay 的上游协议必须事先冻结其
+  逻辑时间公式；旧调用、command payload 与默认 receipt 行为保持兼容。
 - generator truth、`preferred_action`、future outcome 与 judge/evaluation 不得进入
   `RelationshipObservation.to_sut_payload()`；loader 必须 fail loudly on leakage；
 - v2/v3/v4 还必须隐藏 `condition_id / policy_id / probe_condition_id /

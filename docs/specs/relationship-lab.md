@@ -2317,6 +2317,11 @@ credit timestamp 严格递增。pulse-owned matched wrapper 只调用一次 gate
 collection + gate pair，固定 `child_transition_count=0`；不循环 child transition，也不生成旧 `FrozenPolicy`。
 collection 与 matched loader 均须重新提供完整 typed parent/children/pair 并 exact-match payload，不能仅凭 compact
 `gate_batch_id`、collection ID 或 transition ID 恢复。有效旧 continuous/segmented API 与 identity 未改。
+v2 forced preaction 另有 add-only `temporal_delivery_timestamp_ms` execution-envelope 输入：默认 `None`
+仍由 temporal owner 发布真实 UTC；只有需要 byte-exact 离线重放的上游协议才可传入事先冻结的非负整数逻辑时间。
+该值只进入 producer snapshot envelope 与 forced receipt 内容身份，不进入 forecast、gate、action、outcome、PE、
+credit 或 evaluation；同输入同逻辑时间的 receipt 与 collection provenance 必须 exact，同输入不同逻辑时间的
+receipt ID 必须不同。consumer 不得后改 timestamp，旧 command payload 与未传值路径保持不变。
 
 当前 theta0 v3 owner/protocol/CLI 已由 `9a6dfc04` 冻结，protocol `9c48a8e3…c12b`（raw
 `c7e2d75f…883f`）将 `bootstrap=1/512`、`root-online=1/4`、cap `4.0`、112 个 provenance child /
