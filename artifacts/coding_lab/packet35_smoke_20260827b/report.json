@@ -1,0 +1,861 @@
+{
+  "assignment_summary": {
+    "compliance_rate_by_action": {
+      "edit": 1.0,
+      "investigate": 1.0,
+      "submit": 1.0,
+      "test": 1.0
+    },
+    "control_records": 9,
+    "distinct_state_keys_triggered": 5,
+    "intervention_records": 23,
+    "triggered_total": 32
+  },
+  "config": {
+    "api_model": null,
+    "assignment_seed": 20260827,
+    "chains": 4,
+    "control_weight": 0.2,
+    "convention_ids": [],
+    "env_seed": 20260812,
+    "episodes_per_chain": 8,
+    "hand_kind": "scripted",
+    "scripted_rates": {
+      "acceptance_sabotage": 0.25,
+      "invariant_sabotage": 0.25
+    },
+    "target_state_keys": [
+      "add_helper|reads=0|edited=0|tests=none",
+      "config_feature|reads=0|edited=0|tests=none",
+      "extend_report|reads=0|edited=0|tests=none",
+      "fix_bug|reads=0|edited=0|tests=none",
+      "refactor_alias|reads=0|edited=0|tests=none"
+    ]
+  },
+  "episodes": [
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "edit",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 0,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-000-add_helper-ratio_or_zero",
+      "trajectory_sha256": "ecfac0f372c413c3647ecead8e7f0ea08d3cef103d859aa3ddb77b6eee865818",
+      "triggered": true,
+      "wall_seconds": 0.8280000000377186
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "extend_report|reads=0|edited=0|tests=none",
+      "category": "extend_report",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 1,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-001-extend_report",
+      "trajectory_sha256": "6bc7713fe150eee866a8554314b2eb41c25b3d26ca10ca34e4a3b3bcd6c4ba11",
+      "triggered": true,
+      "wall_seconds": 0.8130000000237487
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 2,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-002-fix_bug",
+      "trajectory_sha256": "b985293d2b98e5bdc769bbed000c006132c03a2466c56135c511a71a6ca8cce8",
+      "triggered": true,
+      "wall_seconds": 1.6399999999557622
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 3,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-003-fix_bug",
+      "trajectory_sha256": "79403b4ada7fdee23c8744dbfa3120a0ba521b5a6714b2f0fac67a5e7ae85790",
+      "triggered": true,
+      "wall_seconds": 0.7970000000204891
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "config_feature|reads=0|edited=0|tests=none",
+      "category": "config_feature",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 4,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-004-config_feature",
+      "trajectory_sha256": "7f473fa0752f9c9b6a496e5430e61f32aad8570bc30c132d3ee89785132aab9f",
+      "triggered": true,
+      "wall_seconds": 1.6089999999967404
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 5,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-005-fix_bug",
+      "trajectory_sha256": "8a466ce80bd94b7cc96e403434c42903c42900fe19da2acbbd6c47a3e5862497",
+      "triggered": true,
+      "wall_seconds": 0.8119999999762513
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 6,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-006-add_helper-clamp",
+      "trajectory_sha256": "b7c09b48d5b176fb8f9b69b52db9b2b5c82c01d4c1565ee46afcaddb7b0ae2d1",
+      "triggered": true,
+      "wall_seconds": 0.9220000000204891
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "investigate",
+      "assignment_target_key": "refactor_alias|reads=0|edited=0|tests=none",
+      "category": "refactor_alias",
+      "chain_index": 0,
+      "completion_tokens": 0,
+      "episode_index": 7,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 5,
+      "submitted": true,
+      "task_id": "task-007-refactor_alias",
+      "trajectory_sha256": "5d566fb587add51cafc860cb6cd7fdaf73b0b690b91f6556e9dad7609bee89c5",
+      "triggered": true,
+      "wall_seconds": 1.6410000000032596
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "config_feature|reads=0|edited=0|tests=none",
+      "category": "config_feature",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 0,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-000-config_feature",
+      "trajectory_sha256": "13b71c457b0682c7a07c1156b034a42c125c0ac2d9cb5afe136718e511be8f67",
+      "triggered": true,
+      "wall_seconds": 1.5939999999827705
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 1,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-001-fix_bug",
+      "trajectory_sha256": "ddef627fe3a78f992e8a637563cad847765ef876965dc98eee63ae665d32a2bb",
+      "triggered": true,
+      "wall_seconds": 1.702999999979511
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 2,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-002-fix_bug",
+      "trajectory_sha256": "dc43740e716fca89d9c9379ae2ab5beb510c850e48f914a23911000712aa2b6f",
+      "triggered": true,
+      "wall_seconds": 0.8279999999795109
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 3,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-003-fix_bug",
+      "trajectory_sha256": "6b97f76bd99889f945d69dc75d9af3e2fbcc04fd30ad215a573412f03fa8f737",
+      "triggered": true,
+      "wall_seconds": 1.6560000000172295
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 4,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-004-add_helper-ratio_or_zero",
+      "trajectory_sha256": "21180104fa74eaf0a85e0ebcc4bc513355f7326d5a3398e39bd0b76f15fa1cf8",
+      "triggered": true,
+      "wall_seconds": 0.8119999999762513
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "extend_report|reads=0|edited=0|tests=none",
+      "category": "extend_report",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 5,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-005-extend_report",
+      "trajectory_sha256": "36f9928a1b3f71280da7eee33f33dfb980be90ef4eb5849d02a2868e49681727",
+      "triggered": true,
+      "wall_seconds": 0.7970000000204891
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "refactor_alias|reads=0|edited=0|tests=none",
+      "category": "refactor_alias",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 6,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-006-refactor_alias",
+      "trajectory_sha256": "5d353b5c12570809d6804f70e688f96f8d414adcfff8235c8edc005918150a11",
+      "triggered": true,
+      "wall_seconds": 1.6570000000065193
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 1,
+      "completion_tokens": 0,
+      "episode_index": 7,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-007-fix_bug",
+      "trajectory_sha256": "9e611dcbc668838626e8f8f0f42c935b04767216be1df5d4752d8be740770373",
+      "triggered": true,
+      "wall_seconds": 0.8280000000377186
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 0,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-000-add_helper-ratio_or_zero",
+      "trajectory_sha256": "b6b7846c1243ba3b0c74f5ed9552e51accb3ccd1f3440a724594736e086d2dc7",
+      "triggered": true,
+      "wall_seconds": 0.8279999999795109
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 1,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-001-add_helper-clamp",
+      "trajectory_sha256": "74862f061ccfbf8bc0e68fe0e9a086662bdf9222c48ec1a131277ef5f13a865c",
+      "triggered": true,
+      "wall_seconds": 0.8440000000409782
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "investigate",
+      "assignment_target_key": "extend_report|reads=0|edited=0|tests=none",
+      "category": "extend_report",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 2,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-002-extend_report",
+      "trajectory_sha256": "74862751a313e7cc18b9712bb2e234576f76e0049dd38bc111fce1293d173c2e",
+      "triggered": true,
+      "wall_seconds": 0.8119999999762513
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "edit",
+      "assignment_target_key": "refactor_alias|reads=0|edited=0|tests=none",
+      "category": "refactor_alias",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 3,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 5,
+      "submitted": true,
+      "task_id": "task-003-refactor_alias",
+      "trajectory_sha256": "914f02ed24f636a085c1a470e7efb3dae35ba7bcbf8891ed5aa3594cd047404b",
+      "triggered": true,
+      "wall_seconds": 1.6880000000237487
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 4,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-004-fix_bug",
+      "trajectory_sha256": "ea86d63bd7604f5048e0be07163b8a984541b04c33e64d29d5d2e0db5244c3b7",
+      "triggered": true,
+      "wall_seconds": 1.6410000000032596
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "edit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 5,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-005-fix_bug",
+      "trajectory_sha256": "6f864326235e2e2741aecf16c8805e29fd5b6792712639b099f02788efeb327a",
+      "triggered": true,
+      "wall_seconds": 0.8429999999934807
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 6,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-006-add_helper-saturate_pct",
+      "trajectory_sha256": "a5759a43ac05213229164f37806c0f8625fd64aad8e83e61beb4cf2f4e7d771b",
+      "triggered": true,
+      "wall_seconds": 1.6399999999557622
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 2,
+      "completion_tokens": 0,
+      "episode_index": 7,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-007-add_helper-wrap_index",
+      "trajectory_sha256": "1056efd70e42fd96b0c54997c5a918d1ddadba1bac36cfb5913676463589a894",
+      "triggered": true,
+      "wall_seconds": 1.625
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 0,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-000-add_helper-saturate_pct",
+      "trajectory_sha256": "f959b435f33d501f86ff18491dbf7e0613841248d49b7dec836c9e3fe1b07aca",
+      "triggered": true,
+      "wall_seconds": 0.9220000000204891
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "investigate",
+      "assignment_target_key": "refactor_alias|reads=0|edited=0|tests=none",
+      "category": "refactor_alias",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 1,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 5,
+      "submitted": true,
+      "task_id": "task-001-refactor_alias",
+      "trajectory_sha256": "560b12bfbca79478d6f6f1e8c79f394696f4448f8d6af989781435d5c5a7155b",
+      "triggered": true,
+      "wall_seconds": 1.6559999999590218
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 2,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-002-fix_bug",
+      "trajectory_sha256": "b58f3bf586c0c36dfdc6be573dd02b64c69235e0e2a89f49ffc8ab96de01ec81",
+      "triggered": true,
+      "wall_seconds": 0.8440000000409782
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "test",
+      "assignment_target_key": "config_feature|reads=0|edited=0|tests=none",
+      "category": "config_feature",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 3,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-003-config_feature",
+      "trajectory_sha256": "392a815726255903484668d5f812922835d8fdd43551cd3f6d1954f1febb6c38",
+      "triggered": true,
+      "wall_seconds": 1.6399999999557622
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "edit",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 4,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-004-add_helper-ratio_or_zero",
+      "trajectory_sha256": "6480633eda351bf4c7bf6ec13b7e7fe575587ed7321b6ad6bf0e292c98295940",
+      "triggered": true,
+      "wall_seconds": 0.8440000000409782
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "submit",
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 5,
+      "passed": false,
+      "prompt_tokens": 0,
+      "steps_used": 1,
+      "submitted": true,
+      "task_id": "task-005-fix_bug",
+      "trajectory_sha256": "3d81d71de2b86927fa04c58296d8b0c3a0ef17a29291b9e3b103b442eff22ab5",
+      "triggered": true,
+      "wall_seconds": 0.8129999999655411
+    },
+    {
+      "assignment_arm": "control",
+      "assignment_drawn": null,
+      "assignment_target_key": "fix_bug|reads=0|edited=0|tests=none",
+      "category": "fix_bug",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 6,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 3,
+      "submitted": true,
+      "task_id": "task-006-fix_bug",
+      "trajectory_sha256": "127e2582b5f451fd6953c32dac0b4f6e78c65549fdf7de52fe40615cc453f201",
+      "triggered": true,
+      "wall_seconds": 0.8120000000344589
+    },
+    {
+      "assignment_arm": "intervention",
+      "assignment_drawn": "edit",
+      "assignment_target_key": "add_helper|reads=0|edited=0|tests=none",
+      "category": "add_helper",
+      "chain_index": 3,
+      "completion_tokens": 0,
+      "episode_index": 7,
+      "passed": true,
+      "prompt_tokens": 0,
+      "steps_used": 4,
+      "submitted": true,
+      "task_id": "task-007-add_helper-clamp",
+      "trajectory_sha256": "9f389a6d3f07d09ddd9fe8a37d172324689b9dae5dae33c3ad16661108f65dcd",
+      "triggered": true,
+      "wall_seconds": 0.7969999999622814
+    }
+  ],
+  "evidence_tier": "development",
+  "expert_disagreements": [],
+  "honest_boundaries": {
+    "capability_claim_authorized": false,
+    "intention_to_treat": true,
+    "note": "ITT pass rates are causal for the assigned action GIVEN the state was reached; which states get reached remains observational. A disagreement between the interventional and observational expert maps is a finding about confounding, not a failure.",
+    "randomized_within_reached_state": true,
+    "state_reachability_not_randomized": true
+  },
+  "interventional_expert_actions": {},
+  "interventional_table": {
+    "add_helper|reads=0|edited=0|tests=none": [
+      {
+        "assigned_action": "edit",
+        "compliance_rate": 1.0,
+        "compliant_trials": 3,
+        "pass_rate": 0.666667,
+        "passes": 2,
+        "state_key": "add_helper|reads=0|edited=0|tests=none",
+        "trials": 3,
+        "wilson95_high": 0.938508,
+        "wilson95_low": 0.20766
+      },
+      {
+        "assigned_action": "submit",
+        "compliance_rate": 1.0,
+        "compliant_trials": 2,
+        "pass_rate": 0.0,
+        "passes": 0,
+        "state_key": "add_helper|reads=0|edited=0|tests=none",
+        "trials": 2,
+        "wilson95_high": 0.65762,
+        "wilson95_low": 0.0
+      },
+      {
+        "assigned_action": "test",
+        "compliance_rate": 1.0,
+        "compliant_trials": 2,
+        "pass_rate": 0.0,
+        "passes": 0,
+        "state_key": "add_helper|reads=0|edited=0|tests=none",
+        "trials": 2,
+        "wilson95_high": 0.65762,
+        "wilson95_low": 0.0
+      }
+    ],
+    "config_feature|reads=0|edited=0|tests=none": [
+      {
+        "assigned_action": "test",
+        "compliance_rate": 1.0,
+        "compliant_trials": 2,
+        "pass_rate": 0.5,
+        "passes": 1,
+        "state_key": "config_feature|reads=0|edited=0|tests=none",
+        "trials": 2,
+        "wilson95_high": 0.905469,
+        "wilson95_low": 0.094531
+      }
+    ],
+    "extend_report|reads=0|edited=0|tests=none": [
+      {
+        "assigned_action": "investigate",
+        "compliance_rate": 1.0,
+        "compliant_trials": 1,
+        "pass_rate": 1.0,
+        "passes": 1,
+        "state_key": "extend_report|reads=0|edited=0|tests=none",
+        "trials": 1,
+        "wilson95_high": 1.0,
+        "wilson95_low": 0.206549
+      }
+    ],
+    "fix_bug|reads=0|edited=0|tests=none": [
+      {
+        "assigned_action": "edit",
+        "compliance_rate": 1.0,
+        "compliant_trials": 1,
+        "pass_rate": 1.0,
+        "passes": 1,
+        "state_key": "fix_bug|reads=0|edited=0|tests=none",
+        "trials": 1,
+        "wilson95_high": 1.0,
+        "wilson95_low": 0.206549
+      },
+      {
+        "assigned_action": "submit",
+        "compliance_rate": 1.0,
+        "compliant_trials": 5,
+        "pass_rate": 0.0,
+        "passes": 0,
+        "state_key": "fix_bug|reads=0|edited=0|tests=none",
+        "trials": 5,
+        "wilson95_high": 0.434482,
+        "wilson95_low": 0.0
+      },
+      {
+        "assigned_action": "test",
+        "compliance_rate": 1.0,
+        "compliant_trials": 4,
+        "pass_rate": 0.5,
+        "passes": 2,
+        "state_key": "fix_bug|reads=0|edited=0|tests=none",
+        "trials": 4,
+        "wilson95_high": 0.849961,
+        "wilson95_low": 0.150039
+      }
+    ],
+    "refactor_alias|reads=0|edited=0|tests=none": [
+      {
+        "assigned_action": "edit",
+        "compliance_rate": 1.0,
+        "compliant_trials": 1,
+        "pass_rate": 1.0,
+        "passes": 1,
+        "state_key": "refactor_alias|reads=0|edited=0|tests=none",
+        "trials": 1,
+        "wilson95_high": 1.0,
+        "wilson95_low": 0.206549
+      },
+      {
+        "assigned_action": "investigate",
+        "compliance_rate": 1.0,
+        "compliant_trials": 2,
+        "pass_rate": 0.5,
+        "passes": 1,
+        "state_key": "refactor_alias|reads=0|edited=0|tests=none",
+        "trials": 2,
+        "wilson95_high": 0.905469,
+        "wilson95_low": 0.094531
+      }
+    ]
+  },
+  "observational_control_expert_actions": {},
+  "observational_control_table": {
+    "add_helper|reads=0|edited=0|tests=none": [
+      {
+        "action": "investigate",
+        "pass_rate": 0.333333,
+        "passes": 1,
+        "trials": 3
+      }
+    ],
+    "add_helper|reads=1|edited=0|tests=none": [
+      {
+        "action": "edit",
+        "pass_rate": 0.333333,
+        "passes": 1,
+        "trials": 3
+      }
+    ],
+    "add_helper|reads=1|edited=1|tests=none": [
+      {
+        "action": "submit",
+        "pass_rate": 0.333333,
+        "passes": 1,
+        "trials": 3
+      }
+    ],
+    "config_feature|reads=0|edited=0|tests=none": [
+      {
+        "action": "investigate",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "config_feature|reads=1|edited=0|tests=none": [
+      {
+        "action": "edit",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "config_feature|reads=1|edited=1|tests=none": [
+      {
+        "action": "test",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "config_feature|reads=1|edited=1|tests=passed": [
+      {
+        "action": "submit",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "extend_report|reads=0|edited=0|tests=none": [
+      {
+        "action": "investigate",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "extend_report|reads=1|edited=0|tests=none": [
+      {
+        "action": "edit",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "extend_report|reads=1|edited=1|tests=none": [
+      {
+        "action": "submit",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "fix_bug|reads=0|edited=0|tests=none": [
+      {
+        "action": "investigate",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "fix_bug|reads=1|edited=0|tests=none": [
+      {
+        "action": "edit",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "fix_bug|reads=1|edited=1|tests=none": [
+      {
+        "action": "submit",
+        "pass_rate": 1.0,
+        "passes": 2,
+        "trials": 2
+      }
+    ],
+    "refactor_alias|reads=0|edited=0|tests=none": [
+      {
+        "action": "investigate",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "refactor_alias|reads=1|edited=0|tests=none": [
+      {
+        "action": "edit",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "refactor_alias|reads=1|edited=1|tests=none": [
+      {
+        "action": "test",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ],
+    "refactor_alias|reads=1|edited=1|tests=passed": [
+      {
+        "action": "submit",
+        "pass_rate": 1.0,
+        "passes": 1,
+        "trials": 1
+      }
+    ]
+  },
+  "packet": "coding-lab-packet-3.5",
+  "preflight_disk": {
+    "free_bytes": 1221729652736,
+    "required_bytes": 2147483648
+  },
+  "prereg_sha256": null,
+  "run_id": "packet35_smoke_20260827b",
+  "started_unix": 1787832733,
+  "wall_seconds": 55.03120231628418
+}

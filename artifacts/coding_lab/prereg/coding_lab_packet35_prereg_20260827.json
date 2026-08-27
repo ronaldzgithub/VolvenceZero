@@ -1,0 +1,42 @@
+{
+ "arms": [
+  "control",
+  "investigate",
+  "edit",
+  "test",
+  "submit"
+ ],
+ "assignment_seed": 20260827,
+ "chains": 24,
+ "control_weight": 0.2,
+ "convention_ids": [
+  "convention_export_all"
+ ],
+ "env_seed": 20260812,
+ "episodes_per_chain": 10,
+ "estimand": "intention-to-treat episode pass rate per (state_key, assigned_action) cell, randomized uniformly at the first target-state junction",
+ "hand": {
+  "api_key_env": "DASHSCOPE_API_KEY",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "kind": "api",
+  "model": "qwen3-coder-next",
+  "temperature": 0.0
+ },
+ "honest_endgames": [
+  "interventional_experts_confirm_observational",
+  "interventional_experts_contradict_observational (finding, not failure)",
+  "insufficient_cell_support_no_expert_map"
+ ],
+ "min_action_support": 5,
+ "min_pass_rate_margin": 0.1,
+ "notes": "ITT is causal for assigned action given reached state; state reachability stays observational. No capability claim.",
+ "packet": "coding-lab-packet-3.5",
+ "prereg_id": "coding-lab-packet35-1787832807",
+ "target_state_keys": [
+  "add_helper|reads=1|edited=0|tests=none",
+  "config_feature|reads=1|edited=0|tests=none",
+  "extend_report|reads=1|edited=0|tests=none",
+  "fix_bug|reads=1|edited=0|tests=none",
+  "refactor_alias|reads=2|edited=0|tests=none"
+ ]
+}

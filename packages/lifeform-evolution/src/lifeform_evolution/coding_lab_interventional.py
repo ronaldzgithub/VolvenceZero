@@ -101,6 +101,7 @@ class InterventionalEpisodeRow:
     task_id: str
     category: str
     passed: bool
+    assignment_target_key: str | None
     assignment_drawn: str | None
     assignment_arm: str
     triggered: bool
@@ -112,15 +113,36 @@ class InterventionalEpisodeRow:
     trajectory_sha256: str
 
 
-def draw_assignment(config: InterventionalConfig, chain_index: int, episode_index: int) -> str | None:
-    """Seeded uniform draw: control with ``control_weight`` mass, else one action."""
+def draw_assignment(
+    config: InterventionalConfig,
+    chain_index: int,
+    episode_index: int,
+    category: str,
+) -> tuple[str | None, str | None]:
+    """Seeded draw of (target state key, assigned action) for one episode.
+
+    One target key per episode: a first-match rule over the whole target
+    set would sample almost exclusively the earliest-reachable states, so
+    later states (post-edit, post-test) would never accumulate cells.
+    The draw is CATEGORY-AWARE — the key is drawn among targets whose
+    category matches the episode's task — because category is known
+    pre-episode (pre-treatment) and a cross-category key can never
+    trigger, so excluding it spends no randomness and biases nothing.
+    Episodes whose category matches no target record no assignment.
+    """
 
     rng = Random(
         config.assignment_seed * 1_000_003 + chain_index * 10_007 + episode_index * 101
     )
+    eligible = tuple(
+        key for key in config.target_state_keys if key.startswith(f"{category}|")
+    )
+    if not eligible:
+        return None, None
+    target_key = eligible[rng.randrange(len(eligible))]
     if rng.random() < config.control_weight:
-        return None
-    return JUNCTION_ACTIONS[rng.randrange(len(JUNCTION_ACTIONS))]
+        return target_key, None
+    return target_key, JUNCTION_ACTIONS[rng.randrange(len(JUNCTION_ACTIONS))]
 
 
 def _chain_spec(config: InterventionalConfig, chain_index: int) -> EnvSpec:
@@ -172,19 +194,24 @@ async def _run_chain(
     inner_hand = _build_inner_hand(config, chain, chain_index)
     rows: list[InterventionalEpisodeRow] = []
     for episode_index, task in enumerate(chain):
-        assignment_drawn = draw_assignment(config, chain_index, episode_index)
-        assignment = ForcedActionAssignment(
-            target_state_keys=config.target_state_keys,
-            assigned_action=assignment_drawn,
-            assignment_id=(
-                f"p35:{config.assignment_seed}:c{chain_index:02d}:e{episode_index:03d}"
-            ),
+        target_key, assignment_drawn = draw_assignment(
+            config, chain_index, episode_index, task.category
         )
-        hand = ForcedActionHand(
-            inner=inner_hand,
-            category=task.category,
-            assignment=assignment,
-        )
+        hand: Hand
+        if target_key is None:
+            hand = inner_hand
+        else:
+            hand = ForcedActionHand(
+                inner=inner_hand,
+                category=task.category,
+                assignment=ForcedActionAssignment(
+                    target_state_keys=(target_key,),
+                    assigned_action=assignment_drawn,
+                    assignment_id=(
+                        f"p35:{config.assignment_seed}:c{chain_index:02d}:e{episode_index:03d}"
+                    ),
+                ),
+            )
         handle = workspace.begin_episode(episode_index, task)
         result: EpisodeResult = await run_episode(
             spec=spec,
@@ -203,13 +230,18 @@ async def _run_chain(
                 task_id=task.task_id,
                 category=task.category,
                 passed=result.outcome.passed,
+                assignment_target_key=target_key,
                 assignment_drawn=assignment_drawn,
                 assignment_arm=(
-                    ASSIGNMENT_ARM_CONTROL
-                    if assignment_drawn is None
-                    else ASSIGNMENT_ARM_INTERVENTION
+                    "unassigned"
+                    if target_key is None
+                    else (
+                        ASSIGNMENT_ARM_CONTROL
+                        if assignment_drawn is None
+                        else ASSIGNMENT_ARM_INTERVENTION
+                    )
                 ),
-                triggered=hand.triggered,
+                triggered=isinstance(hand, ForcedActionHand) and hand.triggered,
                 submitted=result.submitted,
                 steps_used=result.steps_used,
                 wall_seconds=result.wall_seconds,
