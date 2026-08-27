@@ -118,6 +118,13 @@
 > `109/224`、joint group `10/28`。v5 执行合同失败使这只是 development NO-GO，不是
 > formal FAIL；却已足以停止原样 v6 的新 Gist/CUDA 重跑，转入新 reader 设计与新 disjoint
 > challenge。该诊断不登记 Readable 证据。
+> 224-row 几何进一步显示错误集中在 semantic group/surface，而非 voice：53 个 agency decision 与
+> 16 个 belonging onboarding 错，7 个全错 group 贡献 56/69；单一事后 bias 最多也只有 175/224。
+> 因此 add-only artifact.v3 已闭合 fixed-scale paired-direction reader 机制：训练 pair 共享 nuisance
+> surface、只切 condition，`w` 来自 unit pair difference 均值，`t` 来自 training midpoint median，
+> scores=`(g/2,-g/2)`、margin=`|g|/2`，无 scale/temperature/challenge fit。当前只有 fixture 机制，
+> 新 matched training source、selection receipt、embedding 与 independent held-out challenge 均未建立；
+> source-v5 仍专属 campaign/reachability，Readable 继续 false。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。

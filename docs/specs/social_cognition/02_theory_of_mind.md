@@ -171,6 +171,25 @@ confidence、reader artifact id 与 source hash）。artifact owner 同时提供
 并拒绝 duplicate key、非 canonical UTF-8 bytes、额外/缺失字段或参数 shape 漂移，consumer
 不得复制解析 schema。
 
+add-only `lifeform-domain-emogpt.relationship_condition_paired_direction_reader` 中的
+`FrozenPairedDirectionRelationshipConditionReaderArtifact` v3 不修改或自动升级 v2，也不改变被既有
+qualification closure 逐字节 pin 的 `relationship_condition_reader.py`。
+它只接受 training owner 已封存的 matched semantic embedding pair：每一对共享
+domain / stage / voice / wrapper 等 nuisance surface，只由 source owner 切换两个 condition；
+reader builder 自身只消费 pair/group identity、condition label 与 frozen embedding，不拥有或重建
+文本配对语义。对每行 unit-normalize 后，solver 取所有
+`positive - negative` 的均值并再次 unit-normalize 为唯一方向 `w`；阈值 `t` 只取 training-pair
+midpoint projection 的确定性中位数。推理固定
+`g = dot(w, unit(x)) - t`，两个候选分数为 `(g/2, -g/2)`，所以既有 readout
+normalized margin 恰为 `|g|/2`。artifact 不存在可调 scale、temperature、challenge bias 或 runtime fit，
+不能靠放大 logits 伪造 `0.01` 门。
+
+v3 identity 只绑定 training corpus/raw、training group split、training selection receipt、pair/group
+digest、完整 unit direction 与 threshold；qualification challenge/group identity 只属于后续 qualification
+protocol，不能混进 reader artifact 再造成先看 challenge 后冻结 reader 的谱系倒置。当前只闭合 generic
+artifact/builder/runtime 与 preference forecast proposal 接缝；尚无真实 training source、selection receipt、
+embedding materialization、held-out challenge、模型/CUDA 或 qualification，因此不登记 Readable 证据。
+
 reader 看不到 evaluator、expected action、未来 outcome、PE、credit 或 judge。已见 v3 根因诊断
 中，默认字符哈希 seam 为 `4/12`，冻结 BGE-M3 backend 为 `12/12`、六对 mirror 全部双边正确；
 这只证明正式 owner 链可以发布/恢复命名 readout，并定位旧失败为 semantic backend，不是 fresh

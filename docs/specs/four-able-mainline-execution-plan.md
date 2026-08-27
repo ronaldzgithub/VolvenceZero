@@ -651,6 +651,17 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   generic mechanism 虽要求 exact same runtime object，但 scope 不同且调用顺序固定 full→frozen，故显式记录 runtime arm-invariance、
   session-scope blinding、call-order blinding 均未验证，不能称科学上的 APPLY/WITHHOLD 单比特隔离；source-v5 identity/admission、scientific
   protocol/matrix/effect、model/CUDA/rehearsal 均为 false/zero。
+- 2026-08-27 · Readable 零成本裁决已停止原样 v6：旧 4-text centroid 在 spent attempt03 24 条上
+  虽为 24/24、最小 margin `0.0216505`，但 v5 两个 byte-exact 224-row child 事后只得
+  top-1 `155/224`、joint `109/224`、group `10/28`。69 个错集中于 53 个 agency decision 与
+  16 个 belonging onboarding，7 个全错 semantic group 贡献 56/69；单一 post-hoc bias 最多
+  175/224，故不再降门或调 bias。add-only artifact.v3 的 paired-direction mechanism 已闭合：
+  training pair 共享 nuisance surface、只切 condition，`w` 为 unit pair-difference mean，`t` 为
+  training midpoint median，scores=`(g/2,-g/2)`、margin=`|g|/2`，无 scale/temperature/challenge fit；
+  artifact identity 只绑定 training lineage。当前仍只有 model-free fixture，下一合法 Readable 顺序是
+  dedicated matched training source + internal group holdout/selection receipt → pinned embedding/materialization
+  → 另一个 owner 的全新 held-out challenge。spent 224 仅可作 failure geometry，source-v5 继续专属
+  campaign/reachability；Readable、模型/CUDA/qualification 均仍 false/zero。
 - 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
   （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
   的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。

@@ -1846,6 +1846,32 @@ qualification-v2 protocol raw `fe4ef1ef…20dce`、public corpus `4934d7ac…c9f
 必须是新设计、新 protocol identity 和新 disjoint challenge；原 v1/v2 protocol、v5 invalid 终局与
 未完成 rehearsal roots 全部原样保留。
 
+进一步的 224-row failure geometry 只作同一 `post_hoc_model_free_spent_output_diagnostic`：真
+`agency_displacement` 为 `59/112` top-1，真 `belonging_erasure` 为 `96/112`；69 个错误中，
+53 个是 agency decision、16 个是 belonging onboarding。32 条 onboarding 被旧 reader 全部判成
+agency；7 个全错 semantic group 贡献 56/69 错误，signed axis 的描述性 crossed 分解中 group
+解释约 `95.60%`、voice 仅 `3.59%`。即使事后选择一个全局最优 bias threshold，也最多
+`175/224`，所以“只补 bias”与“降低 margin 门”都不是下一合法修复。它们既不能恢复 top-1，也会
+把已揭盲 challenge 反馈进 reader。
+
+下一 reader mechanism 已在独立 `relationship_condition_paired_direction_reader.py` add-only 建立 artifact.v3，
+而不改 artifact.v2 或其被历史 qualification closure pin 的 owner bytes：
+`matched_semantic_pair_direction_linear` 只接受 future training owner 冻结的 condition-only matched
+embedding pair。每对必须由 source owner 证明 domain/stage/voice/wrapper 等 nuisance surface 相同、只切
+condition；reader owner 只消费 pair/group identity、labels 与 frozen embedding。solver 将 unit-normalized
+pair difference 的均值归一为 `w`，阈值 `t` 只取 training-pair midpoint projection 的确定性 median；
+推理 `g=dot(w,unit(x))-t`，候选分数固定 `(g/2,-g/2)`，margin=`|g|/2`。没有可调 scale、temperature、
+challenge bias 或 runtime fit。artifact identity 只绑定 training corpus/split/selection receipt，不再把
+qualification challenge group split 混入 reader identity。
+该 content ID 只证明 canonical payload 完整性，不认证 direction/threshold 确由所声明 pair 推导；未来
+training materializer 必须从 exact pair + selection receipt 重跑 builder、byte-compare artifact，并由外部
+protocol 预先 pin expected artifact ID，generic loader 的自洽 ID 校验不得升级为 provenance 证明。
+
+当前 v3 仅有 model-free fixture 的 artifact/builder/runtime/owner-proposal 接缝；真实 matched training
+source、internal group holdout、selection receipt、embedding materialization 与全新 independent challenge 均未
+建立，故 Readable 仍为零证据。spent 224 labels 只能用于上述 failure geometry，禁止用于 v3 参数、threshold、
+solver selection 或资格门。source-v5 继续专属 campaign/reachability，不得被 reader tuning/qualification 消耗。
+
 `FrozenLinearRelationshipPreferenceForecastRuntime` 只关闭 reader→正式 preference forecast proposal 的机制
 接缝：构造器必须拿到 exact `FrozenLinearRelationshipConditionReaderRuntime`，以 reader 发布的
 label/confidence 计算 condition-equivalence similarity，再复用既有 bounded owner collaborator；current readout
