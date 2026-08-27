@@ -1,0 +1,157 @@
+{
+  "schema_version": "relationship-product-horizon-theta0-v3-handoff-protocol.v1",
+  "evidence_tier": "development",
+  "owner": "lifeform_evolution.relationship_product_horizon_theta0_v3_handoff",
+  "purpose": "bind_accepted_attempt03_and_replay_full_typed_federation_under_current_code_before_condensed_theta0_authorization",
+  "theta0_input": {
+    "protocol_id": "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26",
+    "protocol_raw_sha256": "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f",
+    "artifact_id": "dde0fc78d8957f78fdeeb23203635d772e419aab22d8ab02d311ce9e31109777",
+    "implementation_git_commit": "af6cc60ba4b3e983b90f76bba15d7821e9e8ad74",
+    "implementation_owned_blob_ids_sha256": "31a97f515971c2ef91cb940683cf9c918d44aac3539a675c43192fa1f1493952",
+    "required_status": "development_theta0_v3_federated_materialized_treatment_reachability_admission_next_effect_not_tested",
+    "published_theta0_artifact_id": "relationship-action-gate-v2-artifact-sha256:dded60c6fd97232c7fe121dd3a8fcd429818db366fb48dac4f6030ef782fd2f7",
+    "federated_collection_id": "relationship-product-v2-federated-collected-batch-sha256:9b253d71d57d71756ac8e971b91b5f543df34666c179b72c30259f4231c5d227",
+    "pulse_matched_transitions_id": "relationship-product-v2-federated-matched-transitions-sha256:0a21285e4ac1dccf8d0c2115a15d617880b398d6b397551afe3d1fb5d524946e",
+    "gate_matched_transitions_id": "relationship-action-gate-v2-federated-matched-transitions-sha256:2759a4a8b4f952fa74bde752a14a669d6e57002adbca61750da92114b5fc0acc",
+    "apply_receipt_id": "relationship-action-gate-v2-federated-batch-receipt-sha256:a656b2ba30d5666668dda72a0d7af708edfaa0a1feca1c8c86556a3c168b207a",
+    "withhold_receipt_id": "relationship-action-gate-v2-federated-batch-receipt-sha256:cd5faf86cf68000c4fa337e0dab8a5d9739c3b6ba43d7b00593051ff212c6126",
+    "root_count": 112,
+    "credit_count": 896,
+    "apply_update_count": 896,
+    "apply_informative_update_count": 839,
+    "apply_cap_hit_count": 0,
+    "withhold_update_count": 0,
+    "file_inventory": [
+      {
+        "path": "federated_transition_bundle.json",
+        "raw_bytes": 23442564,
+        "raw_sha256": "b3fb9755621c606ba2a9beb6aeadc9706ae3f72547e13eea8c5e8ce775f4676e"
+      },
+      {
+        "path": "manifest.json",
+        "raw_bytes": 9974,
+        "raw_sha256": "9f81d109114d0896064e50619cf8c2bd1c61349c77c90055f87c023eb4454c18"
+      },
+      {
+        "path": "parent_schedule.json",
+        "raw_bytes": 382326,
+        "raw_sha256": "c1f8680644072ac666f44eafe44e1ca8979e03525550d0c110e84eb51df6fdba"
+      },
+      {
+        "path": "protocol.json",
+        "raw_bytes": 15234,
+        "raw_sha256": "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f"
+      },
+      {
+        "path": "theta0_artifact.json",
+        "raw_bytes": 1527,
+        "raw_sha256": "82bea8466044501e3d41cb5c056de8b1a17a863651f43410dded812a646b0861"
+      },
+      {
+        "path": "theta0_v3_trace.jsonl",
+        "raw_bytes": 17070209,
+        "raw_sha256": "b0287e1114c1a5bc74e1f70e6de74ba1ea5d47970d59edc5cbf9d11e7eb0c427"
+      }
+    ]
+  },
+  "historical_acceptance": {
+    "report_schema_version": "relationship-product-horizon-theta0-v3-bootstrap-validation-pass-report.v1",
+    "report_artifact_id": "relationship-product-horizon-theta0-v3-bootstrap-validation-pass-report-sha256:4c3c414b695c0de376fd9c8bde4cbacbbb3a4432b0815482467e4c962364aab5",
+    "report_raw_bytes": 9124,
+    "report_raw_sha256": "cae85ed0f6481001772340ecd2f4a42ee2053aae7d75efaac6a90cee7b21af6c",
+    "attempt_id": "theta0_v3_bootstrap_attempt03",
+    "materialization_completed": true,
+    "external_expected_protocol_and_artifact_ids_supplied": true,
+    "validate_existing_passed": true,
+    "filesystem_fingerprint_unchanged": true,
+    "scientific_terminal": false
+  },
+  "compatibility_replay": {
+    "historical_validate_existing_reexecuted": false,
+    "historical_acceptance_receipt_must_be_bound_before_replay": true,
+    "artifact_specific_current_compatibility": true,
+    "general_backward_compatibility": false,
+    "current_full_typed_federation_rehydration_required": true,
+    "all_six_persisted_files_byte_exact_required": true,
+    "before_after_no_write_fingerprint_required": true,
+    "theta_json_only_handoff_forbidden": true,
+    "compact_projection_bypass_forbidden": true,
+    "pickle_or_untyped_deserialization_forbidden": true
+  },
+  "authorization_contract": {
+    "authorization_kind": "RelationshipProductV2CondensedTheta0FrozenPulseAuthorization",
+    "allowed_policy_artifact_version": 2,
+    "source_transition_disposition": "apply",
+    "evaluation_transition_disposition": null,
+    "cold_checkpoint_update_count": 0,
+    "cold_checkpoint_informative_update_count": 0,
+    "cold_checkpoint_processed_credit_count": 0,
+    "cold_checkpoint_weights_equal_learned_theta0": true,
+    "full_federated_components_required_at_construction_and_payload_replay": true
+  },
+  "materialization_contract": {
+    "expected_files": [
+      "manifest.json",
+      "protocol.json",
+      "theta0_authorization.json"
+    ],
+    "create_only": true,
+    "manifest_written_last": true,
+    "current_implementation_commit_required_at_materialization": true,
+    "current_execution_git_object_closure_reobserved_before_replay_and_manifest": true,
+    "validate_existing_external_protocol_and_artifact_ids_required": true,
+    "validate_existing_read_only": true,
+    "model_output_count": 0,
+    "cuda_execution_count": 0,
+    "reader_fit_count": 0,
+    "compatibility_replay_onboarding_write_count": 448,
+    "compatibility_replay_reader_inference_count": 896,
+    "compatibility_replay_precomputed_embedding_lookup_count": 896,
+    "compatibility_replay_forecast_publication_count": 896,
+    "compatibility_replay_source_settlement_count": 896,
+    "compatibility_replay_prediction_error_derivation_count": 896,
+    "compatibility_replay_credit_derivation_count": 896,
+    "compatibility_replay_parent_apply_update_count": 896,
+    "compatibility_replay_parent_apply_informative_update_count": 839,
+    "compatibility_replay_parent_apply_cap_hit_count": 0,
+    "compatibility_replay_parent_withhold_update_count": 0,
+    "new_campaign_decision_count": 0,
+    "new_scientific_outcome_observation_count": 0,
+    "new_scientific_prediction_error_observation_count": 0,
+    "new_scientific_credit_observation_count": 0,
+    "authorization_evaluation_gate_update_count": 0
+  },
+  "current_execution_closure": [
+    "packages",
+    "scripts/run_relationship_product_horizon_theta0_v3_handoff.py"
+  ],
+  "claims_ceiling": {
+    "historical_acceptance_receipt_bound": true,
+    "artifact_specific_current_compatibility_replay_passed": true,
+    "current_full_typed_federation_rehydrated": true,
+    "condensed_theta0_authorization_materialized": true,
+    "theta_handoff_materialized": true,
+    "historical_validate_existing_reexecuted": false,
+    "general_backward_compatibility": false,
+    "source_v5_bound": false,
+    "reader_qualified": false,
+    "condition_reader_qualified": false,
+    "geometric_reachability_established": false,
+    "credit_achievability_established": false,
+    "treatment_reachability_admitted": false,
+    "campaign_protocol_frozen": false,
+    "campaign_execution_authorized": false,
+    "appendable_effect": false,
+    "readable_effect": false,
+    "learnable_effect": false,
+    "steerable_effect": false,
+    "formal_evidence_authorized": false,
+    "unseen_single_axis_evidence": false,
+    "integrated_horizon_authorized": false,
+    "four_able_complete": false,
+    "human_sample_claimed": false,
+    "production_active": false
+  },
+  "claim_boundary": "This development-only handoff binds the already accepted exact-commit attempt03 validation receipt before using current code to replay the complete 112-root, 896-credit typed federation and compare every persisted theta0-v3 artifact byte. It then passes the replayed full RelationshipProductV2FederatedMatchedGateTransitions object directly to the canonical condensed-theta0 authorization constructor and payload replay. The historical exact-HEAD validate-existing is not reexecuted or weakened; its accepted receipt remains the authority for the historical run, while this protocol proves compatibility only for this exact artifact and a conservative repo-owned Git-object superset consisting of the packages tree and this CLI blob in the live Python/third-party runtime. The learned theta remains derived from spent source-v4 and an unqualified development reader. The compatibility replay truthfully reexecutes 448 onboarding writes and 896 frozen-reader/precomputed-embedding forecasts, source-v4 settlements, PE-credit derivations, and parent APPLY updates; these are deterministic replays of spent frozen inputs, not new scientific observations. This handoff does not bind source-v5, fit a reader, invoke a model or CUDA, establish reachability or achievability, run a new campaign, create new outcome/PE/credit observations or authorization evaluation updates, estimate any ability or effect, authorize formal or unseen evidence, represent humans, freeze the Python or third-party runtime, or authorize production ACTIVE."
+}

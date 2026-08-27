@@ -2416,6 +2416,24 @@ evaluation preaction 没有新增 outcome、PE、credit 或 update，也未消�
 结论。permanent public/outcome-free admission 仍是独立待办；它不是 rehearsal，也不生成
 outcome/PE/credit/update。corrected-online campaign 的物理 barrier 现已 add-only 闭合；它与 permanent
 reachability/achievability 两本账互不替代，也不授权直接启动 scientific run。
+
+attempt03 的六文件原始根现已由 commit `fb2350c6` 原样纳管；这只消除了 fresh clone/CI 依赖本机
+untracked 输入的工程风险，不产生新的科学判词。新的 add-only
+`lifeform-evolution.relationship_product_horizon_theta0_v3_handoff` 只负责 artifact-specific typed handoff：
+它必须先 exact-join 已接受的 historical validation receipt 与六个冻结文件，再在当前实现下重放完整
+112-root / 896-credit typed federation，并把重放得到的完整
+`RelationshipProductV2FederatedMatchedGateTransitions` 直接交给 condensed-theta0 authorization constructor；
+禁止从 `theta0_artifact.json`、compact transition ID 或 manifest 摘要旁路恢复。当前执行身份绑定整个
+`packages` Git tree 与唯一 handoff CLI blob，并逐一复核关键算法/契约模块均从该 tree 加载；物化与
+`validate-existing` 只能在该 exact commit 的 clean detached worktree 完成。historical exact-HEAD validator
+保持不变且不在 handoff 中冒充重执行，故最高正结论仅为“该 exact historical artifact 对该 exact current
+implementation closure 可完整 typed replay，并可发布 cold `0/0/()` authorization”。它不是一般向后兼容性，
+也不冻结 Python/第三方 runtime。该 compatibility replay 会真实重放 448 次 onboarding write，以及 896 次
+spent source-v4 的 frozen-reader/precomputed-embedding forecast、source settlement、PE→credit 派生和 parent
+APPLY；这些计数必须与“新 campaign/outcome/PE/credit 科学观测均为 0”分列。它不绑定 source-v5、不 fit
+reader、不运行 model/CUDA 或新 campaign，也不建立 reachability、achievability、Readable、Learnable、
+Steerable 或任一效果结论。
+
 完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
 durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 

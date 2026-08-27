@@ -456,6 +456,51 @@ def test_git_lineage_requires_head_and_clean_materialization_scope(
         )
 
 
+def test_historical_lineage_resolves_frozen_blobs_without_weakening_strict_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol = subject.load_relationship_product_horizon_theta0_v3_bootstrap_protocol()
+    commit = "a" * 40
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(
+        *args: str, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        del check
+        calls.append(args)
+        if args == ("rev-parse", "--show-toplevel"):
+            stdout = str(subject._REPOSITORY_ROOT)
+        elif args == ("rev-parse", "--verify", f"{commit}^{{commit}}"):
+            stdout = commit
+        elif (
+            len(args) == 2
+            and args[0] == "rev-parse"
+            and args[1].startswith(f"{commit}:")
+        ):
+            stdout = "b" * 40
+        else:
+            raise AssertionError(f"unexpected git invocation: {args!r}")
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr(subject, "_run_git", fake_git)
+    receipt = subject._verify_historical_implementation_lineage(
+        protocol=protocol,
+        implementation_git_commit=commit,
+    )
+
+    assert receipt.implementation_git_commit == commit
+    assert len(receipt.owned_blob_ids) == len(subject._IMPLEMENTATION_OWNED_PATHS)
+    assert ("rev-parse", "HEAD") not in calls
+    assert not any(call and call[0] in {"diff", "status", "ls-files"} for call in calls)
+    parameter = inspect.signature(subject._validate_artifact).parameters[
+        "cross_commit_compatibility_replay"
+    ]
+    assert parameter.default is False
+    assert "cross_commit_compatibility_replay" not in inspect.getsource(
+        subject.validate_relationship_product_horizon_theta0_v3_bootstrap
+    )
+
+
 def test_actual_child_transition_counts_drive_terminal_serializers() -> None:
     observation = subject._ChildTransitionObservation(
         apply_count=1,

@@ -1175,6 +1175,56 @@ def _verify_implementation_checkout(
     )
 
 
+def _verify_historical_implementation_lineage(
+    *,
+    protocol: RelationshipProductHorizonTheta0V3BootstrapProtocol,
+    implementation_git_commit: str,
+) -> _ImplementationCheckoutReceipt:
+    """Resolve the frozen historical blobs without claiming a live checkout.
+
+    This deliberately does not weaken ``_verify_implementation_checkout``.
+    The historical commit is used only as an input identity for a later
+    cross-commit compatibility replay.  Historical execution acceptance must
+    be supplied independently by the handoff owner.
+    """
+
+    commit = cal._git_commit(implementation_git_commit)
+    expected_owner = (_REPOSITORY_ROOT / _OWNER_RELATIVE_PATH).resolve(strict=True)
+    if os.path.normcase(str(expected_owner)) != os.path.normcase(
+        str(pathlib.Path(__file__).resolve(strict=True))
+    ):
+        raise ValueError("theta0 v3 owner is not loaded from the repository closure")
+    repository = pathlib.Path(
+        _run_git("rev-parse", "--show-toplevel").stdout.strip()
+    ).resolve(strict=True)
+    if os.path.normcase(str(repository)) != os.path.normcase(
+        str(_REPOSITORY_ROOT.resolve(strict=True))
+    ):
+        raise ValueError("theta0 v3 repository root identity drifted")
+    resolved_commit = _run_git(
+        "rev-parse", "--verify", f"{commit}^{{commit}}"
+    ).stdout.strip()
+    if resolved_commit != commit:
+        raise ValueError("theta0 v3 historical implementation commit does not exist")
+
+    implementation = cal._mapping(
+        protocol.payload["implementation_lineage"], "implementation_lineage"
+    )
+    owned_paths = tuple(cal._list(implementation["owned_paths"], "owned_paths"))
+    if owned_paths != _IMPLEMENTATION_OWNED_PATHS:
+        raise ValueError("theta0 v3 historical owned-path lineage drifted")
+    owned_blob_ids = tuple(
+        (path, _run_git("rev-parse", f"{commit}:{path}").stdout.strip())
+        for path in owned_paths
+    )
+    if any(not blob_id for _path, blob_id in owned_blob_ids):
+        raise ValueError("theta0 v3 historical implementation blob identity is empty")
+    return _ImplementationCheckoutReceipt(
+        implementation_git_commit=commit,
+        owned_blob_ids=owned_blob_ids,
+    )
+
+
 def _require_disjoint_output_root(
     *, output_root: pathlib.Path, input_roots: tuple[pathlib.Path, ...]
 ) -> None:
@@ -2258,6 +2308,7 @@ def _validate_artifact(
     output_dir: pathlib.Path,
     expected_protocol_id: str,
     expected_artifact_id: str,
+    cross_commit_compatibility_replay: bool = False,
 ) -> tuple[Mapping[str, object], _BootstrapReplay]:
     external_protocol = cal._digest(expected_protocol_id, "expected_protocol_id")
     external_artifact = cal._digest(expected_artifact_id, "expected_artifact_id")
@@ -2305,10 +2356,16 @@ def _validate_artifact(
     if parent_raw != _canonical_bytes(parent_schedule.to_payload()):
         raise ValueError("theta0 v3 parent schedule bytes drifted")
     commit = cal._git_commit(manifest["implementation_git_commit"])
-    implementation_checkout = _verify_implementation_checkout(
-        protocol=dependencies.protocol,
-        implementation_git_commit=commit,
-    )
+    if cross_commit_compatibility_replay:
+        implementation_checkout = _verify_historical_implementation_lineage(
+            protocol=dependencies.protocol,
+            implementation_git_commit=commit,
+        )
+    else:
+        implementation_checkout = _verify_implementation_checkout(
+            protocol=dependencies.protocol,
+            implementation_git_commit=commit,
+        )
     expected_owned_blob_ids = [
         {"path": path, "git_blob_id": blob_id}
         for path, blob_id in implementation_checkout.owned_blob_ids
@@ -2411,6 +2468,39 @@ def load_relationship_product_horizon_theta0_v3_bundle(
     )
     if replay.learned_theta0 is None:
         raise ValueError("theta0 v3 failed artifact has no consumable theta0")
+    return RelationshipProductHorizonTheta0V3Bundle(
+        manifest=manifest,
+        theta0_artifact=replay.learned_theta0,
+        federated_collection=replay.federated_collection,
+        matched_transitions=replay.matched_transitions,
+    )
+
+
+def _replay_relationship_product_horizon_theta0_v3_bundle_for_cross_commit_handoff(
+    *,
+    source_v4_admission_root: pathlib.Path,
+    reader_root: pathlib.Path,
+    output_dir: pathlib.Path,
+    expected_protocol_id: str,
+    expected_artifact_id: str,
+) -> RelationshipProductHorizonTheta0V3Bundle:
+    """Rebuild the full typed graph under current code for a handoff owner.
+
+    This is a compatibility replay, not a replacement for the frozen
+    protocol's exact-HEAD ``validate-existing``.  A consumer must separately
+    bind an accepted historical validation receipt before using the result.
+    """
+
+    manifest, replay = _validate_artifact(
+        source_v4_admission_root=source_v4_admission_root,
+        reader_root=reader_root,
+        output_dir=output_dir,
+        expected_protocol_id=expected_protocol_id,
+        expected_artifact_id=expected_artifact_id,
+        cross_commit_compatibility_replay=True,
+    )
+    if replay.learned_theta0 is None:
+        raise ValueError("theta0 v3 failed artifact has no handoff-compatible theta0")
     return RelationshipProductHorizonTheta0V3Bundle(
         manifest=manifest,
         theta0_artifact=replay.learned_theta0,
