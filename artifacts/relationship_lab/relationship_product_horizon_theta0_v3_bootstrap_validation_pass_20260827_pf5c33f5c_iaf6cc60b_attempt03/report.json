@@ -1,0 +1,186 @@
+{
+  "report_schema_version": "relationship-product-horizon-theta0-v3-bootstrap-validation-pass-report.v1",
+  "report_artifact_id_scheme": "sha256_canonical_json_with_report_artifact_id_null",
+  "report_artifact_id": "relationship-product-horizon-theta0-v3-bootstrap-validation-pass-report-sha256:4c3c414b695c0de376fd9c8bde4cbacbbb3a4432b0815482467e4c962364aab5",
+  "attempt_id": "theta0_v3_bootstrap_attempt03",
+  "output_root": "artifacts/relationship_lab/relationship_product_horizon_theta0_v3_bootstrap_20260827_pf5c33f5c_iaf6cc60b_attempt03",
+  "protocol_id": "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26",
+  "protocol_raw_sha256": "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f",
+  "implementation_git_commit": "af6cc60ba4b3e983b90f76bba15d7821e9e8ad74",
+  "implementation_owned_blob_ids_sha256": "31a97f515971c2ef91cb940683cf9c918d44aac3539a675c43192fa1f1493952",
+  "materialization": {
+    "completed": true,
+    "manifest_artifact_id": "dde0fc78d8957f78fdeeb23203635d772e419aab22d8ab02d311ce9e31109777",
+    "manifest_status": "development_theta0_v3_federated_materialized_treatment_reachability_admission_next_effect_not_tested",
+    "terminal_failure_reasons": [],
+    "completed_root_count": 112,
+    "onboarding_count": 448,
+    "onboarding_write_change_count": 448,
+    "preaction_count": 896,
+    "postaction_count": 896,
+    "owner_handoff_count": 784,
+    "owner_writeback_change_count": 896,
+    "credit_count": 896,
+    "child_collection_count": 112,
+    "parent_transition_pair_count": 1,
+    "child_transition_count": 0,
+    "apply_receipt_id": "relationship-action-gate-v2-federated-batch-receipt-sha256:a656b2ba30d5666668dda72a0d7af708edfaa0a1feca1c8c86556a3c168b207a",
+    "withhold_receipt_id": "relationship-action-gate-v2-federated-batch-receipt-sha256:cd5faf86cf68000c4fa337e0dab8a5d9739c3b6ba43d7b00593051ff212c6126",
+    "apply_transition_id": "relationship-action-gate-v2-federated-transition-sha256:6abcdb73dd35bea55e358f5f63246b5fc2f113357b9b9d58435eb3df937f96a1",
+    "withhold_transition_id": "relationship-action-gate-v2-federated-transition-sha256:3a38c33a180420c5f1aa9db2d962d7abd2dfac10039c60ed8ab55421054e05ac",
+    "apply_atomic_commit_count": 1,
+    "apply_update_count_delta": 896,
+    "apply_informative_update_count_delta": 839,
+    "apply_cap_hit_count": 0,
+    "withhold_atomic_commit_count": 0,
+    "withhold_update_count_delta": 0,
+    "published_theta0_artifact_id": "relationship-action-gate-v2-artifact-sha256:dded60c6fd97232c7fe121dd3a8fcd429818db366fb48dac4f6030ef782fd2f7",
+    "federated_gate_batch_id": "relationship-action-gate-v2-federated-credit-batch-sha256:0c198bade7bf88865d8c713a8c4fe7ab06eae33d3f3a84016584c525dba4fe8a",
+    "parent_schedule_artifact_id": "relationship-action-gate-v2-federated-assignment-schedule-sha256:c700009259a688dfb6cec5ea954a26da159a32c9ea870602fbdef8631c43a273"
+  },
+  "logical_clock": {
+    "temporal_delivery_timestamp_clock": "protocol_frozen_offline_logical_milliseconds",
+    "temporal_delivery_timestamp_formula": "root_index_times_20_plus_4_plus_2_times_decision_index",
+    "temporal_delivery_timestamp_count": 896,
+    "temporal_delivery_timestamp_min": 4,
+    "temporal_delivery_timestamp_max": 2238,
+    "temporal_delivery_precedes_credit_timestamp_by_ms": 1
+  },
+  "trace_record_counts": {
+    "parent_schedule_durable": 1,
+    "root_begin": 112,
+    "onboarding_append": 448,
+    "preaction": 896,
+    "postaction": 896,
+    "root_terminal": 112,
+    "parent_transition_pair_committed": 1,
+    "terminal": 1,
+    "total": 2467
+  },
+  "validation_events": [
+    {
+      "sequence": 1,
+      "run_type": "automatic_post_materialization_validate-existing",
+      "phase": "pre_bootstrap_replay_implementation_head_guard",
+      "attempted": true,
+      "passed": false,
+      "replay_started": false,
+      "failure_class": "concurrent_main_head_advanced_before_exact_commit_validator",
+      "required_implementation_head": "af6cc60ba4b3e983b90f76bba15d7821e9e8ad74",
+      "observed_main_head": "e7817b93cd05a01b69827a680bb2d796d6906480",
+      "intervening_commits": [
+        "4becb0afd7572072dfb1a3d209789435e1d8c87d",
+        "e7817b93cd05a01b69827a680bb2d796d6906480"
+      ],
+      "intervening_commit_scope": "docs_business_only",
+      "exception_type": "ValueError",
+      "exception_message": "theta0 v3 implementation commit does not match HEAD",
+      "artifact_content_replay_reached": false,
+      "artifact_content_drift_assessed": false,
+      "artifact_content_drift_observed": false,
+      "scientific_failure": false,
+      "materialization_resume_allowed": false,
+      "read_only_exact_commit_validation_allowed": true,
+      "main_worktree_rewound": false
+    },
+    {
+      "sequence": 2,
+      "run_type": "validate-existing",
+      "phase": "detached_exact_implementation_commit_full_replay",
+      "detached_worktree": true,
+      "implementation_head": "af6cc60ba4b3e983b90f76bba15d7821e9e8ad74",
+      "implementation_head_exact": true,
+      "implementation_clean_scope_exact": true,
+      "expected_protocol_id": "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26",
+      "expected_artifact_id": "dde0fc78d8957f78fdeeb23203635d772e419aab22d8ab02d311ce9e31109777",
+      "full_artifact_replay_completed": true,
+      "exit_code": 0,
+      "passed": true,
+      "stdout_summary": {
+        "artifact_id": "dde0fc78d8957f78fdeeb23203635d772e419aab22d8ab02d311ce9e31109777",
+        "child_transition_count": 0,
+        "federated_gate_batch_id": "relationship-action-gate-v2-federated-credit-batch-sha256:0c198bade7bf88865d8c713a8c4fe7ab06eae33d3f3a84016584c525dba4fe8a",
+        "parent_schedule_artifact_id": "relationship-action-gate-v2-federated-assignment-schedule-sha256:c700009259a688dfb6cec5ea954a26da159a32c9ea870602fbdef8631c43a273",
+        "protocol_id": "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26",
+        "published_theta0_artifact_id": "relationship-action-gate-v2-artifact-sha256:dded60c6fd97232c7fe121dd3a8fcd429818db366fb48dac4f6030ef782fd2f7"
+      },
+      "file_fingerprints_unchanged_during_validation": true,
+      "temporary_worktree_removed_after_validation": true
+    }
+  ],
+  "acceptance": {
+    "accepted_artifact_id": "dde0fc78d8957f78fdeeb23203635d772e419aab22d8ab02d311ce9e31109777",
+    "validate_existing_passed": true,
+    "development_mechanism_terminal_accepted": true,
+    "effect_scientific_terminal": false,
+    "large_materialization_root_retained_local": true,
+    "large_materialization_root_git_tracked": false,
+    "large_materialization_root_overwrite_or_resume_allowed": false,
+    "compact_acceptance_receipt_intended_for_git": true
+  },
+  "root_inventory": [
+    {
+      "path": "protocol.json",
+      "raw_bytes": 15234,
+      "raw_sha256": "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f"
+    },
+    {
+      "path": "parent_schedule.json",
+      "raw_bytes": 382326,
+      "raw_sha256": "c1f8680644072ac666f44eafe44e1ca8979e03525550d0c110e84eb51df6fdba"
+    },
+    {
+      "path": "theta0_v3_trace.jsonl",
+      "raw_bytes": 17070209,
+      "raw_sha256": "b0287e1114c1a5bc74e1f70e6de74ba1ea5d47970d59edc5cbf9d11e7eb0c427"
+    },
+    {
+      "path": "federated_transition_bundle.json",
+      "raw_bytes": 23442564,
+      "raw_sha256": "b3fb9755621c606ba2a9beb6aeadc9706ae3f72547e13eea8c5e8ce775f4676e"
+    },
+    {
+      "path": "theta0_artifact.json",
+      "raw_bytes": 1527,
+      "raw_sha256": "82bea8466044501e3d41cb5c056de8b1a17a863651f43410dded812a646b0861"
+    },
+    {
+      "path": "manifest.json",
+      "raw_bytes": 9974,
+      "raw_sha256": "9f81d109114d0896064e50619cf8c2bd1c61349c77c90055f87c023eb4454c18"
+    }
+  ],
+  "accepted_claims": {
+    "development_theta0_v3_materialized": true,
+    "deterministic_replay_validated": true,
+    "parent_preoutcome_durable_owner_path_receipt_established": true,
+    "root_reset_replay_established": true,
+    "no_child_transition_accepted_lineage_established": true
+  },
+  "claim_ceiling": {
+    "historical_fsync_independently_reproven": false,
+    "windows_directory_entry_durability_attested": false,
+    "os_process_secrecy_proven": false,
+    "reader_qualified": false,
+    "condition_reader_qualified": false,
+    "treatment_reachability_admitted": false,
+    "permanent_treatment_reachability_admission_authorized": false,
+    "appendable_effect": false,
+    "readable_effect": false,
+    "learnable_effect": false,
+    "steerable_effect": false,
+    "campaign_execution_authorized": false,
+    "formal_evidence_authorized": false,
+    "unseen_evidence_authorized": false,
+    "integrated_horizon_authorized": false,
+    "four_able_complete": false,
+    "human_validation_complete": false,
+    "production_active": false,
+    "model_output_count": 0,
+    "cuda_execution_count": 0,
+    "rehearsal_execution_count": 0,
+    "campaign_decision_count": 0,
+    "effect_estimand_count": 0
+  },
+  "next_legal_action": "close_condensed_learned_theta0_cold_evaluation_authorization_seam_then_design_and_freeze_a_separate_permanent_public_outcome_free_treatment_reachability_admission_protocol"
+}

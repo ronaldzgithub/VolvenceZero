@@ -201,11 +201,12 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-theta0 v3 的机制路线冻结为三个小包；gate 与 pulse 已闭合。protocol.v1 attempt01 因 typed assignment
+theta0 v3 的机制路线冻结为三个小包；gate、pulse 与 bootstrap materialization/validation 均已闭合。protocol.v1 attempt01 因 typed assignment
 ID 误用在首条 persisted preaction 前失败；attempt02 虽完成 112×8 materialization，却因 temporal publisher
 墙钟进入 forced receipt 而未通过 byte-exact `validate-existing`。两根均禁止续跑/覆盖且无下游 authority。
-live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 publisher/pulse lineage；下一步直接使用
-新 create-only 根做正式 materialization + external 双 ID 复验，全程不恢复 2–3 item 彩排：
+live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 publisher/pulse lineage；theta0 v3 bootstrap
+attempt03 已在新 create-only 根完成正式 materialization，并在 detached exact implementation commit 上通过 external
+双 ID 完整重放；全程没有恢复 2–3 item 彩排：
 
 1. **已闭合** versioned gate operator v2 与 add-only federated parent：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
@@ -234,7 +235,7 @@ live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 pub
    `FrozenPolicy`。本机制只能证明 membership/order/timestamp ordering；parent 在首个 forecast/outcome 前 create-only
    持久化必须由第三包的唯一 materialization receipt 另证；该 receipt 只能从 actual APPLY/WITHHOLD 建立
    accepted persisted lineage 内 `child_transition_count=0`，不证明 external/OS 路径不存在；
-3. **protocol.v2/实现已冻结，待新根正式 materialization + validation** theta0 v3 owner：live protocol
+3. **已闭合 protocol.v2 materialization + validation** theta0 v3 owner：live protocol
    `f5c33f5c…1d26`（raw `83060179…e38f`）事前冻结 bootstrap `1/512`、root-online `1/4`、
    cap `4.0`、一个含 112 个 provenance child / 896 credit 的全局 federated development parent，以及
    cap-hit、零 informative update、非有限/全零参数与不完整计数的 FAIL 门。materialize 与 validate 都必须证明
@@ -247,13 +248,20 @@ live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 pub
    APPLY/WITHHOLD actual receipt，不得硬编码为零；closed trace 还必须在 transition/manifest 前 reopen byte-exact。
    v1 attempt01 三文件 partial root 与报告 `421ad709…e733e` 原样保留。attempt02 六文件约 41MB 根也只在本机
    原样保留：materialization manifest `0c596cd5…076c` 的正字段被随后 validation FAIL 否决；首差在 ledger row 6
-   `temporal_projection.timestamp_ms` 及派生 forced receipt ID，compact 报告 `a795fdcf…5cf7`。因此当前仍没有
-   accepted theta0 v3 artifact，durable 完整 federation、root reset 与 accepted-lineage 无 child transition 仍为 false。
+   `temporal_projection.timestamp_ms` 及派生 forced receipt ID，compact 报告 `a795fdcf…5cf7`。theta0 v3 bootstrap
+   attempt03 在 implementation `af6cc60b…ad74` 上完成 112 roots / 896 credits，发布 artifact
+   `dde0fc78…9777` 与 learned theta0 `dded60c6…2f7`；APPLY 为 896 update / 839 informative / 0 cap-hit，
+   WITHHOLD 为 0 update，accepted-lineage child transition 为 0。自动 post-materialization validator 因并发
+   docs/business commit 将 main HEAD 推进到 `e7817b93`，在 `_run_bootstrap` 前 exact-HEAD guard 正确拒绝，未观察
+   artifact content drift；随后 detached `af6cc60b` worktree 的 external 双 ID `validate-existing` 全量 replay PASS，
+   六文件 fingerprints 不变。compact acceptance receipt `4c3c414b…aab5`（raw `cae85ed0…af6c`）只接受 development mechanism terminal，
+   `effect_scientific_terminal=false`。
 
-三个机制包之后独立执行 permanent treatment-reachability admission；它只读新 source 的
-public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
+三个机制包现已闭合。下一包先补 add-only condensed learned-theta0 cold evaluation authorization seam；随后另立
+permanent treatment-reachability admission，它只读新 source 的 public/outcome-free surface，不生成
+outcome/PE/credit/update，不是 rehearsal。当前 `treatment_reachability_admitted=false`。
 
-三个包与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
+condensed learned-theta0 cold evaluation authorization seam 与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
 预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
@@ -525,3 +533,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   `credit=temporal+1`、runtime/temporal/pulse/theta/protocol/CLI 六 blob lineage，以及 materialize/validate 共用 exact
   implementation HEAD + clean scope。下一动作是新 create-only 根的正式
   materialization + external 双 ID validation；不插入彩排，v1 两次失败均不重写。
+- 2026-08-27 · theta0 v3 bootstrap attempt03 已在 protocol.v2 与 implementation `af6cc60b…ad74` 上完成
+  112 roots / 896 credits 的 create-only materialization，artifact `dde0fc78…9777` 发布 cold learned theta0
+  `dded60c6…2f7`。自动 post-materialization validation 因两个 docs/business-only commit 使 main HEAD 前移，
+  在 artifact replay 前的 exact-HEAD guard 拒绝；主工作区未回退。随后 detached exact-commit worktree 以外传
+  protocol/artifact 双 ID 完整 replay PASS，六文件 size/mtime/SHA fingerprints 不变；compact acceptance receipt
+  `4c3c414b…aab5`（raw `cae85ed0…af6c`）。本终局只接受 development mechanism，reader qualification、treatment reachability、
+  campaign/effect/formal/unseen/integrated/四轴/真人/production 均未建立，model/CUDA/rehearsal count 仍为 0。
+  下一步先闭合 condensed learned-theta0 cold evaluation authorization seam，再冻结独立 permanent
+  public/outcome-free treatment-reachability admission。
