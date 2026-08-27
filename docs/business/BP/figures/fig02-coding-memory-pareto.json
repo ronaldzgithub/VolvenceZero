@@ -1,0 +1,35 @@
+{
+ "figure_index": "02",
+ "slug": "coding-memory-pareto",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "structured memory Pareto-dominates full-history context stuffing",
+ "pass_rates": {
+  "brain": 0.5125,
+  "stateless": 0.4,
+  "steelman": 0.4625
+ },
+ "mean_context_tokens": {
+  "brain": 882.2777777777778,
+  "steelman": 9026.611111111111,
+  "stateless": 0.0
+ },
+ "mean_context_tokens_source": "report.scaling (preregistered measure; excludes each chain's first episode, which carries no prior context for any arm)",
+ "token_ratio_brain_over_steelman": 0.09774186202524635,
+ "scaling_gate_max_token_ratio": 0.1,
+ "prereg_sha256": "f72dc17e6ee9349108feb9046a126d9f32184ceb67e05131b88273cbf4c2d82d",
+ "gates": {
+  "memory_gate": true,
+  "quality_gate": true,
+  "scaling_gate": true
+ },
+ "memory_gate_lower_bound": 0.0060606060606060615,
+ "noninferiority_lower_bound": -0.0045454545454545435,
+ "evidence_tier": "preregistered_formal_gates_passed",
+ "provenance": [
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+   "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "figure_index": "03",
+ "slug": "coding-when-to-steer",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "a learned gate beats never / always / random intervening on when to act",
+ "nll_by_strategy": {
+  "always_on_belief": 5.318332069815361,
+  "random_gate": 4.483425383368289,
+  "noop": 2.4830954798168596,
+  "pe_gated_online": 1.1759646996933162,
+  "oracle_ceiling": 1.0123337978152647
+ },
+ "headroom_captured_fraction": 0.8887441086611922,
+ "worst_seed_gain_vs_noop_ci_lower": 0.92388012191568,
+ "gate_selectivity_mean": 0.9051764242065838,
+ "seed_count": 5,
+ "admitted": true,
+ "production_wiring_changed": false,
+ "evidence_tier": "preregistered_formal_gates_passed_shadow_only",
+ "provenance": [
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet3_s3e_formal_20260813/report.json",
+   "sha256": "2d792ec2f3f4d2e65b56d3cff7d2999142077367b91b94b10072835d119ae2b1"
+  }
+ ]
+}

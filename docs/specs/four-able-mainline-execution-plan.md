@@ -560,4 +560,15 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   闭合：full federated wrapper 只在构造/恢复边界用于完整 replay，冻结授权仅保留不可变 lineage projection 与
   `0/0/()` cold policy；source APPLY 与 evaluation transition 分账，后者固定为 `null`。candidate/strict 只差
   executor disposition，旧 continuous v2 payload/identity 保持原样。15 项 pulse v2 model-free 测试全过，未运行
-  model/CUDA/rehearsal/campaign；下一动作只剩独立 permanent public/outcome-free treatment-reachability admission。
+  model/CUDA/rehearsal/campaign。随后审计确认 source-v3/v4 都已花费，不能直接作为 permanent admission 的新输入。
+- 2026-08-27 · identity-disjoint synthetic source-v5 candidate owner/protocol 已冻结：不复制 v4 大 owner，
+  分列 pin current v4 owner/protocol bytes 与实际 spent public/sealed/inventory identity，再以新 protocol、全新
+  public catalog 与独立 seed namespace 构造 112×（4+8+40）projections；full transitive closure 留给 admission。
+  protocol/public/sealed identity 为 `7393f58b…6ab8 / 971517a7…6cae / 451fea01…3851`。
+  5,824 次 reader occurrence 形成 3,988 条 unique text，与 spent source-v4 1,881 条 exact text 零交集；
+  root/tape/world/subject/session/decision/scene/environment identities 也全不相交。该包只冻结 source owner，
+  public history 保留 448 条已观察 onboarding outcome/reaction；current-decision settlement、environment
+  construction、model/CUDA/rehearsal/embedding/reader fit/PE/credit/update 均为零。exact-disjoint 不等于 semantic、
+  DGP-independent 或 unseen。下一顺序固定为：source-v5 admission 与全 adaptive-input
+  disjoint closure → v5-only embedding table（旧 reader `fit_count=0`）→ attempt03 typed federation 跨 commit
+  handoff → permanent public/outcome-free reachability；任何一步不得用 compact projection bypass。

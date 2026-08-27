@@ -1,0 +1,86 @@
+{
+ "figure_index": "01",
+ "slug": "coding-convention-learning",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "only the structured-memory arm learns an unstated house convention across episodes",
+ "recurring_category": "add_helper",
+ "convention_id": "convention_export_all",
+ "curves": {
+  "brain": [
+   {
+    "occurrence": 1,
+    "violations": 8,
+    "episodes": 8
+   },
+   {
+    "occurrence": 2,
+    "violations": 3,
+    "episodes": 8
+   },
+   {
+    "occurrence": 3,
+    "violations": 2,
+    "episodes": 7
+   },
+   {
+    "occurrence": 4,
+    "violations": 1,
+    "episodes": 4
+   }
+  ],
+  "steelman": [
+   {
+    "occurrence": 1,
+    "violations": 8,
+    "episodes": 8
+   },
+   {
+    "occurrence": 2,
+    "violations": 8,
+    "episodes": 8
+   },
+   {
+    "occurrence": 3,
+    "violations": 7,
+    "episodes": 7
+   },
+   {
+    "occurrence": 4,
+    "violations": 4,
+    "episodes": 4
+   }
+  ],
+  "stateless": [
+   {
+    "occurrence": 1,
+    "violations": 8,
+    "episodes": 8
+   },
+   {
+    "occurrence": 2,
+    "violations": 8,
+    "episodes": 8
+   },
+   {
+    "occurrence": 3,
+    "violations": 7,
+    "episodes": 7
+   },
+   {
+    "occurrence": 4,
+    "violations": 4,
+    "episodes": 4
+   }
+  ]
+ },
+ "control_arms_identical": true,
+ "control_arms_flat_at_ceiling": true,
+ "evidence_tier": "development_descriptive_recut_of_frozen_artifact",
+ "provenance": [
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+   "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+  }
+ ]
+}

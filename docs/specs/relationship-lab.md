@@ -2359,6 +2359,30 @@ permanent public/outcome-free admission；它不是 rehearsal，也不生成 out
 完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
 durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 
+由于 source-v3 exact texts 已进入 reader qualification、source-v4 已进入 theta0 v3 adaptive bootstrap，二者都只能
+继续作为 spent/transductive lineage，不能供 permanent admission 重新命名为新输入。为此新增 identity-disjoint
+synthetic source-v5 candidate owner，而不把“尚未消费”写成 statistically/DGP-independent 或 unseen。该薄 owner
+`relationship-product-horizon-source.v5` owner，而不复制或回改 100K 行的 v4 engine：v5 protocol
+`7393f58b…6ab8`（raw `ae1b24f0…494b`）分列 current v4 causal owner/protocol bytes 与实际 spent v4
+public/sealed/inventory identity，另冻全新 public
+catalog、cohort 与 root/tape/environment namespace；owner 用 v5 identity 驱动 112×（4 onboarding + 8 collection +
+40 evaluation）typed evaluator，再从 evaluator owner rows 构造 public snapshot，并将 public trajectory hash 回接
+sealed manifest。model-free projection 固定 `public_plan=971517a7…6cae / sealed_bundle=451fea01…3851`，发布
+5,824 次 reader occurrence / 3,988 个 exact unique text；构造门已证明它们与 spent source-v4 的 1,881 条
+reader text 交集为空，且 subject/session/decision/root/tape/world/scene/environment identity 集合全部不相交，
+112 个 public↔sealed trajectory exact join。v4 public/evaluator schema 名只表示复用冻结 shape，不继承 v4
+evidence identity 或 verdict。
+
+这一步只冻结 identity-disjoint synthetic source candidate：公开历史仍有 448 条已观察 onboarding
+outcome/reaction，sealed evaluator 仍拥有 448 条 onboarding truth 与 5,376 条未结算 decision truth；它没有构造
+reactive environment，也没有运行 current-decision action/outcome settlement、model/CUDA/rehearsal、embedding、
+reader fit、PE、credit 或 gate update。source admission、theta handoff、reachability、semantic novelty、DGP
+independence 与 unseen authority 均未建立。
+下一包须先以独立 admission 将 source-v5 对 source-v3/其他 adaptive reader inputs 的 exact-disjoint 与三动作
+counterfactual/lineage 一并封存；随后只为 v5 public texts 生成 pinned embedding table，旧 frozen reader 不重训
+（`reader_fit_count=0`）。attempt03 完整 typed federation 跨 exact implementation commit 的 handoff 仍是另一项
+硬前置，禁止用 compact theta JSON、pickle、monkeypatch 或放宽 exact-HEAD guard 绕过。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
