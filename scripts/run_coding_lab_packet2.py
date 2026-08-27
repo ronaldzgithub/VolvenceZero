@@ -304,7 +304,10 @@ def cmd_formal(args: argparse.Namespace) -> int:
         holder = int(lock_path.read_text(encoding="utf-8").strip() or "0")
         try:
             os.kill(holder, 0)
-        except (ProcessLookupError, ValueError):
+        except (OSError, ValueError):
+            # POSIX raises ProcessLookupError for a dead pid; Windows raises
+            # OSError (WinError 87) from the failed OpenProcess. Both mean
+            # the recorded holder is gone and the lock is stale.
             lock_path.unlink()
         else:
             raise SystemExit(f"another formal instance (pid {holder}) holds {lock_path!s}")
