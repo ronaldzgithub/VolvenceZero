@@ -1518,7 +1518,9 @@ async def _run_bootstrap(
                     "decision_index": decision.decision_index,
                     "decision_id": decision.decision_id,
                     "child_schedule_artifact_id": child_schedule.artifact_id,
-                    "assignment_receipt_id": assignment.receipt_id,
+                    "assignment_receipt_id": (
+                        preaction.forced_exposure.assignment_receipt_id
+                    ),
                     "assignment_role": entry.assignment_role.value,
                     "forecast_id": preaction.forecast.forecast_id,
                     "forced_exposure_id": preaction.forced_exposure.exposure_id,

@@ -2318,7 +2318,7 @@ collection + gate pair，固定 `child_transition_count=0`；不循环 child tra
 collection 与 matched loader 均须重新提供完整 typed parent/children/pair 并 exact-match payload，不能仅凭 compact
 `gate_batch_id`、collection ID 或 transition ID 恢复。有效旧 continuous/segmented API 与 identity 未改。
 
-当前 theta0 v3 owner/protocol/CLI 已随本提交冻结，protocol `9c48a8e3…c12b`（raw
+当前 theta0 v3 owner/protocol/CLI 已由 `9a6dfc04` 冻结，protocol `9c48a8e3…c12b`（raw
 `c7e2d75f…883f`）将 `bootstrap=1/512`、`root-online=1/4`、cap `4.0`、112 个 provenance child /
 896 credit 的 parent membership、逐 root onboarding-from-`None`、输出前 HEAD/commit + clean package closure、
 source/reader 与仓库 `packages/scripts` 代码域的 input/output 根隔离、首个 onboarding/forecast/outcome 前 create-only parent
@@ -2328,9 +2328,14 @@ child-transition count 与 cap-hit/零 informative/无限/全零参数 FAIL 全�
 时间尺度，禁止在输出后 sweep/挑候选。定向 model-free tests 已验证协议、schedule/seed pins、
 create-only writer/row-zero capability、Git/roots/closed-trace 失败路径、终局计数门和源码只有一个 parent
 commit call；这些仍不是 execution
-receipt。当前没有 theta0 v3 artifact，因此 root-reset、durable owner-path timing receipt、完整 federation 和 accepted-lineage
-无 child transition 均未建立。pulse 的 content identity、顺序和 timestamp ordering 也不能替代唯一执行证据。
-下一合法动作是在本 implementation commit 上进行一次 create-only、model-free 112×8 materialization，然后以
+receipt。commit `9a6dfc04` 的首个 create-only attempt 已完成 parent durable receipt 与 root 0 四次 onboarding，
+但在首条 persisted preaction 前因访问不存在的 `RelationshipActionGateV2AssignmentReceipt.receipt_id` 而
+implementation-failed；当时一个 public preaction/forecast/forced exposure 已在内存构造，但 environment scope 尚未创建，
+sealed outcome/PE/credit 均为零。原三文件 partial root 不续跑、不覆盖，失败报告 SHA-256 为 `421ad709…e733e`，且明确
+`scientific_terminal=false`。因此当前没有 theta0 v3 artifact，root-reset、durable 完整 federation 和 accepted-lineage
+无 child transition 均未建立。pulse 的 content identity、顺序和 timestamp ordering 也不能替代完成执行证据。
+本修正只改用 forced exposure owner 已发布的 `assignment_receipt_id`，不改变 protocol 或任何 scientific pin；
+下一合法动作是在新 implementation commit 上使用新 create-only 根完成 model-free 112×8 materialization，然后以
 外部 protocol/artifact ID 运行纯读取 `validate-existing`。仅当该终局 PASS，才可冻结下一个 permanent
 admission；它只可读取未来 source 的 public/outcome-free surface，检查 cold 两侧 headroom 与实际
 candidate/noop 可达性，不是 2–3 item rehearsal，不生成 outcome/PE/credit/update。

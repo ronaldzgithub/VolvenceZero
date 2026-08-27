@@ -340,6 +340,9 @@ def test_actual_child_transition_counts_drive_terminal_serializers() -> None:
     assert '"child_transition_count": 0' not in inspect.getsource(
         subject._build_manifest
     )
+    bootstrap_source = inspect.getsource(subject._run_bootstrap)
+    assert "assignment.receipt_id" not in bootstrap_source
+    assert "preaction.forced_exposure.assignment_receipt_id" in bootstrap_source
 
 
 def test_output_root_must_be_disjoint_and_closed_trace_must_match(

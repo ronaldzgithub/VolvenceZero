@@ -1,0 +1,60 @@
+{
+  "artifact_id": null,
+  "campaign_execution_count": 0,
+  "completed_execution": false,
+  "cuda_execution_count": 0,
+  "effect_claim_authorized": false,
+  "exception": {
+    "message": "'RelationshipActionGateV2AssignmentReceipt' object has no attribute 'receipt_id'",
+    "source_line": "relationship_product_horizon_theta0_v3_bootstrap.py:1521",
+    "type": "AttributeError"
+  },
+  "failure_class": "implementation_contract_error_before_first_persisted_preaction",
+  "implementation_git_commit": "9a6dfc047902f0ee54b4fec0054d1da9a659deb5",
+  "in_memory_before_failure": {
+    "environment_scope_created": false,
+    "forced_exposure_count": 1,
+    "forecast_count": 1,
+    "preaction_count": 1,
+    "sealed_outcome_open_count": 0,
+    "selected_branch_opened": false,
+    "settlement_count": 0,
+    "social_pe_or_credit_count": 0
+  },
+  "model_output_count": 0,
+  "output_root": "artifacts/relationship_lab/relationship_product_horizon_theta0_v3_bootstrap_20260827_p9c48a8e3_i9a6dfc04",
+  "partial_inventory": [
+    {
+      "bytes": 382326,
+      "path": "parent_schedule.json",
+      "sha256": "c1f8680644072ac666f44eafe44e1ca8979e03525550d0c110e84eb51df6fdba"
+    },
+    {
+      "bytes": 13129,
+      "path": "protocol.json",
+      "sha256": "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f"
+    },
+    {
+      "bytes": 6136,
+      "path": "theta0_v3_trace.jsonl",
+      "sha256": "5d8b458f497b4f39070655d61c37322ff1630783257689089ae103307963181f"
+    }
+  ],
+  "partial_resume_allowed": false,
+  "partial_trace": {
+    "onboarding_append_rows": 4,
+    "parent_schedule_durable_rows": 1,
+    "preaction_rows": 0,
+    "root_begin_rows": 1,
+    "total_rows": 6
+  },
+  "protocol_id": "9c48a8e3d17f59b8bf62a7868c390a8b81af9eb1aef8dfb3096e08ee58dc12b5",
+  "protocol_raw_sha256": "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f",
+  "published_theta0_artifact_id": null,
+  "rehearsal_execution_count": 0,
+  "report_schema_version": "relationship-product-horizon-theta0-v3-bootstrap-execution-failure.v1",
+  "retry_boundary": "Do not resume or overwrite this root. A corrected implementation must be frozen in a new Git commit and use a new create-only output root without changing rate, cap, schedule, threshold, checkpoint, source, reader, or protocol identity.",
+  "scientific_terminal": false,
+  "transition_bundle_present": false,
+  "treatment_reachability_claim_authorized": false
+}
