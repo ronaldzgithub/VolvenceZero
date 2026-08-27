@@ -810,7 +810,20 @@ class OpenAICompatHand:
         if tool_calls:
             call = tool_calls[0]
             arguments_raw = call["function"].get("arguments", "{}")
-            parameters = json.loads(arguments_raw) if arguments_raw else {}
+            # Provider-noise boundary (same class as the transport retries in
+            # ``_post``): a truncated/malformed arguments blob — typically a
+            # long write_file cut at max_output_tokens (finish_reason=length)
+            # — must not kill the whole run. It becomes a structurally
+            # malformed tool call whose backend failure lands in the
+            # transcript, so the model sees its own truncation and adapts.
+            try:
+                parameters = json.loads(arguments_raw) if arguments_raw else {}
+            except json.JSONDecodeError as error:
+                parameters = {
+                    "malformed_arguments_prefix": str(arguments_raw)[:2000],
+                    "malformed_arguments_error": f"{type(error).__name__}: {error}",
+                }
+                metadata["arguments_parse_error"] = True
             if not isinstance(parameters, dict):
                 raise ValueError(f"tool arguments must be an object, got {type(parameters).__name__}")
             return HandDecision(
