@@ -116,16 +116,32 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 `agency_displacement`：`b7d1796e` 已封存常数偏移下的几何诊断）。判词上限仍为
 `post_hoc_mechanical_writeback_replay_only`，不作因果归因，不重复运行。
 
-**1b（正式档，当前推迟）reader qualification v6 执行**：rehearsal 已按用户裁决关闭；恢复时先跑
-model-free protocol/runtime preflight，随后直接冻结新 execution protocol、发新 Gist（不复用 v5 锚）并
-一次性执行 CUDA qualification，同时接受执行路径 bug 可能再次消耗该锚的风险。判词上限
-`exact_source_reader_development_admitted`（224/224 row + 28/28 group + margin ≥ 0.01，
-预注册门不改）。2026-08-26 的首个 rehearsal 在完成 formal-path 多轮完整性读取期间由用户停止；
-未完成 root 原样保留为 non-evidence，不消耗 protocol/Gist/formal execution。该线不再阻塞 Phase 2/2.5，
-但在 Readable unseen formal gate 前仍须回到此处完成资格链。
+**1b（正式档，当前 NO-GO）reader qualification v6 执行**：rehearsal 已按用户裁决关闭，
+且不再对未变的 scientific payload 冻结新 execution protocol、发新 Gist 或运行 CUDA。预注册门仍为
+`exact_source_reader_development_admitted`（224/224 row + 28/28 group + 每行 margin ≥ 0.01），不因事后诊断改门。
 
-出口：1a 审计 artifact 已封存，因此 Phase 2/2.5 可继续；1b 是独立 Readable formal 前置，
-恢复时必须得到 PASS 或 FAIL 终局（FAIL 原样封存，回到 reader 设计修正，不换门重试）。
+2026-08-27 零新模型输出的 model-free 预检分两层：
+
+- 用冻结的 4 条 training text 和已有 centroid reader 重放 attempt03 的 24 条 spent decision
+  text，top-1 与 margin 门均为 24/24，最小 normalized margin
+  `0.021650543439765302`。旧 prototype reader 的约 `0.00155438` 是两类 signed-margin 排序间隙，
+  不是 centroid qualification 的 per-input normalized margin；这一结果只证明旧 24 条未将
+  centroid reader 预先判死，不是 qualification。
+- 更直接的 spent-output 诊断复用 v5 失败根中两个 fresh CUDA child 已留下、且 byte-exact
+  一致的 reader `b5c1eb32…09bc` / 224-row ledger `c18ae91f…411b`，再事后打开同一
+  qualification protocol `72379602…8e6b` 的 labels/group 纯计分。结果为 top-1
+  `155/224`、margin 达门 `135/224`、两门同时 `109/224`、joint group `10/28`，最小
+  margin `0.00002109722626270072`。v5 因 Windows env-key 执行合同在 ledger commit 前中断，
+  所以这不是 formal FAIL，但是不应重复花费公开锚的直接 development NO-GO。
+
+v4/v5/v6 preflight 的 protocol bytes、public corpus `4934d7ac…c9f8`、predictor request、training/
+challenge labels 与 group split 全部精确相同。因此下一合法动作是在 spent development input 上修正
+reader training/source/solver 设计，随后用全新 protocol identity 与新的 disjoint challenge 资格链测试；
+不是用相同 4-text centroid 与 224-row challenge 重跑 v6。
+
+出口：1a 审计 artifact 已封存，因此 Phase 2/2.5 可继续；1b 现在是独立 Readable 设计修正入口。
+只有新 reader 在新 disjoint challenge 上得到 PASS/FAIL 终局，才能离开该阶段；上述两个事后诊断
+都不登记 Readable 证据。
 
 ### Phase 2 · 协议修正设计（开发档为主）
 

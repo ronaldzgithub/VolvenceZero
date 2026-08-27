@@ -1815,6 +1815,29 @@ unit input 与 unit centroid 的 cosine（加 artifact bias 后 clamp 到 `[-1,1
 `clamp((top1 - top2) / 2, 0, 1)`。未来资格门要求 224/224 row 与 28/28 group 全部 top1 正确、无 tie，且每行
 normalized margin `>= 0.01`；一个 group 只有在八个 voice row 全部过门时才通过。
 
+2026-08-27 的 model-free spent-input 诊断不修改上述门，但已裁决“是否值得按原样重跑
+v6”。首先，用 v5 已生成的 frozen centroid reader `b5c1eb32…09bc` 及 attempt03 pinned BGE
+table `75ef759e…f57` 重放 24 条 distinct decision text，top-1 与 margin 门均为 24/24，最小
+normalized margin 为 `0.021650543439765302`。这说明旧 prototype reader 两类 signed-margin
+分布之间约 `0.00155438` 的间隙不能当作 centroid reader 的 per-input qualification margin；
+但 24 条仍是 spent attempt03 input，不是 source-v3 的 224 条 challenge。
+
+随后对 v5 invalid execution root 里两个 byte-exact fresh-child 输出做更直接的事后重评：两份
+embedding table、reader artifact 与 224-row prediction ledger 原始字节分别完全相同；ledger
+artifact `c18ae91f…411b`（raw `c9923225…3641`）只读 join 冻结的 challenge-label artifact
+`357168bf…c70d9` 与 group-split `d7afc0d9…692b` 后，top-1 为 `155/224`、margin `>=0.01`
+为 `135/224`、两者同时为 `109/224`，joint group 仅 `10/28`，最小 margin
+`0.00002109722626270072`。该重评在失败后打开 labels，且 v5 在 official ledger commit
+前因 Windows env-key 合同中断，所以它只是 `post_hoc_model_free_spent_output_diagnostic`，
+不是 formal FAIL 或 Readable 证据。
+
+qualification-v2 protocol raw `fe4ef1ef…20dce`、public corpus `4934d7ac…c9f8`（raw
+`c004de94…ede6`）、predictor request、training/challenge labels 及 group split 在 v4/v5/v6 preflight 中
+逐字节相同。因此不改 4-text training、centroid solver、BGE snapshot 或 224-row challenge
+就重跑 v6，不会产生新科学信息，也不应再消耗公开锚。下一个 reader qualification
+必须是新设计、新 protocol identity 和新 disjoint challenge；原 v1/v2 protocol、v5 invalid 终局与
+未完成 rehearsal roots 全部原样保留。
+
 `FrozenLinearRelationshipPreferenceForecastRuntime` 只关闭 reader→正式 preference forecast proposal 的机制
 接缝：构造器必须拿到 exact `FrozenLinearRelationshipConditionReaderRuntime`，以 reader 发布的
 label/confidence 计算 condition-equivalence similarity，再复用既有 bounded owner collaborator；current readout

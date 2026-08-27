@@ -106,6 +106,12 @@
 >（旧 reader 不重训）→attempt03 full typed federation 跨 commit handoff→permanent public/outcome-free
 > treatment-reachability admission；后者不是 rehearsal。reader qualification、reachability admission、campaign、模型/CUDA、formal/unseen/integrated/四轴效果与
 > production 继续全部 false。
+> Readable 线的零新模型输出诊断已改变执行顺序：4-text centroid reader 在 spent attempt03
+> 24 条 decision text 上 24/24 且最小 margin `0.0216505`，但 v5 两个 byte-exact child
+> 对与 v6 相同的 224-row scientific payload 事后重评只有 top-1 `155/224`、top-1+margin
+> `109/224`、joint group `10/28`。v5 执行合同失败使这只是 development NO-GO，不是
+> formal FAIL；却已足以停止原样 v6 的新 Gist/CUDA 重跑，转入新 reader 设计与新 disjoint
+> challenge。该诊断不登记 Readable 证据。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。
