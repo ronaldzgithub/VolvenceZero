@@ -202,48 +202,6 @@ def _owner_settled_errors(
     return tuple(errors)
 
 
-def replay_social_prediction_error_snapshot(
-    *,
-    pending_errors: tuple[SocialPredictionError, ...] = (),
-    memory_visibility_errors: tuple[SocialPredictionError, ...] = (),
-    owner_settled_errors: tuple[SocialPredictionError, ...] = (),
-    prediction_available: bool = False,
-) -> SocialPredictionErrorSnapshot:
-    """Publish the PE owner's exact deterministic snapshot projection.
-
-    Evidence scanners may replay already typed inputs through this owner
-    contract, but they must not reconstruct the owner's description or merge
-    order themselves.
-    """
-
-    for field_name, errors in (
-        ("pending_errors", pending_errors),
-        ("memory_visibility_errors", memory_visibility_errors),
-        ("owner_settled_errors", owner_settled_errors),
-    ):
-        if type(errors) is not tuple or any(
-            not isinstance(item, SocialPredictionError) for item in errors
-        ):
-            raise TypeError(f"{field_name} must be a typed tuple")
-    if type(prediction_available) is not bool:
-        raise TypeError("prediction_available must be bool")
-
-    all_errors = pending_errors + memory_visibility_errors + owner_settled_errors
-    prediction_state = (
-        "available" if prediction_available else "compatibility-fallback"
-    )
-    return SocialPredictionErrorSnapshot(
-        errors=all_errors,
-        description=(
-            "R16 social PE: pending_injected="
-            f"{len(pending_errors)} "
-            f"memory_visibility_pe={len(memory_visibility_errors)} "
-            f"owner_settled={len(owner_settled_errors)} "
-            f"total={len(all_errors)}; prediction={prediction_state}."
-        ),
-    )
-
-
 def _group_predictions(
     upstream: Mapping[str, Snapshot[Any]]
 ) -> tuple[SocialPrediction, ...]:
@@ -417,12 +375,23 @@ class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
                 derived_errors.append(error)
         derived_errors_tuple = tuple(derived_errors)
         owner_settled = _owner_settled_errors(upstream)
+        all_errors = self._pending_errors + derived_errors_tuple + owner_settled
+
+        prediction_state = (
+            "available" if prediction_available else "compatibility-fallback"
+        )
+        derivation_summary = (
+            f"memory_visibility_pe={len(derived_errors_tuple)} "
+            f"owner_settled={len(owner_settled)}"
+        )
         return self.publish(
-            replay_social_prediction_error_snapshot(
-                pending_errors=self._pending_errors,
-                memory_visibility_errors=derived_errors_tuple,
-                owner_settled_errors=owner_settled,
-                prediction_available=prediction_available,
+            SocialPredictionErrorSnapshot(
+                errors=all_errors,
+                description=(
+                    "R16 social PE: pending_injected="
+                    f"{len(self._pending_errors)} {derivation_summary} "
+                    f"total={len(all_errors)}; prediction={prediction_state}."
+                ),
             )
         )
 
@@ -431,5 +400,4 @@ __all__ = [
     "MultiPartyIdentityModule",
     "SocialPredictionAggregateModule",
     "SocialPredictionErrorModule",
-    "replay_social_prediction_error_snapshot",
 ]
