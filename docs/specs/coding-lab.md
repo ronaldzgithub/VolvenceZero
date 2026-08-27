@@ -108,6 +108,19 @@ action_turn_index=...)`。PE 在自身 `process` 内经 `_apply_external_outcome
   失败工具流的预报不低于三连成功流。修复路线：(1) publisher 侧丰富
   （vz-cognition PE 预测头纳入执行证据，独立收敛包）；(2) 真实基底 + 冻结
   API 手重跑。**不降判据、不在本 lane 内 hack。**
+- **2026-08-27 路线 (1) 已实施并复测，判词收窄封存**：PE owner 前向任务轴新增
+  presence-gated 执行证据混合（`_execution_success_signal` = execution_result
+  owner 已结算 completed/failed 动作的成功比；固定权重 0.35；无证据 lane 走
+  原路径逐位不变；`test_pe_execution_evidence.py` 10 项定向单测证明全败证据
+  压低、全成证据抬高前向 task 预测且其余轴/confidence 不动）。同一冻结
+  Packet 0 输入重跑 observer
+  （`coding_lab_observer_scripted_20260827_execevidence`）：statistic
+  −0.0038→−0.0024、p=0.584 不变，`forecast_skill` 仍 FAIL——富化已激活
+  （`forecast_skill_at_present` 同步移动）但 chain 级语义动作成功比对
+  episode 级通过没有判别力。按预注册双终局收窄：**前向预测技能在合成基底
+  不成立，Readable 主张收窄为"命名读出 + junction 状态键"，本 lane 不做
+  第三次重试**；唯一升级路径是真实基底 + 对话 API 主干（另立 prereg）。
+  富化本身保留（规范对齐、presence-gated 零涟漪）。
 
 ## 6. 注入包与三臂对照（Packet 2 结构）
 

@@ -438,6 +438,13 @@ class _OutcomeEvidence:
     substrate_delta: dict[str, float]
     cross_track_tension: float
     regime_stability: float
+    #: Success ratio derived from the execution_result owner's settled
+    #: actions (completed vs failed). ``None`` when the lane publishes no
+    #: settled execution evidence — every consumer must then behave exactly
+    #: as before this field existed (presence-gated enrichment; the
+    #: Packet 1 forecast_skill diagnostic showed the forward prediction
+    #: never consumed execution evidence).
+    execution_signal: float | None = None
 
 
 @dataclass(frozen=True)
@@ -449,6 +456,34 @@ class _OutcomeAxisCalibration:
     stability_weight: float = 0.0
     tension_weight: float = 0.0
     novelty_weight: float = 0.0
+
+
+# Fixed bounded blend weight of settled execution evidence into the FORWARD
+# task-axis prediction. Chosen once (not fitted): large enough that all-fail
+# vs all-pass execution histories separate forward bets, small enough that
+# substrate/evaluation signals still dominate. Applied only when the
+# execution_result owner published settled completed/failed actions.
+_EXECUTION_EVIDENCE_TASK_WEIGHT = 0.35
+
+
+def _execution_success_signal(
+    execution_snapshot: "ExecutionResultSnapshot | None",
+) -> float | None:
+    """Success ratio over the execution_result owner's settled actions.
+
+    ``None`` (not neutral 0.5) when there is no settled evidence, so
+    consumers stay presence-gated instead of silently re-centering lanes
+    that never publish execution results.
+    """
+
+    if execution_snapshot is None:
+        return None
+    completed = len(execution_snapshot.completed_actions)
+    failed = len(execution_snapshot.failed_actions)
+    total = completed + failed
+    if total == 0:
+        return None
+    return _clamp_unit(completed / total)
 
 
 # Fixed axis order shared by the CP-11 lagged features and diagnostics.
@@ -673,6 +708,17 @@ class _PredictionErrorHead:
         action_context: PredictionActionContext,
     ) -> PredictedOutcome:
         task_progress = self._axis_value("task", evidence=evidence, calibrations=self._prediction_axes)
+        execution_note = ""
+        if evidence.execution_signal is not None:
+            # Presence-gated publisher-side enrichment: settled execution
+            # evidence (tool/test outcomes) moves the forward task axis with
+            # a fixed bounded weight. Lanes without execution_result
+            # evidence take the exact pre-existing path.
+            task_progress = _clamp_unit(
+                task_progress * (1.0 - _EXECUTION_EVIDENCE_TASK_WEIGHT)
+                + evidence.execution_signal * _EXECUTION_EVIDENCE_TASK_WEIGHT
+            )
+            execution_note = f" execution_signal={evidence.execution_signal:.2f}"
         relationship_signal = self._axis_value("relationship", evidence=evidence, calibrations=self._prediction_axes)
         regime_stability = self._axis_value("regime", evidence=evidence, calibrations=self._prediction_axes)
         action_payoff = self._axis_value("action", evidence=evidence, calibrations=self._prediction_axes)
@@ -689,6 +735,7 @@ class _PredictionErrorHead:
                 f"Predicted next-turn outcome task={task_progress:.2f} relationship={relationship_signal:.2f} "
                 f"regime={regime_stability:.2f} action={action_payoff:.2f} confidence={confidence:.2f} "
                 f"task_signal={self._task_signal(evidence):.2f} relationship_signal={self._relationship_signal(evidence):.2f}."
+                f"{execution_note}"
             ),
             action_context=action_context,
         )
@@ -1151,6 +1198,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         dual_track_snapshot: DualTrackSnapshot,
         regime_snapshot: RegimeSnapshot | None,
         action_context: PredictionActionContext | None = None,
+        execution_result_snapshot: ExecutionResultSnapshot | None = None,
     ) -> PredictedOutcome:
         evidence = _build_outcome_evidence(
             substrate_snapshot=substrate_snapshot,
@@ -1158,6 +1206,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             evaluation_snapshot=evaluation_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
+            execution_result_snapshot=execution_result_snapshot,
         )
         return self._outcome_head.build_prediction(
             source_turn_index=source_turn_index,
@@ -1208,6 +1257,12 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             apprenticeship_snapshot.value, ApprenticeshipAlignmentSnapshot
         ):
             apprenticeship_value = apprenticeship_snapshot.value
+        execution_result_upstream = upstream.get("execution_result")
+        execution_result_value: ExecutionResultSnapshot | None = None
+        if execution_result_upstream is not None and isinstance(
+            execution_result_upstream.value, ExecutionResultSnapshot
+        ):
+            execution_result_value = execution_result_upstream.value
         if evaluation_value is None or dual_track_value is None:
             return self.publish(_bootstrap_snapshot(turn_index=self._turn_index))
         self._turn_index += 1
@@ -1222,6 +1277,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             commitment_snapshot=commitment_value,
             external_outcome_snapshot=external_outcome_value,
             apprenticeship_snapshot=apprenticeship_value,
+            execution_result_snapshot=execution_result_value,
         )
         settlements = self._settle_owner_predictions(
             upstream=upstream,
@@ -1496,6 +1552,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         commitment_snapshot: CommitmentSnapshot | None = None,
         external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
         apprenticeship_snapshot: ApprenticeshipAlignmentSnapshot | None = None,
+        execution_result_snapshot: ExecutionResultSnapshot | None = None,
     ) -> PredictionErrorSnapshot:
         next_prediction = self.compute_prediction(
             source_turn_index=turn_index,
@@ -1505,6 +1562,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
             action_context=self._action_context,
+            execution_result_snapshot=execution_result_snapshot,
         )
         # CP-10: the PE owner (and only the PE owner) issues the pre-action
         # prediction id on the prediction it publishes. Downstream actors
@@ -2320,6 +2378,7 @@ def _build_outcome_evidence(
     evaluation_snapshot: EvaluationSnapshot,
     dual_track_snapshot: DualTrackSnapshot,
     regime_snapshot: RegimeSnapshot | None,
+    execution_result_snapshot: ExecutionResultSnapshot | None = None,
 ) -> _OutcomeEvidence:
     regime_stability = 0.5
     if regime_snapshot is not None:
@@ -2340,6 +2399,7 @@ def _build_outcome_evidence(
         substrate_delta=_substrate_delta(substrate_snapshot, previous_substrate_snapshot),
         cross_track_tension=_clamp_unit(dual_track_snapshot.cross_track_tension),
         regime_stability=regime_stability,
+        execution_signal=_execution_success_signal(execution_result_snapshot),
     )
 
 
