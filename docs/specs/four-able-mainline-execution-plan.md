@@ -607,3 +607,16 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   4,480/4,480 STEER 而使 always arm 完全退化，未来 conditional-vs-always/random actual divergence 是硬门；
   其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。下一收敛包是 v2 evaluation pulse consumer，
   不回改 frozen campaign，也不先启动 source-v5 CUDA 或 integrated run。
+- 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
+  （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
+  的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。
+  coding lane 现有 formal 证据的四个缺口与对应收敛包登记为：Packet 3.5 junction 介入式 RCT 标定
+  （修 `credit_expert_actions` 观察性混杂，介入表由 junctions owner 发布）；Packet 3.6 S3-E 判据升级为
+  **episode 通过率**（四臂 learned_gate/noop/always_on/random_gate，诚实边界：证明动作级干预择时，
+  不升级残差级 Steerable）；Packet 2-v3 扩链 8→24（拉开 memory_gate +0.0061 的发丝级下界余量）；
+  Packet 1-fix forecast_skill 走 publisher 侧丰富（PE 预测头接 `execution_result` 证据）或封存收窄判词，
+  不做第三次重试。成本探针（packet2 formal v2 实测 240 集 / 2.24h / prompt 16.85M tok）外推：
+  A≈200 集 1.9h、B≈320 集 3.0h、C≈720 集 6.7h，三 formal 合计约 12h / 87M prompt tok，
+  执行前攒批确认。coding lane 各包沿用本计划 §2 证据分档与 §3 纪律；本任务持有 coding-lab
+  证据 lane 写权限，关系线与 investor demo 的未提交改动（含 `coding_lab_arms.py` 的 on_episode
+  观察回调）归属另一任务，不混入本 lane 提交。本记录不授权任何 formal run。
