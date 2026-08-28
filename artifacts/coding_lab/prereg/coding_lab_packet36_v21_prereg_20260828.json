@@ -1,0 +1,333 @@
+{
+ "accept_rule": {
+  "min_gain": 0.05,
+  "min_trials": 10
+ },
+ "accepted_cells": [
+  [
+   "fix_bug|reads=1|edited=0|tests=none",
+   "investigate"
+  ],
+  [
+   "fix_bug|reads=1|edited=0|tests=none",
+   "edit"
+  ],
+  [
+   "fix_bug|reads=1|edited=0|tests=none",
+   "test"
+  ]
+ ],
+ "advice_menu": [
+  "investigate",
+  "edit",
+  "test",
+  "submit"
+ ],
+ "advice_mode": true,
+ "binding_gates": [
+  "avoidance_timing_gate",
+  "placement_gate"
+ ],
+ "bootstrap_resamples": 2000,
+ "bootstrap_seed": 20260829,
+ "calibration_report_path": "D:/volvence/artifacts/coding_lab/packet35_formal_qwen3codernext_20260827/report.json",
+ "calibration_report_sha256": "fe1b0f5abcc79e8fff3b51319c2f252a3bdf765824b05004caee6a7f5a85d0da",
+ "certified_cells": [
+  {
+   "category": "add_helper",
+   "credited_gain": 0.0,
+   "expert_action": "investigate",
+   "expert_itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "state_key": "add_helper|reads=1|edited=0|tests=none"
+  },
+  {
+   "category": "config_feature",
+   "credited_gain": 0.0,
+   "expert_action": "investigate",
+   "expert_itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "state_key": "config_feature|reads=1|edited=0|tests=none"
+  },
+  {
+   "category": "extend_report",
+   "credited_gain": 0.0,
+   "expert_action": "investigate",
+   "expert_itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "state_key": "extend_report|reads=1|edited=0|tests=none"
+  },
+  {
+   "category": "fix_bug",
+   "credited_gain": 0.17647058823529416,
+   "expert_action": "edit",
+   "expert_itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none"
+  },
+  {
+   "category": "refactor_alias",
+   "credited_gain": 0.0,
+   "expert_action": "investigate",
+   "expert_itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 1.0,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none"
+  }
+ ],
+ "chains": 24,
+ "claim_boundary": "Action-level intervention timing driven by interventional credit, measured on oracle episode pass rate. In the v2-advisor design the timing claim is 'knowing when to trust a fallible advisor', priced causally per cell. Residual-level Steerable is NOT lifted.",
+ "convention_ids": [
+  "convention_export_all"
+ ],
+ "design": "v21-advice",
+ "env_seed": 20260812,
+ "episodes_per_chain": 10,
+ "estimand": "chain-paired episode pass-rate gaps between matched arms (noop / always_on / random_gate / table_gate) on the oracle verdict",
+ "gate_seed": 20260829,
+ "gates": {
+  "avoidance_timing_gate": "table_gate - always_on(unfiltered) chain-bootstrap 5% lower bound > 0 (declining causally priced harmful advice)",
+  "intervention_gate": "always_on(unfiltered) - noop: DIRECTIONAL REPORT ONLY (expected negative — unfiltered random advice is net-harmful by design)",
+  "outcome_timing_gate": "table_gate - noop: DIRECTIONAL REPORT ONLY (accepted advice gains are small; net-vs-noop causality was already established by the sealed v1 formal's intervention_gate)",
+  "placement_gate": "table_gate - random_gate(rate-matched, content-blind) chain-bootstrap 5% lower bound > 0 (content selection beyond acceptance rate)"
+ },
+ "hand": {
+  "api_key_env": "DASHSCOPE_API_KEY",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "kind": "api",
+  "model": "qwen3-coder-next",
+  "temperature": 0.0
+ },
+ "honest_endgames": [
+  "all_gates_pass",
+  "timing_no_outcome_gain (gate FAIL, sealed as-is)",
+  "advisor_uniformly_good_or_bad (v2: no avoidance headroom realized)"
+ ],
+ "packet": "coding-lab-packet-3.6",
+ "prereg_id": "coding-lab-packet36-1787926681",
+ "pricing_audit": [
+  {
+   "accepted": false,
+   "action": "investigate",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": true,
+   "state_key": "add_helper|reads=1|edited=0|tests=none",
+   "trials": 12
+  },
+  {
+   "accepted": false,
+   "action": "edit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": true,
+   "state_key": "add_helper|reads=1|edited=0|tests=none",
+   "trials": 16
+  },
+  {
+   "accepted": false,
+   "action": "test",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": true,
+   "state_key": "add_helper|reads=1|edited=0|tests=none",
+   "trials": 16
+  },
+  {
+   "accepted": false,
+   "action": "submit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": true,
+   "state_key": "add_helper|reads=1|edited=0|tests=none",
+   "trials": 18
+  },
+  {
+   "accepted": false,
+   "action": "investigate",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "config_feature|reads=1|edited=0|tests=none",
+   "trials": 6
+  },
+  {
+   "accepted": false,
+   "action": "edit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "config_feature|reads=1|edited=0|tests=none",
+   "trials": 2
+  },
+  {
+   "accepted": false,
+   "action": "test",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "config_feature|reads=1|edited=0|tests=none",
+   "trials": 4
+  },
+  {
+   "accepted": false,
+   "action": "submit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "config_feature|reads=1|edited=0|tests=none",
+   "trials": 3
+  },
+  {
+   "accepted": false,
+   "action": "investigate",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "extend_report|reads=1|edited=0|tests=none",
+   "trials": 3
+  },
+  {
+   "accepted": false,
+   "action": "edit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "extend_report|reads=1|edited=0|tests=none",
+   "trials": 3
+  },
+  {
+   "accepted": false,
+   "action": "test",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "extend_report|reads=1|edited=0|tests=none",
+   "trials": 5
+  },
+  {
+   "accepted": false,
+   "action": "submit",
+   "gain": 0.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.0,
+   "priced": false,
+   "state_key": "extend_report|reads=1|edited=0|tests=none",
+   "trials": 7
+  },
+  {
+   "accepted": true,
+   "action": "investigate",
+   "gain": 0.07120758823529416,
+   "itt_pass_rate": 0.894737,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "priced": true,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none",
+   "trials": 19
+  },
+  {
+   "accepted": true,
+   "action": "edit",
+   "gain": 0.17647058823529416,
+   "itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "priced": true,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none",
+   "trials": 17
+  },
+  {
+   "accepted": true,
+   "action": "test",
+   "gain": 0.12091458823529411,
+   "itt_pass_rate": 0.944444,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "priced": true,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none",
+   "trials": 18
+  },
+  {
+   "accepted": false,
+   "action": "submit",
+   "gain": -0.8235294117647058,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "priced": true,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none",
+   "trials": 23
+  },
+  {
+   "accepted": false,
+   "action": "investigate",
+   "gain": 0.0,
+   "itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 1.0,
+   "priced": false,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none",
+   "trials": 5
+  },
+  {
+   "accepted": false,
+   "action": "edit",
+   "gain": 0.0,
+   "itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 1.0,
+   "priced": false,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none",
+   "trials": 3
+  },
+  {
+   "accepted": false,
+   "action": "test",
+   "gain": -0.166667,
+   "itt_pass_rate": 0.833333,
+   "natural_control_pass_rate": 1.0,
+   "priced": false,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none",
+   "trials": 6
+  },
+  {
+   "accepted": false,
+   "action": "submit",
+   "gain": -1.0,
+   "itt_pass_rate": 0.0,
+   "natural_control_pass_rate": 1.0,
+   "priced": false,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none",
+   "trials": 2
+  }
+ ],
+ "random_gate_steer_probability": 0.5,
+ "rate_matched_by_category": [
+  [
+   "add_helper",
+   0.0
+  ],
+  [
+   "config_feature",
+   0.0
+  ],
+  [
+   "extend_report",
+   0.0
+  ],
+  [
+   "fix_bug",
+   0.75
+  ],
+  [
+   "refactor_alias",
+   0.0
+  ]
+ ],
+ "table_gate_min_gain": 0.05
+}
