@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import pathlib
 import statistics
+from collections.abc import Callable
 from dataclasses import dataclass
 from random import Random
 from typing import Any
@@ -208,12 +209,19 @@ async def run_chain_arm(
     config: ArmChainConfig,
     arm_root: pathlib.Path,
     hand_factory: Any,
+    on_episode: Callable[[ArmEpisodeRow], None] | None = None,
 ) -> tuple[ArmEpisodeRow, ...]:
     """Run one arm over one chain.
 
     ``hand_factory(chain: tuple[ChainTask, ...], chain_index: int) -> Hand``
     must construct identical hands across arms (the hand is frozen; only
     the context differs).
+
+    ``on_episode`` is an optional observer invoked with each settled row as
+    it lands, so a live side-by-side display can stream progress without
+    forking this function's arm semantics. It receives the same immutable
+    row that is returned, must not mutate shared state the arms depend on,
+    and is never called on the formal evidence path (default ``None``).
     """
 
     if arm not in ALL_ARMS:
@@ -269,22 +277,23 @@ async def run_chain_arm(
             )
         elif arm == ARM_STEELMAN:
             steelman_transcripts.append(render_episode_transcript(trajectory_path))
-        rows.append(
-            ArmEpisodeRow(
-                arm=arm,
-                chain_index=config.chain_index,
-                episode_index=episode_index,
-                task_id=task.task_id,
-                category=task.category,
-                passed=result.outcome.passed,
-                context_chars=len(preamble),
-                context_tokens_approx=approx_tokens(preamble),
-                prompt_tokens=result.prompt_tokens,
-                completion_tokens=result.completion_tokens,
-                wall_seconds=result.wall_seconds,
-                invariant_violations=result.outcome.invariant_violations,
-            )
+        row = ArmEpisodeRow(
+            arm=arm,
+            chain_index=config.chain_index,
+            episode_index=episode_index,
+            task_id=task.task_id,
+            category=task.category,
+            passed=result.outcome.passed,
+            context_chars=len(preamble),
+            context_tokens_approx=approx_tokens(preamble),
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            wall_seconds=result.wall_seconds,
+            invariant_violations=result.outcome.invariant_violations,
         )
+        rows.append(row)
+        if on_episode is not None:
+            on_episode(row)
     if observer is not None:
         observer.persist()
     return tuple(rows)
