@@ -14,9 +14,11 @@ from lifeform_evolution.coding_lab_packet36 import (
     CertifiedCell,
     Packet36Config,
     Packet36EpisodeRow,
+    arm_executes_advice,
     arm_steers,
     derive_advisor_cells,
     derive_certified_cells,
+    draw_advice,
     paired_gap_statistics,
 )
 
@@ -160,6 +162,91 @@ class TestDeriveAdvisorCells:
         calibration["observational_control_table"]["fix_bug|reads=3|edited=0|tests=none"] = []
         with pytest.raises(ValueError, match="without control coverage"):
             derive_advisor_cells(calibration)
+
+
+def _advice_config(**overrides: object) -> Packet36Config:
+    cell = _cell(gain=0.2)
+    defaults: dict[str, object] = {
+        "advice_mode": True,
+        "advice_menu": ("investigate", "edit", "test", "submit"),
+        "accepted_cells": ((cell.state_key, "edit"), (cell.state_key, "test")),
+        "rate_matched_by_category": (("fix_bug", 0.5),),
+        "certified_cells": (cell,),
+    }
+    defaults.update(overrides)
+    return _config(**defaults)
+
+
+class TestAdviceMode:
+    def test_advice_draw_is_uniform_support_and_deterministic(self) -> None:
+        config = _advice_config()
+        cell = config.certified_cells[0]
+        draws = [
+            draw_advice(config, cell=cell, chain_index=c, episode_index=e)
+            for c in range(8)
+            for e in range(10)
+        ]
+        repeat = [
+            draw_advice(config, cell=cell, chain_index=c, episode_index=e)
+            for c in range(8)
+            for e in range(10)
+        ]
+        assert draws == repeat
+        assert set(draws) == set(config.advice_menu)
+        assert draw_advice(config, cell=None, chain_index=0, episode_index=0) is None
+
+    def test_unfiltered_executes_everything_gate_filters_by_content(self) -> None:
+        config = _advice_config()
+        cell = config.certified_cells[0]
+        for advice in config.advice_menu:
+            common = {
+                "cell": cell,
+                "advice_action": advice,
+                "chain_index": 0,
+                "episode_index": 0,
+            }
+            assert not arm_executes_advice(config, arm=ARM_NOOP, **common)
+            assert arm_executes_advice(config, arm=ARM_ALWAYS_ON, **common)
+            expected = (cell.state_key, advice) in config.accepted_cells
+            assert arm_executes_advice(config, arm=ARM_TABLE_GATE, **common) is expected
+
+    def test_rate_matched_arm_is_content_blind(self) -> None:
+        config = _advice_config()
+        cell = config.certified_cells[0]
+        for chain in range(6):
+            for episode in range(6):
+                decisions = {
+                    advice: arm_executes_advice(
+                        config,
+                        arm=ARM_RANDOM_GATE,
+                        cell=cell,
+                        advice_action=advice,
+                        chain_index=chain,
+                        episode_index=episode,
+                    )
+                    for advice in config.advice_menu
+                }
+                assert len(set(decisions.values())) == 1  # same coin, blind to content
+
+    def test_category_without_rate_never_executes(self) -> None:
+        config = _advice_config()
+        other = _cell(gain=0.0, category="refactor_alias")
+        assert not arm_executes_advice(
+            config,
+            arm=ARM_RANDOM_GATE,
+            cell=other,
+            advice_action="edit",
+            chain_index=0,
+            episode_index=0,
+        )
+
+    def test_accepted_cell_outside_surface_rejected(self) -> None:
+        with pytest.raises(ValueError, match="outside surface"):
+            _advice_config(accepted_cells=(("bogus|key", "edit"),))
+
+    def test_advice_mode_requires_menu(self) -> None:
+        with pytest.raises(ValueError, match="advice_menu"):
+            _advice_config(advice_menu=())
 
 
 class TestBindingGatesConfig:

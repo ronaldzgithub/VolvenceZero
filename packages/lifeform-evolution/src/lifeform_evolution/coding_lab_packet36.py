@@ -30,6 +30,14 @@ and binding gates:
   cells whose priced gain falls below the frozen threshold. Binding gates:
   ``avoidance_timing_gate`` (table − always) and ``outcome_timing_gate``
   (table − noop).
+* v2.1 (explicit-fallible advice stream): the T1 probe showed an advisor
+  derived from the model's own near-ceiling behaviour is never usefully
+  wrong, so advice is a seeded UNIFORM draw over the protocol menu at the
+  category's priced state key. Arms share the identical advice stream:
+  ``always_on`` executes everything (unfiltered), ``table_gate`` executes
+  only advice in the prereg-frozen accept set (derived from the sealed
+  Packet 3.5 interventional pricing), ``random_gate`` executes advice
+  content-blind at the gate's per-category acceptance rate.
 """
 
 from __future__ import annotations
@@ -191,6 +199,17 @@ class Packet36Config:
     #: v2 fallible-advisor design binds avoidance timing (table − always)
     #: and net value (table − noop) instead.
     binding_gates: tuple[str, ...] = ("outcome_timing_gate", "intervention_gate")
+    #: v2.1 explicit-fallible advice mode. When enabled, every opportunity
+    #: episode draws a uniform advice action from ``advice_menu`` at its
+    #: category's certified cell key; arms decide execution of that shared
+    #: stream instead of steering to the cell's expert action.
+    advice_mode: bool = False
+    advice_menu: tuple[str, ...] = ()
+    #: Frozen accept set of the credit gate: (state_key, action) pairs whose
+    #: sealed interventional pricing clears the prereg rule.
+    accepted_cells: tuple[tuple[str, str], ...] = ()
+    #: Content-blind acceptance rate of the rate-matched arm, per category.
+    rate_matched_by_category: tuple[tuple[str, float], ...] = ()
     budget: EpisodeBudget = field(default_factory=EpisodeBudget)
     min_free_disk_bytes: int = 2 * 1024**3
     resume: bool = False
@@ -206,6 +225,18 @@ class Packet36Config:
             raise ValueError("random_gate_steer_probability must be in (0, 1)")
         if self.chains < 2 or self.episodes_per_chain < 1:
             raise ValueError("need >= 2 chains for paired statistics")
+        if self.advice_mode:
+            if not self.advice_menu:
+                raise ValueError("advice_mode requires a frozen advice_menu")
+            surface_keys = {cell.state_key for cell in self.certified_cells}
+            for state_key, action in self.accepted_cells:
+                if action not in self.advice_menu:
+                    raise ValueError(f"accepted cell action outside advice menu: {action!r}")
+                if state_key not in surface_keys:
+                    raise ValueError(f"accepted cell key outside surface: {state_key!r}")
+            for category, probability in self.rate_matched_by_category:
+                if not 0.0 <= probability <= 1.0:
+                    raise ValueError(f"rate for {category!r} outside [0, 1]")
 
 
 def arm_steers(
@@ -234,6 +265,51 @@ def arm_steers(
     raise ValueError(f"unknown arm: {arm}")
 
 
+def draw_advice(
+    config: Packet36Config,
+    *,
+    cell: CertifiedCell | None,
+    chain_index: int,
+    episode_index: int,
+) -> str | None:
+    """Seeded uniform advice draw shared by all arms (advice mode only)."""
+
+    if cell is None:
+        return None
+    rng = Random(
+        config.gate_seed * 7_777_777 + chain_index * 10_007 + episode_index * 101 + 13
+    )
+    return config.advice_menu[rng.randrange(len(config.advice_menu))]
+
+
+def arm_executes_advice(
+    config: Packet36Config,
+    *,
+    arm: str,
+    cell: CertifiedCell | None,
+    advice_action: str | None,
+    chain_index: int,
+    episode_index: int,
+) -> bool:
+    """Frozen per-arm execution policy over the shared advice stream."""
+
+    if cell is None or advice_action is None:
+        return False
+    if arm == ARM_NOOP:
+        return False
+    if arm == ARM_ALWAYS_ON:
+        return True
+    if arm == ARM_TABLE_GATE:
+        return (cell.state_key, advice_action) in set(config.accepted_cells)
+    if arm == ARM_RANDOM_GATE:
+        probability = dict(config.rate_matched_by_category).get(cell.category, 0.0)
+        rng = Random(
+            config.gate_seed * 1_000_003 + chain_index * 10_007 + episode_index * 101
+        )
+        return rng.random() < probability
+    raise ValueError(f"unknown arm: {arm}")
+
+
 @dataclass(frozen=True)
 class Packet36EpisodeRow:
     arm: str
@@ -252,6 +328,9 @@ class Packet36EpisodeRow:
     prompt_tokens: int
     completion_tokens: int
     trajectory_sha256: str
+    #: v2.1 advice mode: the shared advice draw (recorded even when the arm
+    #: declined to execute it). None in v1 expert-steer rows.
+    advice_action: str | None = None
 
 
 def _chain_spec(config: Packet36Config, chain_index: int) -> EnvSpec:
@@ -307,17 +386,33 @@ async def _run_arm_chain(
     rows: list[Packet36EpisodeRow] = []
     for episode_index, task in enumerate(chain):
         cell = cell_by_category.get(task.category)
-        steer = arm_steers(
-            config, arm=arm, cell=cell, chain_index=chain_index, episode_index=episode_index
-        )
+        if config.advice_mode:
+            advice_action = draw_advice(
+                config, cell=cell, chain_index=chain_index, episode_index=episode_index
+            )
+            steer = arm_executes_advice(
+                config,
+                arm=arm,
+                cell=cell,
+                advice_action=advice_action,
+                chain_index=chain_index,
+                episode_index=episode_index,
+            )
+            forced_action = advice_action
+        else:
+            advice_action = None
+            steer = arm_steers(
+                config, arm=arm, cell=cell, chain_index=chain_index, episode_index=episode_index
+            )
+            forced_action = cell.expert_action if cell is not None else None
         hand: Hand
-        if steer and cell is not None:
+        if steer and cell is not None and forced_action is not None:
             hand = ForcedActionHand(
                 inner=inner_hand,
                 category=task.category,
                 assignment=ForcedActionAssignment(
                     target_state_keys=(cell.state_key,),
-                    assigned_action=cell.expert_action,
+                    assigned_action=forced_action,
                     assignment_id=(
                         f"p36:{arm}:{config.gate_seed}:c{chain_index:02d}:e{episode_index:03d}"
                     ),
@@ -347,7 +442,8 @@ async def _run_arm_chain(
                 opportunity=cell is not None,
                 steer_decided=steer,
                 triggered=isinstance(hand, ForcedActionHand) and hand.triggered,
-                expert_action=cell.expert_action if (steer and cell is not None) else None,
+                expert_action=forced_action if steer else None,
+                advice_action=advice_action,
                 submitted=result.submitted,
                 steps_used=result.steps_used,
                 wall_seconds=result.wall_seconds,
@@ -512,6 +608,10 @@ async def run_packet36(
             "random_gate_steer_probability": config.random_gate_steer_probability,
             "table_gate_min_gain": config.table_gate_min_gain,
             "certified_cells": [dataclasses.asdict(cell) for cell in config.certified_cells],
+            "advice_mode": config.advice_mode,
+            "advice_menu": list(config.advice_menu),
+            "accepted_cells": [list(cell) for cell in config.accepted_cells],
+            "rate_matched_by_category": [list(item) for item in config.rate_matched_by_category],
         },
         "preflight_disk": disk,
         "pass_rates_by_arm": pass_rates,
@@ -528,6 +628,35 @@ async def run_packet36(
                 len(triggered_rows) / len(steered_rows) if steered_rows else None
             ),
             "steered_pass_rate_wilson95": [round(v, 6) for v in steer_wilson],
+            "advice_drawn_by_action": (
+                {
+                    action: sum(
+                        1
+                        for row in opportunity_rows
+                        if row.advice_action == action and row.arm == ARM_NOOP
+                    )
+                    for action in config.advice_menu
+                }
+                if config.advice_mode
+                else None
+            ),
+            "advice_executed_by_arm_action": (
+                {
+                    arm: {
+                        action: sum(
+                            1
+                            for row in rows
+                            if row.arm == arm
+                            and row.steer_decided
+                            and row.advice_action == action
+                        )
+                        for action in config.advice_menu
+                    }
+                    for arm in ALL_ARMS
+                }
+                if config.advice_mode
+                else None
+            ),
         },
         "honest_boundaries": {
             "claim_scope": "action-level intervention timing on oracle episode pass rate",
@@ -586,9 +715,11 @@ __all__ = [
     "HAND_SCRIPTED",
     "Packet36Config",
     "Packet36EpisodeRow",
+    "arm_executes_advice",
     "arm_steers",
     "derive_advisor_cells",
     "derive_certified_cells",
+    "draw_advice",
     "paired_gap_statistics",
     "run_packet36",
 ]

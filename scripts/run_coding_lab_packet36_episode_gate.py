@@ -87,6 +87,20 @@ def _smoke_cells() -> tuple[CertifiedCell, ...]:
 
 def cmd_smoke(args: argparse.Namespace) -> int:
     run_id = args.run_id or f"packet36_smoke_{time.strftime('%Y%m%d_%H%M%S')}"
+    advice_kwargs: dict = {}
+    if args.advice:
+        from lifeform_domain_coding.lab.junctions import JUNCTION_ACTIONS  # noqa: PLC0415
+
+        fix_bug_key = _smoke_cells()[0].state_key
+        advice_kwargs = {
+            "advice_mode": True,
+            "advice_menu": tuple(JUNCTION_ACTIONS),
+            "accepted_cells": tuple(
+                (fix_bug_key, action) for action in ("edit", "investigate", "test")
+            ),
+            "rate_matched_by_category": (("fix_bug", 0.75), ("refactor_alias", 0.0)),
+            "binding_gates": ("avoidance_timing_gate", "placement_gate"),
+        }
     config = Packet36Config(
         run_id=run_id,
         output_root=pathlib.Path(args.output_root),
@@ -96,17 +110,143 @@ def cmd_smoke(args: argparse.Namespace) -> int:
         hand_kind=HAND_SCRIPTED,
         gate_seed=args.gate_seed,
         resume=args.resume,
+        **advice_kwargs,
     )
     report = asyncio.run(run_packet36(config, evidence_tier="development"))
     print(json.dumps(_summary(report), ensure_ascii=False, sort_keys=True))
     return 0
 
 
+def _derive_v21_surface(
+    calibration: dict,
+    *,
+    min_trials: int,
+    min_gain: float,
+) -> tuple[
+    tuple[CertifiedCell, ...],
+    list[list[str]],
+    dict[str, float],
+    list[dict],
+]:
+    """Surface, accept set and rate-matching from the sealed 3.5 pricing.
+
+    Surface = every prereg-frozen target key of the sealed calibration whose
+    control table has coverage. Accept rule (frozen here, applied uniformly):
+    (key, action) is accepted iff its interventional ITT row has
+    ``trials >= min_trials`` and ``pass_rate - control_natural >= min_gain``.
+    Everything else — harmful, unpriced, or under-supported — is declined,
+    which is the gate's safe default.
+    """
+
+    from lifeform_domain_coding.lab.junctions import JUNCTION_ACTIONS  # noqa: PLC0415
+
+    interventional = calibration["interventional_table"]
+    control = calibration["observational_control_table"]
+    surface: list[CertifiedCell] = []
+    accepted: list[list[str]] = []
+    audit: list[dict] = []
+    acceptance_counts: dict[str, list[int]] = {}
+    for state_key in calibration["config"]["target_state_keys"]:
+        control_rows = control.get(state_key, [])
+        control_trials = sum(int(row["trials"]) for row in control_rows)
+        if control_trials == 0:
+            continue
+        natural = sum(int(row["passes"]) for row in control_rows) / control_trials
+        category = state_key.split("|", 1)[0]
+        stats = {row["assigned_action"]: row for row in interventional.get(state_key, [])}
+        best_action, best_rate = None, -1.0
+        counts = acceptance_counts.setdefault(category, [0, 0])
+        for action in JUNCTION_ACTIONS:
+            row = stats.get(action)
+            priced = row is not None and int(row["trials"]) >= min_trials
+            gain = (float(row["pass_rate"]) - natural) if row is not None else None
+            accept = bool(priced and gain is not None and gain >= min_gain)
+            counts[1] += 1
+            if accept:
+                counts[0] += 1
+                accepted.append([state_key, action])
+            audit.append(
+                {
+                    "state_key": state_key,
+                    "action": action,
+                    "trials": int(row["trials"]) if row is not None else 0,
+                    "itt_pass_rate": float(row["pass_rate"]) if row is not None else None,
+                    "natural_control_pass_rate": natural,
+                    "gain": gain if gain is not None else 0.0,
+                    "priced": priced,
+                    "accepted": accept,
+                }
+            )
+            if row is not None and float(row["pass_rate"]) > best_rate:
+                best_action, best_rate = action, float(row["pass_rate"])
+        surface.append(
+            CertifiedCell(
+                state_key=state_key,
+                category=category,
+                expert_action=best_action or JUNCTION_ACTIONS[0],
+                expert_itt_pass_rate=max(best_rate, 0.0),
+                natural_control_pass_rate=natural,
+            )
+        )
+    rate_matched = {
+        category: counts[0] / counts[1] for category, counts in acceptance_counts.items()
+    }
+    return tuple(surface), accepted, rate_matched, audit
+
+
 def cmd_freeze_prereg(args: argparse.Namespace) -> int:
     calibration_path = pathlib.Path(args.calibration_report)
     calibration_sha = _sha256_file(calibration_path)
     calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
-    if args.design == "v2-advisor":
+    advice_menu: list[str] = []
+    accepted_cells: list[list[str]] = []
+    rate_matched: dict[str, float] = {}
+    pricing_audit: list[dict] = []
+    if args.design == "v21-advice":
+        from lifeform_domain_coding.lab.junctions import JUNCTION_ACTIONS  # noqa: PLC0415
+
+        advice_menu = list(JUNCTION_ACTIONS)
+        (
+            cells,
+            accepted_pairs,
+            rate_matched,
+            pricing_audit,
+        ) = _derive_v21_surface(
+            calibration,
+            min_trials=args.accept_min_trials,
+            min_gain=args.accept_min_gain,
+        )
+        accepted_cells = accepted_pairs
+        negative_priced = [
+            row for row in pricing_audit if row["priced"] and row["gain"] < 0.0
+        ]
+        if not accepted_cells or not negative_priced:
+            raise ValueError(
+                "v21-advice prereg requires a non-empty accept set and at least "
+                f"one priced negative-gain cell (accepted={len(accepted_cells)}, "
+                f"negative={len(negative_priced)})"
+            )
+        binding_gates = ["avoidance_timing_gate", "placement_gate"]
+        gates_doc = {
+            "avoidance_timing_gate": (
+                "table_gate - always_on(unfiltered) chain-bootstrap 5% lower bound > 0 "
+                "(declining causally priced harmful advice)"
+            ),
+            "placement_gate": (
+                "table_gate - random_gate(rate-matched, content-blind) chain-bootstrap "
+                "5% lower bound > 0 (content selection beyond acceptance rate)"
+            ),
+            "outcome_timing_gate": (
+                "table_gate - noop: DIRECTIONAL REPORT ONLY (accepted advice gains "
+                "are small; net-vs-noop causality was already established by the "
+                "sealed v1 formal's intervention_gate)"
+            ),
+            "intervention_gate": (
+                "always_on(unfiltered) - noop: DIRECTIONAL REPORT ONLY (expected "
+                "negative — unfiltered random advice is net-harmful by design)"
+            ),
+        }
+    elif args.design == "v2-advisor":
         cells = derive_advisor_cells(calibration)
         positive = [c for c in cells if c.credited_gain >= args.table_gate_min_gain]
         negative = [c for c in cells if c.credited_gain < 0.0]
@@ -172,6 +312,16 @@ def cmd_freeze_prereg(args: argparse.Namespace) -> int:
         "bootstrap_resamples": 2000,
         "bootstrap_seed": args.gate_seed,
         "convention_ids": list(args.conventions or ()),
+        "advice_mode": args.design == "v21-advice",
+        "advice_menu": advice_menu,
+        "accepted_cells": accepted_cells,
+        "rate_matched_by_category": sorted(rate_matched.items()),
+        "accept_rule": (
+            {"min_trials": args.accept_min_trials, "min_gain": args.accept_min_gain}
+            if args.design == "v21-advice"
+            else None
+        ),
+        "pricing_audit": pricing_audit,
         "gates": gates_doc,
         "binding_gates": binding_gates,
         "hand": {
@@ -251,6 +401,15 @@ def cmd_formal(args: argparse.Namespace) -> int:
         bootstrap_resamples=int(prereg["bootstrap_resamples"]),
         bootstrap_seed=int(prereg["bootstrap_seed"]),
         binding_gates=tuple(prereg["binding_gates"]),
+        advice_mode=bool(prereg.get("advice_mode", False)),
+        advice_menu=tuple(prereg.get("advice_menu", [])),
+        accepted_cells=tuple(
+            (str(key), str(action)) for key, action in prereg.get("accepted_cells", [])
+        ),
+        rate_matched_by_category=tuple(
+            (str(category), float(rate))
+            for category, rate in prereg.get("rate_matched_by_category", [])
+        ),
         resume=args.resume,
     )
     report = asyncio.run(
@@ -277,13 +436,18 @@ def main(argv: list[str] | None = None) -> int:
     smoke.add_argument("--chains", type=int, default=4)
     smoke.add_argument("--episodes-per-chain", type=int, default=8)
     smoke.add_argument("--gate-seed", type=int, default=20260828)
+    smoke.add_argument("--advice", action="store_true")
     smoke.add_argument("--resume", action="store_true")
     smoke.set_defaults(func=cmd_smoke)
 
     freeze = commands.add_parser("freeze-prereg")
     freeze.add_argument("--output", required=True)
     freeze.add_argument("--calibration-report", required=True)
-    freeze.add_argument("--design", choices=("v1-expert", "v2-advisor"), default="v1-expert")
+    freeze.add_argument(
+        "--design", choices=("v1-expert", "v2-advisor", "v21-advice"), default="v1-expert"
+    )
+    freeze.add_argument("--accept-min-trials", type=int, default=10)
+    freeze.add_argument("--accept-min-gain", type=float, default=0.05)
     freeze.add_argument("--chains", type=int, required=True)
     freeze.add_argument("--episodes-per-chain", type=int, required=True)
     freeze.add_argument("--env-seed", type=int, default=20260812)
