@@ -1,0 +1,97 @@
+{
+ "figure_index": "04",
+ "slug": "relationship-mirror-pair",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "byte-identical current utterance, opposite correct actions",
+ "mirror_pair": {
+  "pair_id": "pair_v3_01",
+  "current_input": "转正名单漏掉了我，大家却已经开始庆祝。我像被整个团队遗忘和排除，根本不算其中一员。",
+  "probe_condition_id": "latent_condition_belonging_uncertainty_v3",
+  "sides": [
+   {
+    "scene_id": "rtv3_scene_001a",
+    "probe_surface_family": "work",
+    "preferred_action": "stay_present_without_probe",
+    "policy_id": "latent_policy_alpha_v3",
+    "histories": [
+     {
+      "surface_family": "family",
+      "condition_id": "latent_condition_belonging_uncertainty_v3",
+      "assistant_action": "respect_space_with_return_option",
+      "typed_outcome": "missed",
+      "positive": false
+     },
+     {
+      "surface_family": "health",
+      "condition_id": "latent_condition_agency_pressure_v3",
+      "assistant_action": "respect_space_with_return_option",
+      "typed_outcome": "helped",
+      "positive": true
+     },
+     {
+      "surface_family": "intimacy",
+      "condition_id": "latent_condition_belonging_uncertainty_v3",
+      "assistant_action": "stay_present_without_probe",
+      "typed_outcome": "felt_heard",
+      "positive": true
+     },
+     {
+      "surface_family": "community",
+      "condition_id": "latent_condition_agency_pressure_v3",
+      "assistant_action": "stay_present_without_probe",
+      "typed_outcome": "over_directive",
+      "positive": false
+     }
+    ]
+   },
+   {
+    "scene_id": "rtv3_scene_001b",
+    "probe_surface_family": "work",
+    "preferred_action": "respect_space_with_return_option",
+    "policy_id": "latent_policy_beta_v3",
+    "histories": [
+     {
+      "surface_family": "health",
+      "condition_id": "latent_condition_agency_pressure_v3",
+      "assistant_action": "respect_space_with_return_option",
+      "typed_outcome": "missed",
+      "positive": false
+     },
+     {
+      "surface_family": "family",
+      "condition_id": "latent_condition_belonging_uncertainty_v3",
+      "assistant_action": "respect_space_with_return_option",
+      "typed_outcome": "helped",
+      "positive": true
+     },
+     {
+      "surface_family": "community",
+      "condition_id": "latent_condition_agency_pressure_v3",
+      "assistant_action": "stay_present_without_probe",
+      "typed_outcome": "felt_heard",
+      "positive": true
+     },
+     {
+      "surface_family": "intimacy",
+      "condition_id": "latent_condition_belonging_uncertainty_v3",
+      "assistant_action": "stay_present_without_probe",
+      "typed_outcome": "over_directive",
+      "positive": false
+     }
+    ]
+   }
+  ]
+ },
+ "evidence_tier": "sealed_scenario_package_design",
+ "provenance": [
+  {
+   "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenario_packages/relationship_transfer_v3/generator_truth.json",
+   "sha256": "4e4f2bf4ebc9ff71b329b524e1f684735d6d49f1b63b9d9313c269db384bca18"
+  },
+  {
+   "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenario_packages/relationship_transfer_v3/rendered_observations.json",
+   "sha256": "0ff463a8beedf4b7ccad5b27f4a5326f507b508d7b8bb0500e8c1cee152ab0a8"
+  }
+ ]
+}

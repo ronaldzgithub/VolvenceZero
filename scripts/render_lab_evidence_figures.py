@@ -34,6 +34,7 @@ FIGURES = (
     ("06", "relationship-longitudinal-timeline", relationship.figure_longitudinal_timeline),
     ("07", "honest-scoreboard", honest.figure_honest_scoreboard),
     ("08", "honest-learnable-degeneracy", honest.figure_learnable_degeneracy),
+    ("09", "coding-cost-vs-session-length", coding.figure_cost_vs_session_length),
 )
 
 

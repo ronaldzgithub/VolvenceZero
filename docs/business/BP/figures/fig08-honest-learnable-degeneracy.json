@@ -1,0 +1,23 @@
+{
+ "figure_index": "08",
+ "slug": "honest-learnable-degeneracy",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "the harness invalidated the Learnable contrast instead of reporting the number",
+ "decisions_per_arm": 4480,
+ "steerable_action_divergence": 4325,
+ "learnable_action_divergence": 0,
+ "evaluation_gate_update_count": 0,
+ "learned_policy_differs_root_count": 112,
+ "root_count": 112,
+ "learnable_status": "arm_degeneracy_invalid_contrast_no_claim",
+ "steerable_status": "development_go_candidate_no_effect_claim",
+ "campaign_status": "development_campaign_completed_contrast_invalid_no_claim",
+ "evidence_tier": "development_tier_self_invalidated_contrast",
+ "provenance": [
+  {
+   "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+   "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+  }
+ ]
+}

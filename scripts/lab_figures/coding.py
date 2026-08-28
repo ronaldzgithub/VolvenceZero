@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+import statistics
 
 from matplotlib.patches import Rectangle
 
@@ -486,10 +487,203 @@ def figure_when_to_steer() -> tuple:
     return figure, payload
 
 
+def _cumulative_cost_curves(episodes: list[dict]) -> dict:
+    """Per-chain and aggregate cumulative brain/steelman prompt-token ratios."""
+
+    chain_indices = sorted({episode["chain_index"] for episode in episodes})
+    episode_count = max(episode["episode_index"] for episode in episodes) + 1
+
+    def tokens(arm: str, chain: int, episode_index: int) -> int:
+        matches = [
+            episode["prompt_tokens"]
+            for episode in episodes
+            if episode["arm"] == arm
+            and episode["chain_index"] == chain
+            and episode["episode_index"] == episode_index
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                f"expected exactly one episode for {arm}/{chain}/{episode_index}, "
+                f"got {len(matches)}"
+            )
+        return matches[0]
+
+    per_chain: dict[int, list[float]] = {}
+    for chain in chain_indices:
+        cumulative_brain = cumulative_steelman = 0
+        ratios: list[float] = []
+        for episode_index in range(episode_count):
+            cumulative_brain += tokens("brain", chain, episode_index)
+            cumulative_steelman += tokens("steelman", chain, episode_index)
+            ratios.append(cumulative_brain / cumulative_steelman)
+        per_chain[chain] = ratios
+
+    aggregate: list[float] = []
+    for episode_index in range(episode_count):
+        total_brain = sum(
+            episode["prompt_tokens"]
+            for episode in episodes
+            if episode["arm"] == "brain" and episode["episode_index"] <= episode_index
+        )
+        total_steelman = sum(
+            episode["prompt_tokens"]
+            for episode in episodes
+            if episode["arm"] == "steelman" and episode["episode_index"] <= episode_index
+        )
+        aggregate.append(total_brain / total_steelman)
+
+    crossover = next(
+        (index + 1 for index, ratio in enumerate(aggregate) if ratio < 1.0), None
+    )
+    final_ratios = sorted(ratios[-1] for ratios in per_chain.values())
+    return {
+        "per_chain": per_chain,
+        "aggregate": aggregate,
+        "episode_count": episode_count,
+        "aggregate_crossover_episode": crossover,
+        "final_ratios_sorted": final_ratios,
+        "median_final_ratio": statistics.median(final_ratios),
+        "chains_cheaper": sum(1 for ratio in final_ratios if ratio < 1.0),
+        "chain_count": len(chain_indices),
+    }
+
+
+def figure_cost_vs_session_length() -> tuple:
+    """Figure 9 — the cost advantage is an aggregate fact, not yet a per-session one."""
+
+    report = sources.load(sources.CODING_PACKET2)
+    curves = _cumulative_cost_curves(report["episodes"])
+    x_values = list(range(1, curves["episode_count"] + 1))
+
+    figure, axes = style.new_figure((12.4, 7.6))
+    figure.subplots_adjust(left=0.095, right=0.775, top=0.785, bottom=0.145)
+
+    axes.axhline(1.0, color=style.INK_SOFT, linewidth=1.3, linestyle=(0, (5, 4)), zorder=2)
+    axes.annotate(
+        "1.0 = 与全历史堆上下文同成本（低于这条线 = 我们更省）",
+        (1, 1.0),
+        textcoords="offset points",
+        xytext=(4, 8),
+        fontsize=10.5,
+        color=style.INK_SOFT,
+    )
+
+    worst_chain = max(
+        curves["per_chain"], key=lambda chain: curves["per_chain"][chain][-1]
+    )
+    for chain, ratios in curves["per_chain"].items():
+        is_worst = chain == worst_chain
+        axes.plot(
+            x_values,
+            ratios,
+            linewidth=1.3,
+            color=style.AMBER if is_worst else style.GREY,
+            alpha=0.9 if is_worst else 0.55,
+            zorder=3,
+        )
+    axes.annotate(
+        f"最不利的一条链\n{curves['per_chain'][worst_chain][-1]:.2f}×",
+        (x_values[-1], curves["per_chain"][worst_chain][-1]),
+        textcoords="offset points",
+        xytext=(14, 0),
+        va="center",
+        fontsize=11,
+        color=style.AMBER,
+        linespacing=1.5,
+    )
+
+    axes.plot(
+        x_values,
+        curves["aggregate"],
+        marker="o",
+        markersize=9,
+        linewidth=3.6,
+        color=style.SAGE,
+        zorder=5,
+        solid_capstyle="round",
+    )
+    axes.annotate(
+        f"8 链聚合 {curves['aggregate'][-1]:.3f}\n（这是我们的 COGS 口径）",
+        (x_values[-1], curves["aggregate"][-1]),
+        textcoords="offset points",
+        xytext=(14, -2),
+        va="center",
+        fontsize=12,
+        color=style.SAGE,
+        fontweight="bold",
+        linespacing=1.5,
+    )
+    crossover = curves["aggregate_crossover_episode"]
+    if crossover is not None:
+        axes.annotate(
+            f"聚合口径从第 {crossover} 回合起更省",
+            (crossover, curves["aggregate"][crossover - 1]),
+            textcoords="offset points",
+            xytext=(-14, -66),
+            fontsize=10.5,
+            color=style.SAGE,
+            fontweight="bold",
+        )
+
+    ratio_ceiling = max(
+        max(ratios) for ratios in curves["per_chain"].values()
+    )
+    axes.set_xlim(0.6, curves["episode_count"] + 0.4)
+    axes.set_ylim(0, ratio_ceiling * 1.07)
+    axes.set_xticks(x_values)
+    axes.set_yticks([0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0])
+    axes.set_xlabel("会话长度（回合数）", fontsize=12.5, labelpad=10)
+    axes.set_ylabel("累计 prompt token：结构化经历 ÷ 全历史", fontsize=12.5, labelpad=10)
+    style.strip_frame(axes)
+
+    figure.text(
+        0.79,
+        0.60,
+        f"单会话中位数 {curves['median_final_ratio']:.2f}\n"
+        f"{curves['chains_cheaper']}/{curves['chain_count']} 条链我们更省\n\n"
+        "对客户：省不省\n有真实方差；\n对我们：总账定价\n仍然成立。",
+        fontsize=11.5,
+        va="top",
+        color=style.INK,
+        linespacing=1.7,
+    )
+
+    style.title_block(
+        figure,
+        "成本优势是聚合事实，还不是单会话保证",
+        "8 条任务链 × 10 回合的正式运行。粗线是 8 链聚合（决定我们的总成本），细线是每条链各自的经历。\n"
+        "记忆载荷比稳定在 0.098（882 vs 9,027 词元）；总账的方差来自 agent 步数，不来自记忆机制。",
+    )
+    style.footer(
+        figure,
+        "来源：coding_lab_packet2_formal_v2_qwen3codernext_20260813 · "
+        "该读数为冻结产物的事后描述性切分，非预注册判定端点",
+    )
+
+    payload = {
+        "claim": "aggregate cost advantage is real; per-session cost is high-variance",
+        "aggregate_curve": curves["aggregate"],
+        "per_chain_curves": {str(k): v for k, v in curves["per_chain"].items()},
+        "aggregate_crossover_episode": curves["aggregate_crossover_episode"],
+        "final_ratios_sorted": curves["final_ratios_sorted"],
+        "median_final_ratio": curves["median_final_ratio"],
+        "chains_cheaper_of_total": f"{curves['chains_cheaper']}/{curves['chain_count']}",
+        "variance_source": (
+            "agent step counts (tool-call loops), not the memory payload; the payload "
+            "ratio is stable at report.scaling.token_ratio"
+        ),
+        "memory_payload_token_ratio": report["scaling"]["token_ratio"],
+        "evidence_tier": "development_descriptive_recut_of_frozen_artifact",
+        "provenance": sources.provenance(sources.CODING_PACKET2),
+    }
+    return figure, payload
+
+
 __all__ = [
     "CONVENTION_APPLICABLE",
     "RECURRING_CATEGORY",
     "figure_convention_learning",
+    "figure_cost_vs_session_length",
     "figure_memory_pareto",
     "figure_when_to_steer",
 ]

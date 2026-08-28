@@ -1,0 +1,72 @@
+{
+ "figure_index": "07",
+ "slug": "honest-scoreboard",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "honest capability scoreboard derived from frozen verdict fields",
+ "grid": {
+  "可累积": [
+   "full",
+   "empty",
+   "empty",
+   "empty"
+  ],
+  "可读出": [
+   "partial",
+   "empty",
+   "empty",
+   "empty"
+  ],
+  "可学习": [
+   "full",
+   "empty",
+   "empty",
+   "empty"
+  ],
+  "可调控": [
+   "full",
+   "empty",
+   "empty",
+   "empty"
+  ]
+ },
+ "coding_states": {
+  "可累积": "full",
+  "可读出": "partial",
+  "可学习": "full",
+  "可调控": "full"
+ },
+ "relationship_claims": {
+  "可累积": false,
+  "可读出": false,
+  "可学习": false,
+  "可调控": false
+ },
+ "production_active": false,
+ "human_validation_complete": false,
+ "formal_evidence_authorized": false,
+ "integrated_horizon_authorized": false,
+ "evidence_tier": "artifact_derived_status",
+ "provenance": [
+  {
+   "path": "artifacts/coding_lab/coding_lab_observer_scripted_20260812/report.json",
+   "sha256": "346333650a8851fb7465cf604c2296b6f149679ac92a550e2ffbabf6337b097e"
+  },
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+   "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+  },
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet3_s3e_formal_20260813/report.json",
+   "sha256": "2d792ec2f3f4d2e65b56d3cff7d2999142077367b91b94b10072835d119ae2b1"
+  },
+  {
+   "path": "artifacts/coding_lab/coding_lab_packet4_formal_20260813/review.json",
+   "sha256": "755f4ef6581cc43b004ef9a5370585a157047ad8aaac6d202fd2e98dc4c7a26b"
+  },
+  {
+   "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+   "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+  }
+ ]
+}

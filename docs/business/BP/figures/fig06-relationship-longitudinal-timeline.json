@@ -1,0 +1,57 @@
+{
+ "figure_index": "06",
+ "slug": "relationship-longitudinal-timeline",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "the longitudinal design flips the person's policy and inserts two 14-day gaps",
+ "onboarding_sessions_per_root": 4,
+ "collection_decisions_per_root": 8,
+ "evaluation_decisions_per_root": 40,
+ "root_count": 112,
+ "evaluation_policy": "use_complementary_profile",
+ "segments": [
+  {
+   "segment_id": "matched_collection",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 0
+  },
+  {
+   "segment_id": "post_reversal",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 14
+  },
+  {
+   "segment_id": "correction",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 0
+  },
+  {
+   "segment_id": "post_correction",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 0
+  },
+  {
+   "segment_id": "return_after_gap",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 14
+  },
+  {
+   "segment_id": "mixed_stress",
+   "decision_count": 8,
+   "policy_mode": "complement",
+   "minimum_gap_before_days": 0
+  }
+ ],
+ "evidence_tier": "frozen_source_admission_protocol",
+ "provenance": [
+  {
+   "path": "artifacts/relationship_lab/relationship_product_horizon_source_v4_admission_20260826_b3988b21/source/source_protocol.json",
+   "sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3"
+  }
+ ]
+}

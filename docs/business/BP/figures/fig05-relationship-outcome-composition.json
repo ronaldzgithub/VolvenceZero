@@ -1,0 +1,41 @@
+{
+ "figure_index": "05",
+ "slug": "relationship-outcome-composition",
+ "rendered_by": "scripts/render_lab_evidence_figures.py",
+ "font_family": "Microsoft YaHei",
+ "claim": "conditioned intervention raises positive rate and shrinks both failure modes",
+ "outcome_shares_percent": {
+  "frozen_theta0": {
+   "felt_heard": 40.11160714285714,
+   "helped": 25.111607142857146,
+   "missed": 18.45982142857143,
+   "over_directive": 16.316964285714285
+  },
+  "full": {
+   "felt_heard": 40.11160714285714,
+   "helped": 25.111607142857146,
+   "missed": 18.45982142857143,
+   "over_directive": 16.316964285714285
+  },
+  "strict_noop": {
+   "felt_heard": 2.8794642857142856,
+   "helped": 1.7633928571428572,
+   "missed": 70.87053571428571,
+   "over_directive": 24.486607142857142
+  }
+ },
+ "steerable_point_estimate": 0.6058035714285713,
+ "steerable_simultaneous_95_lower": 0.5883928571428572,
+ "practical_floor": 0.05,
+ "safety_point_risk_difference": -0.08169642857142857,
+ "steerable_status": "development_go_candidate_no_effect_claim",
+ "learnable_status": "arm_degeneracy_invalid_contrast_no_claim",
+ "bootstrap_replicates": 20000,
+ "evidence_tier": "development_tier_synthetic_roots",
+ "provenance": [
+  {
+   "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+   "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+  }
+ ]
+}

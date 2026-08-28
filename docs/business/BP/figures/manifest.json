@@ -1,0 +1,162 @@
+{
+ "schema_version": "lab-evidence-figures-manifest.v1",
+ "rendered_at_utc": "2026-08-27T12:54:48Z",
+ "discipline": "Every plotted number is read from a frozen artifact at render time. Figures must never be hand-edited; re-run this script instead.",
+ "figures": [
+  {
+   "figure_index": "01",
+   "slug": "coding-convention-learning",
+   "svg": "fig01-coding-convention-learning.svg",
+   "png": "fig01-coding-convention-learning.png",
+   "sidecar": "fig01-coding-convention-learning.json",
+   "claim": "only the structured-memory arm learns an unstated house convention across episodes",
+   "evidence_tier": "development_descriptive_recut_of_frozen_artifact",
+   "provenance": [
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+     "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+    }
+   ]
+  },
+  {
+   "figure_index": "02",
+   "slug": "coding-memory-pareto",
+   "svg": "fig02-coding-memory-pareto.svg",
+   "png": "fig02-coding-memory-pareto.png",
+   "sidecar": "fig02-coding-memory-pareto.json",
+   "claim": "structured memory Pareto-dominates full-history context stuffing",
+   "evidence_tier": "preregistered_formal_gates_passed",
+   "provenance": [
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+     "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+    }
+   ]
+  },
+  {
+   "figure_index": "03",
+   "slug": "coding-when-to-steer",
+   "svg": "fig03-coding-when-to-steer.svg",
+   "png": "fig03-coding-when-to-steer.png",
+   "sidecar": "fig03-coding-when-to-steer.json",
+   "claim": "a learned gate beats never / always / random intervening on when to act",
+   "evidence_tier": "preregistered_formal_gates_passed_shadow_only",
+   "provenance": [
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet3_s3e_formal_20260813/report.json",
+     "sha256": "2d792ec2f3f4d2e65b56d3cff7d2999142077367b91b94b10072835d119ae2b1"
+    }
+   ]
+  },
+  {
+   "figure_index": "04",
+   "slug": "relationship-mirror-pair",
+   "svg": "fig04-relationship-mirror-pair.svg",
+   "png": "fig04-relationship-mirror-pair.png",
+   "sidecar": "fig04-relationship-mirror-pair.json",
+   "claim": "byte-identical current utterance, opposite correct actions",
+   "evidence_tier": "sealed_scenario_package_design",
+   "provenance": [
+    {
+     "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenario_packages/relationship_transfer_v3/generator_truth.json",
+     "sha256": "4e4f2bf4ebc9ff71b329b524e1f684735d6d49f1b63b9d9313c269db384bca18"
+    },
+    {
+     "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenario_packages/relationship_transfer_v3/rendered_observations.json",
+     "sha256": "0ff463a8beedf4b7ccad5b27f4a5326f507b508d7b8bb0500e8c1cee152ab0a8"
+    }
+   ]
+  },
+  {
+   "figure_index": "05",
+   "slug": "relationship-outcome-composition",
+   "svg": "fig05-relationship-outcome-composition.svg",
+   "png": "fig05-relationship-outcome-composition.png",
+   "sidecar": "fig05-relationship-outcome-composition.json",
+   "claim": "conditioned intervention raises positive rate and shrinks both failure modes",
+   "evidence_tier": "development_tier_synthetic_roots",
+   "provenance": [
+    {
+     "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+     "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+    }
+   ]
+  },
+  {
+   "figure_index": "06",
+   "slug": "relationship-longitudinal-timeline",
+   "svg": "fig06-relationship-longitudinal-timeline.svg",
+   "png": "fig06-relationship-longitudinal-timeline.png",
+   "sidecar": "fig06-relationship-longitudinal-timeline.json",
+   "claim": "the longitudinal design flips the person's policy and inserts two 14-day gaps",
+   "evidence_tier": "frozen_source_admission_protocol",
+   "provenance": [
+    {
+     "path": "artifacts/relationship_lab/relationship_product_horizon_source_v4_admission_20260826_b3988b21/source/source_protocol.json",
+     "sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3"
+    }
+   ]
+  },
+  {
+   "figure_index": "07",
+   "slug": "honest-scoreboard",
+   "svg": "fig07-honest-scoreboard.svg",
+   "png": "fig07-honest-scoreboard.png",
+   "sidecar": "fig07-honest-scoreboard.json",
+   "claim": "honest capability scoreboard derived from frozen verdict fields",
+   "evidence_tier": "artifact_derived_status",
+   "provenance": [
+    {
+     "path": "artifacts/coding_lab/coding_lab_observer_scripted_20260812/report.json",
+     "sha256": "346333650a8851fb7465cf604c2296b6f149679ac92a550e2ffbabf6337b097e"
+    },
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+     "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+    },
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet3_s3e_formal_20260813/report.json",
+     "sha256": "2d792ec2f3f4d2e65b56d3cff7d2999142077367b91b94b10072835d119ae2b1"
+    },
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet4_formal_20260813/review.json",
+     "sha256": "755f4ef6581cc43b004ef9a5370585a157047ad8aaac6d202fd2e98dc4c7a26b"
+    },
+    {
+     "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+     "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+    }
+   ]
+  },
+  {
+   "figure_index": "08",
+   "slug": "honest-learnable-degeneracy",
+   "svg": "fig08-honest-learnable-degeneracy.svg",
+   "png": "fig08-honest-learnable-degeneracy.png",
+   "sidecar": "fig08-honest-learnable-degeneracy.json",
+   "claim": "the harness invalidated the Learnable contrast instead of reporting the number",
+   "evidence_tier": "development_tier_self_invalidated_contrast",
+   "provenance": [
+    {
+     "path": "artifacts/relationship_lab/relationship_product_horizon_development_campaign_20260827_pbc4c0882c6b0_c73e9ed7ac298/report.json",
+     "sha256": "6d26e724454bc8d5933fc0ae7ae66df80edda1b791c2b8537af35acd468e58dd"
+    }
+   ]
+  },
+  {
+   "figure_index": "09",
+   "slug": "coding-cost-vs-session-length",
+   "svg": "fig09-coding-cost-vs-session-length.svg",
+   "png": "fig09-coding-cost-vs-session-length.png",
+   "sidecar": "fig09-coding-cost-vs-session-length.json",
+   "claim": "aggregate cost advantage is real; per-session cost is high-variance",
+   "evidence_tier": "development_descriptive_recut_of_frozen_artifact",
+   "provenance": [
+    {
+     "path": "artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json",
+     "sha256": "8fcafecb23ee234d8dbb28813762a4fee3b3ff84148e6919a364cf2ac53bb1ec"
+    }
+   ]
+  }
+ ]
+}
