@@ -437,6 +437,43 @@ survivorship/难度混杂。本包把 (状态键, 动作) 单元改为**随机�
   refactor_alias 为 0），ITT 口径下如实稀释。Packet 3.6 的可用 steer 面因此
   收窄为已有因果 expert 的状态键；无 expert 的状态 gate 只能 noop。
 
+## 7.11 Packet 3.6：episode 结局择时门（formal 已封存，绑定门 1/2）
+
+背景：把"何时干预"的判据从 NLL 代理抬升到 oracle episode 通过率。
+四臂匹配链：`noop / always_on / random_gate / table_gate`；steer =
+在 3.5 formal 认证的状态键上以 `ForcedActionHand` 一次性注入 expert
+动作。table_gate 只在介入式信用增益 ≥ 0.05 的 cell 上 steer
+（fix_bug|reads=1 增益 +0.176 → steer；refactor_alias|reads=2 增益 0
+→ noop）。模块 `lifeform_evolution/coding_lab_packet36.py` + CLI
+`scripts/run_coding_lab_packet36_episode_gate.py`（smoke /
+freeze-prereg / formal，prereg 与 3.5 校准报告 SHA-256 双重钉死）。
+
+- **prereg（SHA `260aa4c6…f181`）预先声明**：绑定门只有
+  outcome_timing（table−noop 链 bootstrap 5% 下界 >0）与
+  intervention（always−noop 同门）；placement（table−random）因预计算
+  功效上限（速率匹配随机臂承载约一半认证效应，期望差 ~0.018）降为
+  方向性报告项；table−always 在两 cell 面上预期为空、仅报告。
+- **smoke 判词（2026-08-28，`packet36_smoke_20260828a`，development）**：
+  4 链 × 8 集 × 4 臂 scripted，37 个 steer 决策 32 个送达（86.5%，
+  未送达为轨迹未经过目标状态键，ITT 如实稀释）；脚本手结局由
+  sabotage 抽签决定，四臂通过率相同属预期，仅验机器。
+- **formal 判词（2026-08-28，`packet36_formal_qwen3codernext_20260828`）**：
+  16 链 × 10 集 × 4 臂 = 640 集，wall 2.99h / prompt 20.4M tok，
+  178/178 steer 全部送达。
+  **intervention_gate PASS**：always−noop 均值 +0.0250、5% 下界
+  +0.0063 > 0——认证 cell 上的强制 expert 动作对 oracle 通过率的
+  因果正效应成立（fix_bug 集：noop 53/59 vs 受干预臂 57/59）。
+  **outcome_timing_gate FAIL 如实封存**：table−noop 均值同为 +0.0250
+  但下界 −0.0062；table 与 always 结局逐均值为零差（预声明的空对照
+  被证实），timing 臂对 noop 的链间方差更大使同均值差未过界。
+  placement 方向性报告：table−random 均值 0.0000（随机臂未 steer 的
+  一半 fix_bug 集自然通过，认证面太浅无从区分择位）。
+  **诚实解读**：在一个"干预只利不害"（增益 ≥0）的两 cell 认证面上，
+  择时对总是干预没有可测的增益空间——择时价值需要存在负增益 cell
+  的更深认证面才能显形。判词 `binding_gates_pass=false` 不回改；
+  本包升级的是**干预的结局因果性**（Steerable 动作级 + Learnable
+  信用来源介入化），不升级残差级 Steerable，不授权择时能力主张。
+
 ## 8. 变更纪律
 
 **2026-08-12 注 bug 锚定修复（非模板变更，版本不递增）**：fix_bug 的

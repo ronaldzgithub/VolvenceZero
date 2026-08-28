@@ -690,3 +690,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   执行前攒批确认。coding lane 各包沿用本计划 §2 证据分档与 §3 纪律；本任务持有 coding-lab
   证据 lane 写权限，关系线与 investor demo 的未提交改动（含 `coding_lab_arms.py` 的 on_episode
   观察回调）归属另一任务，不混入本 lane 提交。本记录不授权任何 formal run。
+- 2026-08-28 · coding lane 四缺口收敛全部四包终局：A（Packet 3.5 介入式 RCT）产出 2 个因果
+  expert cell；C（Packet 2 v3 扩链）memory/quality 门 PASS、scaling 9.44× 惜败封存；D（Packet 1
+  publisher 侧丰富）收窄判词封存；B（Packet 3.6 episode 结局择时门，prereg `260aa4c6…f181`）
+  640 集 formal：intervention_gate PASS（always−noop 下界 +0.0063 > 0，认证干预对 oracle 通过率
+  因果为正），outcome_timing_gate FAIL 如实封存（同均值 +0.0250、下界 −0.0062；预声明的
+  table−always 空对照被证实——"只利不害"认证面上择时无增益空间）。coding lane 现有主张边界：
+  Appendable/Learnable（记忆门 3× 复制 + 介入式信用）与动作级干预因果性成立；干预**择时**的
+  结局增益与残差级 Steerable 未建立，需负增益 cell 的更深认证面（难度旋钮按类校准后重标定）
+  才有资格重开。详细判词见 `docs/specs/coding-lab.md` §7.10–7.11。本记录不授权新 run。
