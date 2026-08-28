@@ -1,0 +1,154 @@
+[
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 0,
+  "task_id": "task-000-refactor_alias",
+  "category": "refactor_alias",
+  "passed": true,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 10473,
+  "completion_tokens": 665,
+  "wall_seconds": 13.671999999962281,
+  "invariant_violations": []
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 1,
+  "task_id": "task-001-add_helper-clamp",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 8377,
+  "completion_tokens": 369,
+  "wall_seconds": 9.59399999998277,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 2,
+  "task_id": "task-002-config_feature",
+  "category": "config_feature",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 46989,
+  "completion_tokens": 831,
+  "wall_seconds": 33.20299999997951,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 3,
+  "task_id": "task-003-fix_bug",
+  "category": "fix_bug",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 79681,
+  "completion_tokens": 838,
+  "wall_seconds": 78.65700000000652,
+  "invariant_violations": []
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 4,
+  "task_id": "task-004-add_helper-saturate_pct",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 6336,
+  "completion_tokens": 349,
+  "wall_seconds": 19.01600000000326,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 5,
+  "task_id": "task-005-add_helper-wrap_index",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 62921,
+  "completion_tokens": 772,
+  "wall_seconds": 104.375,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 6,
+  "task_id": "task-006-extend_report",
+  "category": "extend_report",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 77214,
+  "completion_tokens": 1497,
+  "wall_seconds": 125.78100000001723,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 7,
+  "task_id": "task-007-add_helper-ratio_or_zero",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 9667,
+  "completion_tokens": 557,
+  "wall_seconds": 44.98500000004424,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 8,
+  "task_id": "task-008-fix_bug",
+  "category": "fix_bug",
+  "passed": true,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 61292,
+  "completion_tokens": 899,
+  "wall_seconds": 159.40600000001723,
+  "invariant_violations": []
+ },
+ {
+  "arm": "stateless",
+  "chain_index": 0,
+  "episode_index": 9,
+  "task_id": "task-009-fix_bug",
+  "category": "fix_bug",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 79422,
+  "completion_tokens": 808,
+  "wall_seconds": 182.40700000000652,
+  "invariant_violations": []
+ }
+]
