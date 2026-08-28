@@ -16,6 +16,7 @@ These are the machinery guarantees the Packet 0 verdict relies on:
 
 from __future__ import annotations
 
+import hashlib
 import pathlib
 
 import pytest
@@ -26,7 +27,11 @@ from lifeform_domain_coding.lab.calibration import (
     run_calibration,
 )
 from lifeform_domain_coding.lab.generation import (
+    ALL_CONVENTION_IDS,
+    CONVENTION_ANNOTATED_SIGNATURE,
+    CONVENTION_DOCSTRING_CONTRACT,
     CONVENTION_EXPORT_ALL,
+    CONVENTION_SYMBOL_OWNER,
     EnvSpec,
     generate_environment,
 )
@@ -160,6 +165,134 @@ def test_convention_off_by_default_keeps_legacy_tasks(tmp_path: pathlib.Path) ->
     task_default = representative_tasks(_SPEC)[0]
     assert "test_house_" not in task_default.acceptance_test_source
     assert all("__all__" not in edit.new for edit in task_default.reference_edits)
+
+
+# --- Additional house conventions (2026-08-27) ------------------------------
+
+#: Representative-task indices whose category introduces a new public symbol,
+#: i.e. the only tasks any house convention can be enforced on.
+_SYMBOL_TASK_INDICES = (0, 1, 2)  # add_helper, extend_report, config_feature
+_SYMBOL_FREE_TASK_INDICES = (3, 4)  # fix_bug, refactor_alias
+
+_NEW_CONVENTIONS = (
+    CONVENTION_ANNOTATED_SIGNATURE,
+    CONVENTION_DOCSTRING_CONTRACT,
+    CONVENTION_SYMBOL_OWNER,
+)
+
+
+def _convention_payload(convention_ids: tuple[str, ...]) -> str:
+    """Canonical text of everything a spec's conventions inject into tasks."""
+
+    spec = EnvSpec(env_seed=424242, convention_ids=convention_ids)
+    parts: list[str] = []
+    for task in representative_tasks(spec):
+        parts.extend((f"### REP {task.task_id} description", task.description))
+        parts.extend((f"### REP {task.task_id} acceptance", task.acceptance_test_source))
+        for label, group in (
+            ("ref", task.reference_edits),
+            ("accsab", task.acceptance_sabotage_edits),
+            ("invsab", task.invariant_sabotage_edits),
+        ):
+            for index, edit in enumerate(group):
+                parts.append(f"### REP {task.task_id} {label}[{index}] {edit.path}")
+                parts.extend((f"OLD>{edit.old}", f"NEW>{edit.new}"))
+    for task in generate_task_chain(spec, chain_seed=0, length=10):
+        parts.extend((f"### CHAIN {task.task_id} acceptance", task.acceptance_test_source))
+        for index, edit in enumerate(task.reference_edits):
+            parts.append(f"### CHAIN {task.task_id} ref[{index}] {edit.path}")
+            parts.extend((f"OLD>{edit.old}", f"NEW>{edit.new}"))
+    return "\u0000".join(parts)
+
+
+def test_export_all_configuration_is_byte_frozen() -> None:
+    """Adding conventions must not perturb ``convention_export_all``.
+
+    The 2026-08-13 Packet 2 formal chains were generated with this single
+    convention active and are replayed from it, so any drift here silently
+    invalidates frozen evidence. Verified byte-identical against the pre-change
+    tree when the three 2026-08-27 conventions were introduced.
+    """
+
+    digest = hashlib.sha256(
+        _convention_payload((CONVENTION_EXPORT_ALL,)).encode("utf-8")
+    ).hexdigest()
+    assert digest == "60dec70c8b484fb32140f444ddd33e880949f25f21c5a7e709bce8a62a878b15"
+
+
+@pytest.mark.parametrize("convention_id", _NEW_CONVENTIONS)
+@pytest.mark.parametrize("task_index", _SYMBOL_TASK_INDICES)
+def test_new_convention_reference_solutions_pass(
+    tmp_path: pathlib.Path, convention_id: str, task_index: int
+) -> None:
+    """Each new convention keeps its tasks solvable via the compliance edit."""
+
+    spec = EnvSpec(env_seed=424242, convention_ids=(convention_id,))
+    task = representative_tasks(spec)[task_index]
+    assert f"test_house_{convention_id}" in task.acceptance_test_source
+    root = tmp_path / "env"
+    generate_environment(spec, root)
+    for edit in task.prestate_edits:
+        apply_edit(root, edit)
+    for edit in task.reference_edits:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=spec, task=task, workspace_root=root)
+    assert outcome.passed, (task.task_id, outcome.failed_test_ids, outcome.failure_details)
+    assert outcome.invariant_violations == ()
+
+
+@pytest.mark.parametrize("convention_id", _NEW_CONVENTIONS)
+def test_new_convention_violation_is_attributed(
+    tmp_path: pathlib.Path, convention_id: str
+) -> None:
+    """A behaviourally-correct but non-compliant solution fails, by id.
+
+    The non-compliant solution is exactly the same task's reference with all
+    conventions switched off, so the only thing under test is the convention.
+    """
+
+    spec_on = EnvSpec(env_seed=424242, convention_ids=(convention_id,))
+    spec_off = EnvSpec(env_seed=424242)
+    task_on = representative_tasks(spec_on)[0]  # add_helper
+    task_off = representative_tasks(spec_off)[0]
+    assert task_on.task_id == task_off.task_id
+    root = tmp_path / "env"
+    generate_environment(spec_on, root)
+    for edit in task_off.reference_edits:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=spec_on, task=task_on, workspace_root=root)
+    assert not outcome.passed
+    assert not outcome.acceptance_passed
+    assert outcome.regression_passed, outcome.failed_test_ids
+    assert convention_id in outcome.invariant_violations
+    # The assertion head must name the rule, so a remembering hand can act on it.
+    house_details = [detail for detail in outcome.failure_details if "test_house_" in detail]
+    assert house_details, outcome.failure_details
+
+
+def test_all_conventions_compose(tmp_path: pathlib.Path) -> None:
+    """All four conventions active at once stay independently satisfiable."""
+
+    spec = EnvSpec(env_seed=424242, convention_ids=ALL_CONVENTION_IDS)
+    task = representative_tasks(spec)[0]
+    for convention_id in ALL_CONVENTION_IDS:
+        assert f"test_house_{convention_id}" in task.acceptance_test_source
+    root = tmp_path / "env"
+    generate_environment(spec, root)
+    for edit in task.reference_edits:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=spec, task=task, workspace_root=root)
+    assert outcome.passed, (outcome.failed_test_ids, outcome.failure_details)
+    assert outcome.invariant_violations == ()
+
+
+@pytest.mark.parametrize("task_index", _SYMBOL_FREE_TASK_INDICES)
+def test_conventions_skip_tasks_without_a_new_public_symbol(task_index: int) -> None:
+    """fix_bug / refactor_alias add no public symbol, so no rule is injected."""
+
+    spec = EnvSpec(env_seed=424242, convention_ids=ALL_CONVENTION_IDS)
+    task = representative_tasks(spec)[task_index]
+    assert "test_house_" not in task.acceptance_test_source
 
 
 @pytest.mark.parametrize(

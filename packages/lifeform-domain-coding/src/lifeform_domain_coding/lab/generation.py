@@ -51,14 +51,41 @@ ALL_INVARIANT_IDS: tuple[str, ...] = (
 # while giving the remembering arms real headroom.
 
 CONVENTION_EXPORT_ALL = "convention_export_all"
+CONVENTION_ANNOTATED_SIGNATURE = "convention_annotated_signature"
+CONVENTION_DOCSTRING_CONTRACT = "convention_docstring_contract"
+CONVENTION_SYMBOL_OWNER = "convention_symbol_owner"
 
-ALL_CONVENTION_IDS: tuple[str, ...] = (CONVENTION_EXPORT_ALL,)
+#: Every convention below is independent and composable: each is enforced by its
+#: own hidden acceptance test and satisfied by its own edit, so a spec may
+#: activate any subset. ``convention_export_all`` must keep its exact historical
+#: bytes — the 2026-08-13 Packet 2 formal chains replay through it.
+ALL_CONVENTION_IDS: tuple[str, ...] = (
+    CONVENTION_EXPORT_ALL,
+    CONVENTION_ANNOTATED_SIGNATURE,
+    CONVENTION_DOCSTRING_CONTRACT,
+    CONVENTION_SYMBOL_OWNER,
+)
 
 CONVENTION_DESCRIPTIONS: dict[str, str] = {
     CONVENTION_EXPORT_ALL: (
         "house style: every new public symbol must be registered in its "
         "module's __all__ (unstated owner preference; enforced only by "
         "hidden acceptance tests)"
+    ),
+    CONVENTION_ANNOTATED_SIGNATURE: (
+        "house style: every new public function must annotate all of its "
+        "parameters and its return type (unstated owner preference; enforced "
+        "only by hidden acceptance tests)"
+    ),
+    CONVENTION_DOCSTRING_CONTRACT: (
+        "house style: every new public function's docstring must carry a line "
+        "beginning 'Contract:' (unstated owner preference; enforced only by "
+        "hidden acceptance tests)"
+    ),
+    CONVENTION_SYMBOL_OWNER: (
+        "house style: every new public symbol must be registered in its "
+        "module's _SYMBOL_OWNERS map (unstated owner preference; enforced only "
+        "by hidden acceptance tests)"
     ),
 }
 
@@ -636,8 +663,11 @@ def write_pristine_tests(spec: EnvSpec, dest_dir: pathlib.Path) -> None:
 __all__ = [
     "ALL_CONVENTION_IDS",
     "ALL_INVARIANT_IDS",
+    "CONVENTION_ANNOTATED_SIGNATURE",
     "CONVENTION_DESCRIPTIONS",
+    "CONVENTION_DOCSTRING_CONTRACT",
     "CONVENTION_EXPORT_ALL",
+    "CONVENTION_SYMBOL_OWNER",
     "GENERATOR_VERSION",
     "INVARIANT_CONFIG_CASE",
     "INVARIANT_HIDDEN_CONSUMER",
