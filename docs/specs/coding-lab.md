@@ -474,6 +474,42 @@ freeze-prereg / formal，prereg 与 3.5 校准报告 SHA-256 双重钉死）。
   本包升级的是**干预的结局因果性**（Steerable 动作级 + Learnable
   信用来源介入化），不升级残差级 Steerable，不授权择时能力主张。
 
+## 7.12 择时 v2（可错顾问线）：T0/T1 探针与 v2.1 formal（绑定门 2/2 PASS）
+
+背景：§7.11 的 v1 失败根因是认证面"只利不害"。v2 线构造含负增益 cell
+的建议流，让"何时干预"有真实头寸。
+
+- **T0 本征难度探针（2026-08-28，`t0_intrinsic_noconv_qwen3codernext_20260828`，
+  development，160 集 / 0.79h）**：无 convention 下 add_helper /
+  config_feature / extend_report / refactor_alias 全 1.000 天花板，
+  fix_bug 0.814；带内判据 FAIL 如实记录——v1 的三类 0% 地板是
+  convention 的结构性后果，本征面则整体饱和。
+- **T1 顾问表探针（同日，`advisor_probe_t0_20260828`）**：T0 语料上
+  `credit_expert_actions` 只产出 2 个 cell 且均为真好建议
+  （fix_bug→edit）。出口判据 FAIL 的含义是结构性的：**天花板行为的
+  模型自身语料长不出可错顾问**。据此按计划 fallback 转 v2.1：
+  建议流改为显式可错（在已定价键上均匀随机抽协议动作），可错性
+  by construction 且完全披露；gate 只凭封存的 3.5 formal 介入式
+  定价过滤（接受规则 trials≥10 且 gain≥+0.05，不足支持一律拒绝）。
+  T2 的独立 API 定价 formal 因此取消——计划要求的"正/负增益 cell
+  各至少 1 个"已在封存数据成立（edit +0.176 / submit −0.824，
+  后者 Wilson 上界 0.143 符号明确）。
+- **v2.1 formal 判词（2026-08-28，`packet36_v21_formal_qwen3codernext_20260828`，
+  prereg SHA `b735bb44…60ef`）**：24 链 × 10 集 × 4 臂 = 960 集，
+  wall 4.22h / prompt 29.4M tok，建议送达率 99.7%（372/373）。
+  **avoidance_timing_gate PASS**：credit gate − unfiltered 均值
+  +0.1167、5% 下界 +0.0792 > 0。**placement_gate PASS**：credit
+  gate − 内容盲同率随机 +0.0458、下界 +0.0167 > 0。机制直接可见：
+  unfiltered 执行的 26 个 fix_bug submit 建议 0/26 全败，同流建议
+  credit gate 全拒后同集 22/26 通过。方向性报告项符合预声明：
+  unfiltered−noop −0.1708（未过滤随机建议净有害）；table−noop
+  −0.0542（**发现**：接受集里的小增益 cell（+0.07~+0.18）定价
+  跨 run 迁移出现正偏，执行后未兑现增益；符号极端的负增益 cell
+  迁移稳健）。**主张边界**：本判词建立"介入式信用定价驱动的
+  择时/择内容 gate 在 oracle 结局层因果优于不加选择与内容盲执行"；
+  它不主张"接受的建议优于自然行为"（net-vs-noop 为方向性负，
+  如实封存），不升级残差级 Steerable。
+
 ## 8. 变更纪律
 
 **2026-08-12 注 bug 锚定修复（非模板变更，版本不递增）**：fix_bug 的

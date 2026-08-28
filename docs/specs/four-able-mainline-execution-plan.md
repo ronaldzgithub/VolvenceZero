@@ -699,3 +699,13 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   Appendable/Learnable（记忆门 3× 复制 + 介入式信用）与动作级干预因果性成立；干预**择时**的
   结局增益与残差级 Steerable 未建立，需负增益 cell 的更深认证面（难度旋钮按类校准后重标定）
   才有资格重开。详细判词见 `docs/specs/coding-lab.md` §7.10–7.11。本记录不授权新 run。
+- 2026-08-28 · 择时 v2 线终局：T0 无 convention 探针（160 集）证实本征面整体饱和（四类 1.000 /
+  fix_bug 0.814）；T1 顾问探针证实天花板行为语料长不出可错顾问（仅 2 个好建议 cell）——两个
+  出口判据 FAIL 均如实封存并按计划 fallback 转 v2.1 显式可错建议流（均匀随机协议动作 +
+  封存 3.5 定价过滤，T2 独立定价 formal 取消，其出口条件已在封存数据成立）。v2.1 formal
+  （960 集，prereg `b735bb44…60ef`）双绑定门 PASS：avoidance_timing +0.1167（下界 +0.0792）、
+  placement +0.0458（下界 +0.0167）；in-vivo 机制 26 个 unfiltered submit 建议 0/26 全败 vs
+  credit gate 全拒后 22/26 通过。**择时主张在 oracle 结局层建立**：介入式信用定价驱动的
+  择时/择内容 gate 因果优于不加选择与内容盲执行。诚实边界：接受建议不优于自然行为
+  （table−noop −0.054 方向性封存，小增益定价跨 run 正偏是登记发现）；残差级 Steerable 与
+  S3-E 学习 gate 本体的 GPU 进环结局验证仍为独立后续包。判词见 coding-lab.md §7.12。

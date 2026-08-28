@@ -1,0 +1,729 @@
+{
+ "advisor_cells": [
+  [
+   "fix_bug|reads=1|edited=0|tests=none",
+   "edit"
+  ],
+  [
+   "fix_bug|reads=3|edited=0|tests=none",
+   "edit"
+  ]
+ ],
+ "artifact": "coding-lab-advisor-table.v1",
+ "corpus_sha256": "f40f48edbd467556c504c558fbaed4f89a3df076c09356e0fa4af5887b1e8550",
+ "honest_boundaries": {
+  "confounding_registered": "docs/specs/coding-lab.md §7.5 (survivorship/difficulty)",
+  "note": "This table is the FALLIBLE ADVISOR of the timing-v2 line. Its recommendations get causally priced by the directed Packet 3.5 RCT; nothing here is a capability claim or a ground truth.",
+  "observational": true,
+  "recommendations_unfiltered": true
+ },
+ "junction_records": 2121,
+ "min_action_support": 5,
+ "min_pass_rate_margin": 0.1,
+ "observational_table": {
+  "add_helper|reads=0|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 55,
+    "trials": 55
+   }
+  ],
+  "add_helper|reads=1|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 38,
+    "trials": 38
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 17,
+    "trials": 17
+   }
+  ],
+  "add_helper|reads=1|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 28,
+    "trials": 28
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 10,
+    "trials": 10
+   }
+  ],
+  "add_helper|reads=1|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 38,
+    "trials": 38
+   }
+  ],
+  "add_helper|reads=1|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 10,
+    "trials": 10
+   }
+  ],
+  "add_helper|reads=2|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   }
+  ],
+  "add_helper|reads=2|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 22,
+    "trials": 22
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 14,
+    "trials": 14
+   }
+  ],
+  "add_helper|reads=2|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "add_helper|reads=2|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 11,
+    "trials": 11
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   }
+  ],
+  "add_helper|reads=3|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   }
+  ],
+  "add_helper|reads=3|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 43,
+    "trials": 43
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 55,
+    "trials": 55
+   }
+  ],
+  "add_helper|reads=3|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   }
+  ],
+  "add_helper|reads=3|edited=1|tests=passed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 1,
+    "trials": 1
+   },
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 21,
+    "trials": 21
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 187,
+    "trials": 187
+   }
+  ],
+  "config_feature|reads=0|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 14,
+    "trials": 14
+   }
+  ],
+  "config_feature|reads=1|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 14,
+    "trials": 14
+   }
+  ],
+  "config_feature|reads=2|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 14,
+    "trials": 14
+   }
+  ],
+  "config_feature|reads=3|edited=0|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 9,
+    "trials": 9
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 4,
+    "trials": 4
+   }
+  ],
+  "config_feature|reads=3|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 11,
+    "trials": 11
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 59,
+    "trials": 59
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   }
+  ],
+  "config_feature|reads=3|edited=0|tests=passed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 4,
+    "trials": 4
+   }
+  ],
+  "config_feature|reads=3|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 6,
+    "trials": 6
+   }
+  ],
+  "config_feature|reads=3|edited=1|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 8,
+    "trials": 8
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 11,
+    "trials": 11
+   }
+  ],
+  "config_feature|reads=3|edited=1|tests=passed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 9,
+    "trials": 9
+   },
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 63,
+    "trials": 63
+   }
+  ],
+  "extend_report|reads=0|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   }
+  ],
+  "extend_report|reads=1|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   }
+  ],
+  "extend_report|reads=2|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   }
+  ],
+  "extend_report|reads=3|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 122,
+    "trials": 122
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 13,
+    "trials": 13
+   }
+  ],
+  "extend_report|reads=3|edited=0|tests=passed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 13,
+    "trials": 13
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 8,
+    "trials": 8
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 6,
+    "trials": 6
+   }
+  ],
+  "extend_report|reads=3|edited=1|tests=failed": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   }
+  ],
+  "extend_report|reads=3|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   }
+  ],
+  "extend_report|reads=3|edited=1|tests=passed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   },
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 35,
+    "trials": 35
+   }
+  ],
+  "fix_bug|reads=0|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 0.813559,
+    "passes": 48,
+    "trials": 59
+   }
+  ],
+  "fix_bug|reads=1|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 11,
+    "trials": 11
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 0.770833,
+    "passes": 37,
+    "trials": 48
+   }
+  ],
+  "fix_bug|reads=1|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 10,
+    "trials": 10
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   }
+  ],
+  "fix_bug|reads=1|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 11,
+    "trials": 11
+   }
+  ],
+  "fix_bug|reads=1|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 1,
+    "trials": 1
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 9,
+    "trials": 9
+   }
+  ],
+  "fix_bug|reads=2|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 0.770833,
+    "passes": 37,
+    "trials": 48
+   }
+  ],
+  "fix_bug|reads=2|edited=1|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   }
+  ],
+  "fix_bug|reads=2|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   }
+  ],
+  "fix_bug|reads=3|edited=0|tests=failed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "fix_bug|reads=3|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 0.969697,
+    "passes": 32,
+    "trials": 33
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 0.733333,
+    "passes": 11,
+    "trials": 15
+   },
+   {
+    "action": "test",
+    "pass_rate": 0.333333,
+    "passes": 5,
+    "trials": 15
+   }
+  ],
+  "fix_bug|reads=3|edited=0|tests=passed": [
+   {
+    "action": "test",
+    "pass_rate": 0.0,
+    "passes": 0,
+    "trials": 197
+   }
+  ],
+  "fix_bug|reads=3|edited=1|tests=failed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 13,
+    "trials": 13
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 12,
+    "trials": 12
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 20,
+    "trials": 20
+   }
+  ],
+  "fix_bug|reads=3|edited=1|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   },
+   {
+    "action": "test",
+    "pass_rate": 0.969697,
+    "passes": 32,
+    "trials": 33
+   }
+  ],
+  "fix_bug|reads=3|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 0.97561,
+    "passes": 40,
+    "trials": 41
+   },
+   {
+    "action": "test",
+    "pass_rate": 0.975,
+    "passes": 78,
+    "trials": 80
+   }
+  ],
+  "refactor_alias|reads=0|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   }
+  ],
+  "refactor_alias|reads=1|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 16,
+    "trials": 16
+   }
+  ],
+  "refactor_alias|reads=2|edited=0|tests=none": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 9,
+    "trials": 9
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   }
+  ],
+  "refactor_alias|reads=2|edited=0|tests=passed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "refactor_alias|reads=2|edited=1|tests=passed": [
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   }
+  ],
+  "refactor_alias|reads=3|edited=0|tests=failed": [
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 3,
+    "trials": 3
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "refactor_alias|reads=3|edited=0|tests=none": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 88,
+    "trials": 88
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 4,
+    "trials": 4
+   }
+  ],
+  "refactor_alias|reads=3|edited=0|tests=passed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 9,
+    "trials": 9
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 14,
+    "trials": 14
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "refactor_alias|reads=3|edited=1|tests=none": [
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 5,
+    "trials": 5
+   }
+  ],
+  "refactor_alias|reads=3|edited=1|tests=passed": [
+   {
+    "action": "edit",
+    "pass_rate": 1.0,
+    "passes": 1,
+    "trials": 1
+   },
+   {
+    "action": "investigate",
+    "pass_rate": 1.0,
+    "passes": 2,
+    "trials": 2
+   },
+   {
+    "action": "submit",
+    "pass_rate": 1.0,
+    "passes": 7,
+    "trials": 7
+   },
+   {
+    "action": "test",
+    "pass_rate": 1.0,
+    "passes": 60,
+    "trials": 60
+   }
+  ]
+ },
+ "source_calibration_run": "t0_intrinsic_noconv_qwen3codernext_20260828",
+ "trajectory_count": 160
+}
