@@ -4764,6 +4764,61 @@ def temporal_action_advisory_from_gate_v2_decision(
     )
 
 
+@dataclass(frozen=True)
+class _RelationshipActionGateV2CounterfactualResponse:
+    features: tuple[float, ...]
+    logit: float
+    probability: float
+    gate_action: legacy.RelationshipGateAction
+    selected_action_id: str
+
+
+def _relationship_action_gate_v2_gate_response_from_logit(
+    logit: float,
+) -> tuple[float, legacy.RelationshipGateAction]:
+    """Apply the production sigmoid and strict threshold to one exact logit."""
+
+    if type(logit) is not float or not math.isfinite(logit):
+        raise ValueError("relationship action gate v2 logit must be an exact finite float")
+    probability = _sigmoid(logit)
+    gate_action = (
+        legacy.RelationshipGateAction.STEER
+        if probability > 0.5
+        else legacy.RelationshipGateAction.NOOP
+    )
+    return probability, gate_action
+
+
+def _relationship_action_gate_v2_counterfactual_response(
+    *,
+    weights: tuple[float, ...],
+    forecast: PreferenceActionForecast,
+) -> _RelationshipActionGateV2CounterfactualResponse:
+    """Evaluate the exact v2 gate response without publishing a decision."""
+
+    if type(weights) is not tuple or len(weights) != _FEATURE_COUNT:
+        raise ValueError("relationship action gate v2 counterfactual weights are invalid")
+    if any(type(value) is not float or not math.isfinite(value) for value in weights):
+        raise ValueError("relationship action gate v2 counterfactual weights are invalid")
+    features = relationship_action_gate_v2_features(forecast)
+    logit = math.fsum(weight * feature for weight, feature in zip(weights, features, strict=True))
+    probability, gate_action = _relationship_action_gate_v2_gate_response_from_logit(
+        logit
+    )
+    selected = (
+        forecast.recommended_action_id
+        if gate_action is legacy.RelationshipGateAction.STEER
+        else RelationshipAction.NEUTRAL_NOOP.value
+    )
+    return _RelationshipActionGateV2CounterfactualResponse(
+        features=features,
+        logit=logit,
+        probability=probability,
+        gate_action=gate_action,
+        selected_action_id=selected,
+    )
+
+
 def _frozen_decide(
     *,
     artifact: RelationshipActionGateV2Artifact,
@@ -4772,23 +4827,18 @@ def _frozen_decide(
     forecast: PreferenceActionForecast,
     rationale_codes: tuple[str, ...] | None = None,
 ) -> RelationshipActionGateV2FrozenDecision:
-    features = relationship_action_gate_v2_features(forecast)
-    logit = math.fsum(weight * feature for weight, feature in zip(checkpoint.weights, features, strict=True))
-    probability = _sigmoid(logit)
-    gate_action = legacy.RelationshipGateAction.STEER if probability > 0.5 else legacy.RelationshipGateAction.NOOP
-    selected = (
-        forecast.recommended_action_id
-        if gate_action is legacy.RelationshipGateAction.STEER
-        else RelationshipAction.NEUTRAL_NOOP.value
+    response = _relationship_action_gate_v2_counterfactual_response(
+        weights=checkpoint.weights,
+        forecast=forecast,
     )
     decision = RelationshipActionGateV2Decision(
         decision_id=forecast.decision_id,
         forecast_id=forecast.forecast_id,
-        gate_action=gate_action,
-        selected_action_id=selected,
+        gate_action=response.gate_action,
+        selected_action_id=response.selected_action_id,
         recommended_action_id=forecast.recommended_action_id,
-        steer_probability=probability,
-        features=features,
+        steer_probability=response.probability,
+        features=response.features,
         artifact_id=artifact.artifact_id,
         update_count=checkpoint.update_count,
         evidence_refs=tuple(dict.fromkeys((*forecast.source_record_ids, *forecast.evidence))),

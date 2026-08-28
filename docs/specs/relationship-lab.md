@@ -2546,6 +2546,18 @@ credit timestamp 不再由 caller 传入，而由 physical owner 唯一计算 `r
 PE-credit dose 是否够大；它读取 outcome/credit，不能与前者共用 outcome-free PASS。历史 source-v3/v4 credit
 只能标作 `spent_credit_counterfactual_operator_replay`，不能冒充 source-v5 actual update。
 
+gate-v2 owner 的 add-only `relationship_action_gate_v2_geometry` 只实现前一本账。它从完整 frozen policy 与 typed
+owner forecast 调用和正式 decision 相同的私有 score/sigmoid/strict-`>0.5` kernel；dose 同时冻结 artifact 绝对参数
+cap、逐坐标 delta cap 与必须离开 production floating-threshold band 的 robust logit clearance。每个 forecast 独立求
+box-constrained L2/L∞：deterministic binary64 连续边界 solver result 明记为“不是可执行 gate witness”，representable robust witness 则以
+实际 `projected_weight - baseline_weight` 计距、复核 dose/cap，并经 exact gate replay 发布 upper bound。最大定向
+endpoint 另外只回答任意 exact gate flip 是否 operationally reachable，因此不得与达到预注册 clearance 的 robust
+witness 强制相等。receipt 绑定 artifact/checkpoint/policy/forecast/dose、连续解、endpoint 与两种 exact witness，恢复
+必须重新计算完整 owner 结果并 exact-compare payload；witness scope 永久为 per-forecast individual，不能拼成 joint
+或 simultaneous perturbation。该 API 的 outcome/PE/credit/evaluation/update/model/CUDA count 全为 0，且
+`credit_achievability_established/effect/learnable/steerable/campaign_execution_authorized` 全为 false；它不新增 runtime
+slot、不消费 attempt03 结局，也不替代后续 actual PE-credit achievability owner。
+
 Steerable 也不得继续只用 strict-noop 作头条 steelman。attempt03 的 frozen gate 实为 4,480/4,480 次
 `gate_action=STEER`；155 次 delivered noop 来自 owner recommendation 自身为 noop，所以
 `always_adopt_owner_recommendation` 在旧 run 上与 frozen 完全退化。新 campaign 必须用 add-only gate-control
