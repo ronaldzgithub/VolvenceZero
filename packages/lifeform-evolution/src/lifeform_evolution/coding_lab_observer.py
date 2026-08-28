@@ -53,6 +53,20 @@ from lifeform_domain_coding.lab.trajectory import read_trajectory
 _OBSERVER_USER_ID = "coding-lab-observer"
 
 
+#: Clock backing the bet-then-settle ordering stamps below.
+#:
+#: Must be monotonic AND resolve far finer than the gap between recording the
+#: pre-oracle bet and submitting the outcome — those two sites are separated
+#: only by in-memory snapshot propagation. ``time.monotonic()`` is backed by
+#: GetTickCount64 on Windows (~15.6 ms), so both stamps landed in the same tick
+#: whenever the brain session settled quickly and the strict-ordering guard
+#: tripped on a fast hand. ``time.perf_counter()`` is monotonic and QPC-backed.
+#: These stamps are ordering-only and are never serialized into artifacts, so
+#: the clock source carries no evidence-schema impact.
+_ORDERING_CLOCK_NAME = "perf_counter"
+_ordering_clock = time.perf_counter
+
+
 @dataclass(frozen=True)
 class ObserverBet:
     """One owner-published pre-outcome forecast."""
@@ -62,6 +76,7 @@ class ObserverBet:
     predicted_action_payoff: float
     confidence: float
     prediction_id: str
+    #: Reading of :data:`_ordering_clock` taken when the bet was published.
     monotonic_seconds: float
 
 
@@ -111,7 +126,7 @@ def _bet_from_snapshot(session: BrainSession) -> ObserverBet:
         predicted_action_payoff=float(next_prediction.predicted_action_payoff),
         confidence=float(next_prediction.confidence),
         prediction_id=str(next_prediction.prediction_id),
-        monotonic_seconds=time.monotonic(),
+        monotonic_seconds=_ordering_clock(),
     )
 
 
@@ -286,7 +301,7 @@ class CodingLabChainObserver:
             description=description,
             action_turn_index=max(self._turn_counter - 1, 0),
         )
-        outcome_submitted = time.monotonic()
+        outcome_submitted = _ordering_clock()
         await self._turn(f"[oracle] episode settled: {'PASS' if passed else 'FAIL'}. {description}")
         # Episode = scene boundary: settle the background session-post slow
         # loop so reflection consolidation (memory promotion out of the

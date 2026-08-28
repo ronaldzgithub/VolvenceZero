@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
+import time
 
 import pytest
 
 from lifeform_domain_coding.lab.calibration import CalibrationConfig, run_calibration
 from lifeform_evolution.coding_lab_observer import (
+    _ORDERING_CLOCK_NAME,
+    _ordering_clock,
     EpisodeObservation,
     ObserverBet,
     observe_calibration_chain,
@@ -114,3 +117,25 @@ def test_bet_then_settle_ordering_is_enforced() -> None:
     )
     with pytest.raises(ValueError, match="bet-then-settle"):
         dataclasses.replace(template, outcome_submitted_monotonic=99.0)
+    # A sub-millisecond gap is the realistic spacing between the two sites and
+    # must be accepted; see the resolution test below for why that matters.
+    dataclasses.replace(template, outcome_submitted_monotonic=100.0 + 1e-6)
+
+
+def test_ordering_clock_is_monotonic_and_sub_millisecond() -> None:
+    """The bet-then-settle guard needs a finer clock than ``time.monotonic()``.
+
+    Recording the pre-oracle bet and submitting the outcome are separated only
+    by in-memory snapshot propagation. ``time.monotonic()`` resolves to ~15.6 ms
+    on Windows (GetTickCount64), so both stamps landed in the same tick whenever
+    the brain session settled quickly and the strict-ordering guard rejected a
+    perfectly well-ordered episode. Guard the clock contract, not the platform.
+    """
+
+    info = time.get_clock_info(_ORDERING_CLOCK_NAME)
+    assert info.monotonic, f"{_ORDERING_CLOCK_NAME} must be monotonic"
+    assert info.resolution < 1e-3, (
+        f"{_ORDERING_CLOCK_NAME} resolves to {info.resolution}s, too coarse to order "
+        "two adjacent in-memory operations"
+    )
+    assert _ordering_clock() <= _ordering_clock()
