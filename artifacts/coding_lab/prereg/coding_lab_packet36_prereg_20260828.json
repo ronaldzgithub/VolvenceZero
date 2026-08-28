@@ -1,0 +1,59 @@
+{
+ "binding_gates": [
+  "outcome_timing_gate",
+  "intervention_gate"
+ ],
+ "bootstrap_resamples": 2000,
+ "bootstrap_seed": 20260828,
+ "calibration_report_path": "D:/volvence/artifacts/coding_lab/packet35_formal_qwen3codernext_20260827/report.json",
+ "calibration_report_sha256": "fe1b0f5abcc79e8fff3b51319c2f252a3bdf765824b05004caee6a7f5a85d0da",
+ "certified_cells": [
+  {
+   "category": "fix_bug",
+   "credited_gain": 0.17647058823529416,
+   "expert_action": "edit",
+   "expert_itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 0.8235294117647058,
+   "state_key": "fix_bug|reads=1|edited=0|tests=none"
+  },
+  {
+   "category": "refactor_alias",
+   "credited_gain": 0.0,
+   "expert_action": "investigate",
+   "expert_itt_pass_rate": 1.0,
+   "natural_control_pass_rate": 1.0,
+   "state_key": "refactor_alias|reads=2|edited=0|tests=none"
+  }
+ ],
+ "chains": 16,
+ "claim_boundary": "Action-level intervention timing driven by interventional credit, measured on oracle episode pass rate. Residual-level Steerable is NOT lifted by this packet.",
+ "convention_ids": [
+  "convention_export_all"
+ ],
+ "env_seed": 20260812,
+ "episodes_per_chain": 10,
+ "estimand": "chain-paired episode pass-rate gaps between matched arms (noop / always_on / random_gate / table_gate) on the oracle verdict",
+ "gate_seed": 20260828,
+ "gates": {
+  "intervention_gate": "always_on - noop chain-bootstrap 5% lower bound > 0",
+  "outcome_timing_gate": "table_gate - noop chain-bootstrap 5% lower bound > 0",
+  "placement_gate": "table_gate - random_gate: DIRECTIONAL REPORT ONLY. Pre-computed power: rate-matched random captures ~half the certified effect (expected gap ~= 0.018), below reliable detection at this N.",
+  "table_vs_always": "REPORT-ONLY (expected null on a two-cell surface)"
+ },
+ "hand": {
+  "api_key_env": "DASHSCOPE_API_KEY",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "kind": "api",
+  "model": "qwen3-coder-next",
+  "temperature": 0.0
+ },
+ "honest_endgames": [
+  "all_gates_pass",
+  "timing_no_outcome_gain (gate FAIL, sealed as-is)",
+  "intervention_helps_but_placement_at_chance"
+ ],
+ "packet": "coding-lab-packet-3.6",
+ "prereg_id": "coding-lab-packet36-1787897786",
+ "random_gate_steer_probability": 0.5,
+ "table_gate_min_gain": 0.05
+}
