@@ -44,12 +44,23 @@ def _first_decision_state_keys() -> tuple[str, ...]:
     )
 
 
+def _load_directed_cells(path_arg: str) -> tuple[tuple[str, str], ...]:
+    payload = json.loads(pathlib.Path(path_arg).read_text(encoding="utf-8"))
+    return tuple((str(key), str(action)) for key, action in payload)
+
+
 def cmd_smoke(args: argparse.Namespace) -> int:
     run_id = args.run_id or f"packet35_smoke_{time.strftime('%Y%m%d_%H%M%S')}"
+    directed = _load_directed_cells(args.directed_cells_json) if args.directed_cells_json else ()
     config = InterventionalConfig(
         run_id=run_id,
         output_root=pathlib.Path(args.output_root),
-        target_state_keys=_first_decision_state_keys(),
+        target_state_keys=(
+            tuple(sorted({key for key, _ in directed}))
+            if directed
+            else _first_decision_state_keys()
+        ),
+        directed_cells=directed,
         chains=args.chains,
         episodes_per_chain=args.episodes_per_chain,
         hand_kind=HAND_SCRIPTED,
@@ -70,21 +81,41 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
 
 def cmd_freeze_prereg(args: argparse.Namespace) -> int:
+    directed = _load_directed_cells(args.directed_cells_json) if args.directed_cells_json else ()
+    if directed:
+        estimand = (
+            "intention-to-treat episode pass rate per directed (state_key, "
+            "advisor_action) cell, randomized {advisor action, control} at the "
+            "first target-state junction — causal pricing of a fallible advisor"
+        )
+        arms = ["control", "advisor_action"]
+        target_keys = sorted({key for key, _ in directed})
+        if args.target_state_keys and set(args.target_state_keys) != set(target_keys):
+            raise ValueError("--target-state-keys conflicts with --directed-cells-json keys")
+    else:
+        estimand = (
+            "intention-to-treat episode pass rate per (state_key, assigned_action) "
+            "cell, randomized uniformly at the first target-state junction"
+        )
+        arms = ["control"] + list(JUNCTION_ACTIONS)
+        if not args.target_state_keys:
+            raise ValueError("full-menu mode requires --target-state-keys")
+        target_keys = list(args.target_state_keys)
     prereg = {
         "prereg_id": f"coding-lab-packet35-{int(time.time())}",
         "packet": "coding-lab-packet-3.5",
-        "estimand": (
-            "intention-to-treat episode pass rate per (state_key, assigned_action) "
-            "cell, randomized uniformly at the first target-state junction"
-        ),
-        "arms": ["control"] + list(JUNCTION_ACTIONS),
+        "estimand": estimand,
+        "arms": arms,
+        "assignment_mode": "directed_pairs" if directed else "full_menu",
+        "directed_cells": [list(cell) for cell in directed],
+        "advisor_table_sha256": args.advisor_sha256 or None,
         "control_weight": args.control_weight,
         "chains": args.chains,
         "episodes_per_chain": args.episodes_per_chain,
         "env_seed": args.env_seed,
         "assignment_seed": args.assignment_seed,
         "convention_ids": list(args.conventions or ()),
-        "target_state_keys": list(args.target_state_keys),
+        "target_state_keys": list(target_keys),
         "min_action_support": 5,
         "min_pass_rate_margin": 0.10,
         "hand": {
@@ -132,6 +163,9 @@ def cmd_formal(args: argparse.Namespace) -> int:
         run_id=args.run_id,
         output_root=pathlib.Path(args.output_root),
         target_state_keys=tuple(prereg["target_state_keys"]),
+        directed_cells=tuple(
+            (str(key), str(action)) for key, action in prereg.get("directed_cells", [])
+        ),
         env_seed=int(prereg["env_seed"]),
         chains=int(prereg["chains"]),
         episodes_per_chain=int(prereg["episodes_per_chain"]),
@@ -175,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     smoke.add_argument("--episodes-per-chain", type=int, default=8)
     smoke.add_argument("--assignment-seed", type=int, default=20260827)
     smoke.add_argument("--control-weight", type=float, default=0.2)
+    smoke.add_argument("--directed-cells-json", default="")
     smoke.add_argument("--resume", action="store_true")
     smoke.set_defaults(func=cmd_smoke)
 
@@ -186,7 +221,9 @@ def main(argv: list[str] | None = None) -> int:
     freeze.add_argument("--assignment-seed", type=int, required=True)
     freeze.add_argument("--control-weight", type=float, default=0.2)
     freeze.add_argument("--conventions", nargs="*", default=["convention_export_all"])
-    freeze.add_argument("--target-state-keys", nargs="+", required=True)
+    freeze.add_argument("--target-state-keys", nargs="*", default=[])
+    freeze.add_argument("--directed-cells-json", default="")
+    freeze.add_argument("--advisor-sha256", default="")
     freeze.add_argument("--base-url", default="https://dashscope.aliyuncs.com/compatible-mode/v1")
     freeze.add_argument("--model", default="qwen3-coder-next")
     freeze.add_argument("--api-key-env", default="DASHSCOPE_API_KEY")

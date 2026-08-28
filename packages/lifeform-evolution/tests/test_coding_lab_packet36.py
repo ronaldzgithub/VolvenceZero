@@ -15,6 +15,7 @@ from lifeform_evolution.coding_lab_packet36 import (
     Packet36Config,
     Packet36EpisodeRow,
     arm_steers,
+    derive_advisor_cells,
     derive_certified_cells,
     paired_gap_statistics,
 )
@@ -112,6 +113,62 @@ class TestDeriveCertifiedCells:
         calibration["observational_control_table"] = {}
         with pytest.raises(ValueError, match="no certified steering cells"):
             derive_certified_cells(calibration)
+
+
+class TestDeriveAdvisorCells:
+    def _directed_calibration(self) -> dict:
+        return {
+            "config": {
+                "assignment_mode": "directed_pairs",
+                "directed_cells": [
+                    ["fix_bug|reads=1|edited=0|tests=none", "edit"],
+                    ["fix_bug|reads=3|edited=0|tests=none", "submit"],
+                ],
+            },
+            "interventional_table": {
+                "fix_bug|reads=1|edited=0|tests=none": [
+                    {"assigned_action": "edit", "trials": 20, "passes": 20, "pass_rate": 1.0},
+                ],
+                "fix_bug|reads=3|edited=0|tests=none": [
+                    {"assigned_action": "submit", "trials": 20, "passes": 0, "pass_rate": 0.0},
+                ],
+            },
+            "observational_control_table": {
+                "fix_bug|reads=1|edited=0|tests=none": [
+                    {"action": "investigate", "trials": 10, "passes": 8, "pass_rate": 0.8},
+                ],
+                "fix_bug|reads=3|edited=0|tests=none": [
+                    {"action": "edit", "trials": 10, "passes": 9, "pass_rate": 0.9},
+                ],
+            },
+        }
+
+    def test_keeps_negative_gain_cells(self) -> None:
+        cells = derive_advisor_cells(self._directed_calibration())
+        gains = {cell.state_key: cell.credited_gain for cell in cells}
+        assert gains["fix_bug|reads=1|edited=0|tests=none"] == pytest.approx(0.2)
+        assert gains["fix_bug|reads=3|edited=0|tests=none"] == pytest.approx(-0.9)
+
+    def test_rejects_full_menu_report(self) -> None:
+        calibration = self._directed_calibration()
+        calibration["config"]["assignment_mode"] = "full_menu"
+        with pytest.raises(ValueError, match="directed_pairs"):
+            derive_advisor_cells(calibration)
+
+    def test_missing_control_coverage_fails_loudly(self) -> None:
+        calibration = self._directed_calibration()
+        calibration["observational_control_table"]["fix_bug|reads=3|edited=0|tests=none"] = []
+        with pytest.raises(ValueError, match="without control coverage"):
+            derive_advisor_cells(calibration)
+
+
+class TestBindingGatesConfig:
+    def test_default_binding_gates_are_v1(self) -> None:
+        assert _config().binding_gates == ("outcome_timing_gate", "intervention_gate")
+
+    def test_v2_binding_gates_accepted(self) -> None:
+        config = _config(binding_gates=("avoidance_timing_gate", "outcome_timing_gate"))
+        assert "avoidance_timing_gate" in config.binding_gates
 
 
 def _row(arm: str, chain_index: int, passed: bool) -> Packet36EpisodeRow:

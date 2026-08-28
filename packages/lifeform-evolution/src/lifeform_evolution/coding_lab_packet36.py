@@ -15,12 +15,21 @@ episode pass rate. Four matched arms over identical chains:
 
 Claim boundary (pre-registered): this measures ACTION-LEVEL intervention
 timing driven by interventional credit. It does not lift the residual-level
-Steerable claim (S3-E stays at NLL/mechanism tier), and with the current
-two-cell certified surface ``table_gate`` and ``always_on`` are expected to
-coincide except on zero-gain cells — their contrast is report-only. The
-decisive comparisons are vs ``noop`` (does certified intervention help at
-outcome level) and vs ``random_gate`` (does credit-driven placement beat
-rate-matched chance).
+Steerable claim (S3-E stays at NLL/mechanism tier).
+
+Two designs share this runner, distinguished by the prereg-frozen cell set
+and binding gates:
+
+* v1 (sealed 2026-08-28): cells = interventional expert map (gain >= 0 by
+  construction); on that never-harmful surface ``table_gate`` and
+  ``always_on`` coincide and the timing contrast has no headroom — the
+  finding that motivated v2.
+* v2 (fallible advisor): cells = causally PRICED recommendations of an
+  observational advisor table, including negative-gain cells. ``always_on``
+  executes every recommendation and bears the harm; ``table_gate`` declines
+  cells whose priced gain falls below the frozen threshold. Binding gates:
+  ``avoidance_timing_gate`` (table − always) and ``outcome_timing_gate``
+  (table − noop).
 """
 
 from __future__ import annotations
@@ -117,6 +126,46 @@ def derive_certified_cells(
     return tuple(cells)
 
 
+def derive_advisor_cells(
+    calibration_report: dict[str, Any],
+) -> tuple[CertifiedCell, ...]:
+    """Priced advisor cells from a DIRECTED-mode Packet 3.5/T2 report.
+
+    Each ``directed_cells`` entry becomes one cell: the advisor action's
+    ITT pass rate vs the CONTROL arm's natural pass rate at the same key.
+    Negative-gain cells are kept — they are the timing headroom, not noise.
+    A cell without control coverage fails loudly (the directed design
+    guarantees control draws at every key, so absence means a broken run).
+    """
+
+    config = calibration_report["config"]
+    if config["assignment_mode"] != "directed_pairs":
+        raise ValueError("advisor cells require a directed_pairs calibration report")
+    interventional = calibration_report["interventional_table"]
+    control = calibration_report["observational_control_table"]
+    cells: list[CertifiedCell] = []
+    for state_key, advisor_action in config["directed_cells"]:
+        stats = {row["assigned_action"]: row for row in interventional[state_key]}
+        advisor_row = stats[advisor_action]
+        control_rows = control[state_key]
+        control_trials = sum(int(row["trials"]) for row in control_rows)
+        control_passes = sum(int(row["passes"]) for row in control_rows)
+        if control_trials == 0:
+            raise ValueError(f"directed cell without control coverage: {state_key!r}")
+        cells.append(
+            CertifiedCell(
+                state_key=state_key,
+                category=state_key.split("|", 1)[0],
+                expert_action=advisor_action,
+                expert_itt_pass_rate=float(advisor_row["pass_rate"]),
+                natural_control_pass_rate=control_passes / control_trials,
+            )
+        )
+    if not cells:
+        raise ValueError("directed calibration report yields no advisor cells")
+    return tuple(cells)
+
+
 @dataclass(frozen=True)
 class Packet36Config:
     """Frozen configuration of one Packet 3.6 run (smoke or formal)."""
@@ -138,6 +187,10 @@ class Packet36Config:
     table_gate_min_gain: float = 0.05
     bootstrap_resamples: int = 2000
     bootstrap_seed: int = 20260828
+    #: Verdict-binding gate names, frozen in the prereg. v1 default; the
+    #: v2 fallible-advisor design binds avoidance timing (table − always)
+    #: and net value (table − noop) instead.
+    binding_gates: tuple[str, ...] = ("outcome_timing_gate", "intervention_gate")
     budget: EpisodeBudget = field(default_factory=EpisodeBudget)
     min_free_disk_bytes: int = 2 * 1024**3
     resume: bool = False
@@ -412,7 +465,7 @@ async def run_packet36(
             resamples=config.bootstrap_resamples,
             seed=config.bootstrap_seed + 2,
         ),
-        "table_vs_always_report_only": paired_gap_statistics(
+        "table_vs_always": paired_gap_statistics(
             rows,
             arm_a=ARM_TABLE_GATE,
             arm_b=ARM_ALWAYS_ON,
@@ -424,12 +477,12 @@ async def run_packet36(
         "outcome_timing_gate": contrasts["timing_vs_noop"]["bootstrap_ci_lower_5pct"] > 0.0,
         "placement_gate": contrasts["timing_vs_random"]["bootstrap_ci_lower_5pct"] > 0.0,
         "intervention_gate": contrasts["always_vs_noop"]["bootstrap_ci_lower_5pct"] > 0.0,
+        "avoidance_timing_gate": contrasts["table_vs_always"]["bootstrap_ci_lower_5pct"] > 0.0,
     }
-    # Pre-declared power boundary: with a two-cell surface (one at zero gain)
-    # the rate-matched random arm captures ~half the certified effect, so the
-    # placement contrast is directional-report-only; verdict-binding gates are
-    # the two below (frozen in the prereg before any formal outcome existed).
-    binding_gates = ("outcome_timing_gate", "intervention_gate")
+    unknown_gates = set(config.binding_gates) - set(verdicts)
+    if unknown_gates:
+        raise ValueError(f"binding gates not computed: {sorted(unknown_gates)}")
+    binding_gates = config.binding_gates
 
     opportunity_rows = [row for row in rows if row.opportunity]
     steered_rows = [row for row in rows if row.steer_decided]
@@ -479,11 +532,6 @@ async def run_packet36(
         "honest_boundaries": {
             "claim_scope": "action-level intervention timing on oracle episode pass rate",
             "residual_steerable_lifted": False,
-            "table_vs_always_expected_null": (
-                "With a two-cell certified surface where one cell has zero credited "
-                "gain, table_gate and always_on coincide except on zero-gain cells; "
-                "their contrast is report-only by preregistration."
-            ),
             "certified_surface_from": "packet35 interventional RCT (randomized, ITT)",
             "capability_claim_authorized": False,
         },
@@ -517,7 +565,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
         line("timing_vs_noop"),
         line("timing_vs_random"),
         line("always_vs_noop"),
-        line("table_vs_always_report_only"),
+        line("table_vs_always"),
         f"- verdicts: {verdicts}",
         f"- mechanism: {report['mechanism']}",
         "",
@@ -539,6 +587,7 @@ __all__ = [
     "Packet36Config",
     "Packet36EpisodeRow",
     "arm_steers",
+    "derive_advisor_cells",
     "derive_certified_cells",
     "paired_gap_statistics",
     "run_packet36",

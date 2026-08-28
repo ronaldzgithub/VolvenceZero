@@ -64,6 +64,13 @@ class InterventionalConfig:
     run_id: str
     output_root: pathlib.Path
     target_state_keys: tuple[str, ...]
+    #: Directed pricing mode (Packet T2): ``(state_key, advisor_action)``
+    #: pairs. When non-empty, each assigned episode randomizes only between
+    #: {the cell's advisor action, control} instead of the full protocol
+    #: menu — the trial budget concentrates on causally pricing a fallible
+    #: advisor's specific recommendations. Keys must exactly mirror
+    #: ``target_state_keys`` so the prereg pins one surface, not two.
+    directed_cells: tuple[tuple[str, str], ...] = ()
     env_seed: int = 20260812
     chains: int = 4
     episodes_per_chain: int = 8
@@ -86,6 +93,17 @@ class InterventionalConfig:
             raise ValueError("api hand requires api_hand_config")
         if not self.target_state_keys:
             raise ValueError("target_state_keys must be non-empty (prereg-frozen)")
+        if self.directed_cells:
+            for state_key, action in self.directed_cells:
+                if action not in JUNCTION_ACTIONS:
+                    raise ValueError(f"directed cell action outside protocol: {action!r}")
+                if state_key not in self.target_state_keys:
+                    raise ValueError(f"directed cell key not in target_state_keys: {state_key!r}")
+            directed_keys = {state_key for state_key, _ in self.directed_cells}
+            if directed_keys != set(self.target_state_keys):
+                raise ValueError("directed_cells keys must exactly cover target_state_keys")
+            if len(self.directed_cells) != len(set(self.directed_cells)):
+                raise ValueError("directed_cells must be unique")
         if not 0.0 <= self.control_weight < 1.0:
             raise ValueError("control_weight must be in [0, 1)")
         if self.chains < 1 or self.episodes_per_chain < 1:
@@ -134,6 +152,16 @@ def draw_assignment(
     rng = Random(
         config.assignment_seed * 1_000_003 + chain_index * 10_007 + episode_index * 101
     )
+    if config.directed_cells:
+        eligible_cells = tuple(
+            cell for cell in config.directed_cells if cell[0].startswith(f"{category}|")
+        )
+        if not eligible_cells:
+            return None, None
+        target_key, advisor_action = eligible_cells[rng.randrange(len(eligible_cells))]
+        if rng.random() < config.control_weight:
+            return target_key, None
+        return target_key, advisor_action
     eligible = tuple(
         key for key in config.target_state_keys if key.startswith(f"{category}|")
     )
@@ -374,6 +402,8 @@ async def run_interventional_calibration(
             ),
             "convention_ids": list(config.convention_ids),
             "target_state_keys": list(config.target_state_keys),
+            "assignment_mode": "directed_pairs" if config.directed_cells else "full_menu",
+            "directed_cells": [list(cell) for cell in config.directed_cells],
             "assignment_seed": config.assignment_seed,
             "control_weight": config.control_weight,
             "scripted_rates": {

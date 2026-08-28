@@ -31,6 +31,7 @@ from lifeform_evolution.coding_lab_packet36 import (  # noqa: E402
     HAND_API,
     HAND_SCRIPTED,
     Packet36Config,
+    derive_advisor_cells,
     derive_certified_cells,
     run_packet36,
 )
@@ -54,6 +55,11 @@ def _summary(report: dict) -> dict:
             "mean_gap": report["contrasts"]["timing_vs_random"]["mean_gap"],
             "lower_5pct": report["contrasts"]["timing_vs_random"]["bootstrap_ci_lower_5pct"],
         },
+        "table_vs_always": {
+            "mean_gap": report["contrasts"]["table_vs_always"]["mean_gap"],
+            "lower_5pct": report["contrasts"]["table_vs_always"]["bootstrap_ci_lower_5pct"],
+        },
+        "binding_gates_pass": report["binding_gates_pass"],
         "mechanism": report["mechanism"],
     }
 
@@ -100,10 +106,46 @@ def cmd_freeze_prereg(args: argparse.Namespace) -> int:
     calibration_path = pathlib.Path(args.calibration_report)
     calibration_sha = _sha256_file(calibration_path)
     calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
-    cells = derive_certified_cells(calibration)
+    if args.design == "v2-advisor":
+        cells = derive_advisor_cells(calibration)
+        positive = [c for c in cells if c.credited_gain >= args.table_gate_min_gain]
+        negative = [c for c in cells if c.credited_gain < 0.0]
+        if not positive or not negative:
+            raise ValueError(
+                "v2-advisor prereg requires at least one positive-gain and one "
+                f"negative-gain priced cell (got {len(positive)} positive / "
+                f"{len(negative)} negative); T2 exit decision says NO-GO"
+            )
+        binding_gates = ["avoidance_timing_gate", "outcome_timing_gate"]
+        gates_doc = {
+            "avoidance_timing_gate": (
+                "table_gate - always_on chain-bootstrap 5% lower bound > 0 "
+                "(declining causally priced harmful advice)"
+            ),
+            "outcome_timing_gate": "table_gate - noop chain-bootstrap 5% lower bound > 0",
+            "intervention_gate": (
+                "always_on - noop: DIRECTIONAL REPORT ONLY in v2 (the advisor is "
+                "fallible by design; its net sign is a finding, not a gate)"
+            ),
+            "placement_gate": "table_gate - random_gate: directional report only",
+        }
+    else:
+        cells = derive_certified_cells(calibration)
+        binding_gates = ["outcome_timing_gate", "intervention_gate"]
+        gates_doc = {
+            "outcome_timing_gate": "table_gate - noop chain-bootstrap 5% lower bound > 0",
+            "placement_gate": (
+                "table_gate - random_gate: DIRECTIONAL REPORT ONLY. Pre-computed "
+                "power: rate-matched random captures ~half the certified effect "
+                "(expected gap ~= 0.018), below reliable detection at this N."
+            ),
+            "intervention_gate": "always_on - noop chain-bootstrap 5% lower bound > 0",
+            "table_vs_always": "REPORT-ONLY (expected null on a two-cell surface)",
+        }
     prereg = {
         "prereg_id": f"coding-lab-packet36-{int(time.time())}",
         "packet": "coding-lab-packet-3.6",
+        "design": args.design,
         "estimand": (
             "chain-paired episode pass-rate gaps between matched arms "
             "(noop / always_on / random_gate / table_gate) on the oracle verdict"
@@ -125,22 +167,13 @@ def cmd_freeze_prereg(args: argparse.Namespace) -> int:
         "episodes_per_chain": args.episodes_per_chain,
         "env_seed": args.env_seed,
         "gate_seed": args.gate_seed,
-        "random_gate_steer_probability": 0.5,
-        "table_gate_min_gain": 0.05,
+        "random_gate_steer_probability": args.random_gate_probability,
+        "table_gate_min_gain": args.table_gate_min_gain,
         "bootstrap_resamples": 2000,
         "bootstrap_seed": args.gate_seed,
         "convention_ids": list(args.conventions or ()),
-        "gates": {
-            "outcome_timing_gate": "table_gate - noop chain-bootstrap 5% lower bound > 0",
-            "placement_gate": (
-                "table_gate - random_gate: DIRECTIONAL REPORT ONLY. Pre-computed "
-                "power: rate-matched random captures ~half the certified effect "
-                "(expected gap ~= 0.018), below reliable detection at this N."
-            ),
-            "intervention_gate": "always_on - noop chain-bootstrap 5% lower bound > 0",
-            "table_vs_always": "REPORT-ONLY (expected null on a two-cell surface)",
-        },
-        "binding_gates": ["outcome_timing_gate", "intervention_gate"],
+        "gates": gates_doc,
+        "binding_gates": binding_gates,
         "hand": {
             "kind": "api",
             "base_url": args.base_url,
@@ -151,12 +184,13 @@ def cmd_freeze_prereg(args: argparse.Namespace) -> int:
         "honest_endgames": [
             "all_gates_pass",
             "timing_no_outcome_gain (gate FAIL, sealed as-is)",
-            "intervention_helps_but_placement_at_chance",
+            "advisor_uniformly_good_or_bad (v2: no avoidance headroom realized)",
         ],
         "claim_boundary": (
             "Action-level intervention timing driven by interventional credit, "
-            "measured on oracle episode pass rate. Residual-level Steerable is "
-            "NOT lifted by this packet."
+            "measured on oracle episode pass rate. In the v2-advisor design the "
+            "timing claim is 'knowing when to trust a fallible advisor', priced "
+            "causally per cell. Residual-level Steerable is NOT lifted."
         ),
     }
     path = pathlib.Path(args.output)
@@ -216,6 +250,7 @@ def cmd_formal(args: argparse.Namespace) -> int:
         table_gate_min_gain=float(prereg["table_gate_min_gain"]),
         bootstrap_resamples=int(prereg["bootstrap_resamples"]),
         bootstrap_seed=int(prereg["bootstrap_seed"]),
+        binding_gates=tuple(prereg["binding_gates"]),
         resume=args.resume,
     )
     report = asyncio.run(
@@ -248,10 +283,13 @@ def main(argv: list[str] | None = None) -> int:
     freeze = commands.add_parser("freeze-prereg")
     freeze.add_argument("--output", required=True)
     freeze.add_argument("--calibration-report", required=True)
+    freeze.add_argument("--design", choices=("v1-expert", "v2-advisor"), default="v1-expert")
     freeze.add_argument("--chains", type=int, required=True)
     freeze.add_argument("--episodes-per-chain", type=int, required=True)
     freeze.add_argument("--env-seed", type=int, default=20260812)
     freeze.add_argument("--gate-seed", type=int, required=True)
+    freeze.add_argument("--random-gate-probability", type=float, default=0.5)
+    freeze.add_argument("--table-gate-min-gain", type=float, default=0.05)
     freeze.add_argument("--conventions", nargs="*", default=["convention_export_all"])
     freeze.add_argument("--base-url", default="https://dashscope.aliyuncs.com/compatible-mode/v1")
     freeze.add_argument("--model", default="qwen3-coder-next")
