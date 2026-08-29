@@ -71,6 +71,23 @@ _EXPECTED_IDS = {
     "forge-research-promotion-receipt.v1": "receipt_id",
 }
 
+_PROMOTION_SOURCES = (
+    (
+        "research_promotion",
+        frozenset(
+            {
+                "forge-research-candidate.v1",
+                "forge-research-validation.v1",
+                "forge-research-gate.v1",
+                "forge-research-promotion-receipt.v1",
+            }
+        ),
+    ),
+    ("research_validation", frozenset({"forge-research-validation.v1"})),
+    ("research_gate", frozenset({"forge-research-gate.v1"})),
+)
+_CANONICAL_HANDOFF_NAME = "volvence_handoff.json"
+
 
 def command_status_loader(executable: str | os.PathLike[str], *, timeout_seconds: float = 15.0) -> StatusLoader:
     """Build a fixed-argv status loader from an explicitly selected executable."""
@@ -133,7 +150,8 @@ class ResearchLabCollector:
         items: list[ResearchLabItem] = []
         for task in tasks:
             task_id = _require_str(task.payload, "task_id", task.path)
-            item_warnings: list[PortalWarning] = []
+            item_warnings = [warning for warning in warnings if warning.task_id == task_id]
+            inherited_warning_count = len(item_warnings)
             control = self._load_control(task_id, item_warnings, source_counts)
             route = routes.get(task_id)
             opportunity = self._opportunity_for_route(route, opportunities)
@@ -147,7 +165,7 @@ class ResearchLabCollector:
                 warnings=item_warnings,
             )
             items.append(item)
-            warnings.extend(item_warnings)
+            warnings.extend(item_warnings[inherited_warning_count:])
 
         items.sort(key=lambda item: (item.lifecycle.stage.value, item.task_id))
         source_health = self._source_health(source_counts, warnings)
@@ -393,7 +411,6 @@ class ResearchLabCollector:
         warnings: list[PortalWarning],
         counts: dict[str, int],
     ) -> dict[str, _PromotionBundle]:
-        root = self.repo_root / "artifacts" / "research_promotion"
         versions = {
             "forge-research-candidate.v1": "candidate",
             "forge-research-validation.v1": "validation",
@@ -401,40 +418,51 @@ class ResearchLabCollector:
             "forge-research-promotion-receipt.v1": "receipt",
         }
         by_task: dict[str, dict[str, list[_LoadedArtifact]]] = {}
-        for path in sorted(root.glob("**/*.json")):
-            raw = self._load_json_object(path, "research promotion", warnings)
-            if raw is None:
-                continue
-            version = raw.get("schema_version")
-            kind = versions.get(version) if isinstance(version, str) else None
-            if kind is None:
-                warnings.append(
-                    PortalWarning(
-                        code="UNSUPPORTED_PROMOTION_ARTIFACT",
-                        message=f"unsupported schema_version in {_portable(path, self.repo_root)}",
-                        source="promotion",
+        seen_paths: set[Path] = set()
+        for directory, allowed_versions in _PROMOTION_SOURCES:
+            root = self.repo_root / "artifacts" / directory
+            for path in sorted(root.glob("**/*.json")):
+                resolved = path.resolve()
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
+                raw = self._load_json_object(path, "research promotion", warnings)
+                if raw is None:
+                    continue
+                version = raw.get("schema_version")
+                if not isinstance(version, str) or version not in allowed_versions:
+                    warnings.append(
+                        PortalWarning(
+                            code="UNSUPPORTED_PROMOTION_ARTIFACT",
+                            message=f"unsupported schema_version in {_portable(path, self.repo_root)}",
+                            source="promotion",
+                        )
                     )
+                    continue
+                kind = versions[version]
+                task_id = raw.get("task_id")
+                if not isinstance(task_id, str) or not task_id:
+                    warnings.append(
+                        _malformed_warning(path, ValueError("task_id must be a string"), source="promotion")
+                    )
+                    continue
+                artifact = _LoadedArtifact(
+                    payload=raw,
+                    ref=_artifact_ref(path, raw, kind, self.repo_root),
+                    path=path,
                 )
-                continue
-            task_id = raw.get("task_id")
-            if not isinstance(task_id, str) or not task_id:
-                warnings.append(_malformed_warning(path, ValueError("task_id must be a string"), source="promotion"))
-                continue
-            artifact = _LoadedArtifact(
-                payload=raw,
-                ref=_artifact_ref(path, raw, kind, self.repo_root),
-                path=path,
-            )
-            by_task.setdefault(task_id, {}).setdefault(kind, []).append(artifact)
-            counts["promotion"] += 1
+                by_task.setdefault(task_id, {}).setdefault(kind, []).append(artifact)
+                counts["promotion"] += 1
 
         result: dict[str, _PromotionBundle] = {}
         for task_id, kinds in by_task.items():
-            result[task_id] = _PromotionBundle(
-                candidate=_latest(kinds.get("candidate", [])),
-                validation=_latest(kinds.get("validation", [])),
-                gate=_latest(kinds.get("gate", [])),
-                receipt=_latest(kinds.get("receipt", [])),
+            result[task_id] = _select_exact_promotion_bundle(
+                task_id=task_id,
+                candidates=kinds.get("candidate", []),
+                validations=kinds.get("validation", []),
+                gates=kinds.get("gate", []),
+                receipts=kinds.get("receipt", []),
+                warnings=warnings,
             )
         return result
 
@@ -473,12 +501,21 @@ class ResearchLabCollector:
                     task_id=task_id,
                 )
             )
+        elif matching_rows:
+            latest_row = max(
+                matching_rows,
+                key=lambda row: str(row.get("updated_at") or row.get("started_at") or row.get("run_id") or ""),
+            )
+            run = self._run_snapshot(latest_row, task_id, warnings)
+
+        handoff = self._load_completed_handoff(run, task_id, warnings)
 
         authority = _authority(control, promotion, task.payload)
         lifecycle = _lifecycle(
             control=control,
             promotion=promotion,
-            active_run=run,
+            run=run,
+            handoff=handoff,
             duplicate_active_runs=len(active_rows) > 1,
         )
         title = task_id.replace("_", " ").title()
@@ -500,6 +537,7 @@ class ResearchLabCollector:
             promotion.validation,
             promotion.gate,
             promotion.receipt,
+            handoff,
         ):
             if artifact is not None:
                 refs.append(artifact.ref)
@@ -518,6 +556,7 @@ class ResearchLabCollector:
                     promotion.gate,
                     promotion.validation,
                     promotion.candidate,
+                    handoff,
                 )
                 if artifact is not None
             ),
@@ -533,10 +572,10 @@ class ResearchLabCollector:
             release_target=str(release.get("target", "unknown")),
             lifecycle=lifecycle,
             authority=authority,
-            evidence=_evidence(control, promotion, run),
+            evidence=_evidence(control, promotion, run, handoff),
             bindings=tuple(refs),
             run=run,
-            available_actions=_actions(lifecycle.stage, control, promotion),
+            available_actions=_actions(lifecycle.stage, control, promotion, handoff),
             warnings=tuple(warnings),
             updated_at=updated_at,
         )
@@ -591,7 +630,7 @@ class ResearchLabCollector:
             run_id=str(row["run_id"]),
             state=str(row.get("state", "unknown")),
             source=str(row.get("source", "unknown")),
-            pid=pid if isinstance(pid, int) and not isinstance(pid, bool) else None,
+            pid=(pid if row.get("state") == "running" and isinstance(pid, int) and not isinstance(pid, bool) else None),
             task_path=str(row.get("task_path", "")),
             run_dir=str(run_dir) if run_dir is not None else None,
             generation=generation if isinstance(generation, int) and not isinstance(generation, bool) else None,
@@ -604,6 +643,38 @@ class ResearchLabCollector:
             started_at=row.get("started_at") if isinstance(row.get("started_at"), str) else None,
             updated_at=row.get("updated_at") if isinstance(row.get("updated_at"), str) else None,
         )
+
+    def _load_completed_handoff(
+        self,
+        run: PraxistRunSnapshot | None,
+        task_id: str,
+        warnings: list[PortalWarning],
+    ) -> _LoadedArtifact | None:
+        if run is None or run.state != "completed" or run.run_dir is None:
+            return None
+        path = Path(run.run_dir) / _CANONICAL_HANDOFF_NAME
+        if not path.exists():
+            return None
+        handoff = self._load_artifact(
+            path,
+            "forge-praxist-candidate-handoff.v1",
+            "praxist handoff",
+            warnings,
+        )
+        if handoff is None:
+            return None
+        if handoff.payload.get("task_id") != task_id or handoff.payload.get("run_id") != run.run_id:
+            warnings.append(
+                PortalWarning(
+                    code="PRAXIST_HANDOFF_BINDING_MISMATCH",
+                    message=f"canonical handoff does not bind task/run: {_portable(path, self.repo_root)}",
+                    source="praxist",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+            return None
+        return handoff
 
     def _opportunity_for_route(
         self,
@@ -754,7 +825,8 @@ def _lifecycle(
     *,
     control: _ControlBundle,
     promotion: _PromotionBundle,
-    active_run: PraxistRunSnapshot | None,
+    run: PraxistRunSnapshot | None,
+    handoff: _LoadedArtifact | None,
     duplicate_active_runs: bool,
 ) -> LifecycleSnapshot:
     if duplicate_active_runs:
@@ -762,7 +834,7 @@ def _lifecycle(
             LifecycleStage.BLOCKED,
             None,
             "multiple active Praxist runs map to one Task",
-            active_run.updated_at if active_run else None,
+            run.updated_at if run else None,
         )
     if control.approval is not None and control.approval.payload.get("decision") == "REJECT":
         return LifecycleSnapshot(
@@ -771,12 +843,12 @@ def _lifecycle(
             "exact A0 review rejected this ResearchRequest",
             _created_at(control.approval.payload),
         )
-    if active_run is not None:
+    if run is not None and run.state == "running":
         return LifecycleSnapshot(
             LifecycleStage.RESEARCH_RUNNING,
             LifecycleStage.RESEARCH_COMPLETE,
             None,
-            active_run.started_at,
+            run.started_at,
         )
     if promotion.receipt is not None:
         payload = promotion.receipt.payload
@@ -832,6 +904,26 @@ def _lifecycle(
             None,
             _created_at(promotion.candidate.payload),
         )
+    if run is not None and run.state == "completed":
+        return LifecycleSnapshot(
+            LifecycleStage.RESEARCH_COMPLETE,
+            LifecycleStage.CANDIDATE_RETAINED,
+            None if handoff is not None else "committed Praxist handoff is not present",
+            run.updated_at,
+        )
+    if run is not None and run.state in {
+        "failed",
+        "stale",
+        "stopped",
+        "status_inconsistent",
+        "unknown",
+    }:
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            f"Praxist run is {run.state}; explicit lifecycle repair is required",
+            run.updated_at,
+        )
     if _is_a0_approved(control):
         blocker = None
         if control.event is not None and control.event.payload.get("state") == "WAITING_FOR_CAPACITY":
@@ -861,8 +953,13 @@ def _evidence(
     control: _ControlBundle,
     promotion: _PromotionBundle,
     run: PraxistRunSnapshot | None,
+    handoff: _LoadedArtifact | None,
 ) -> EvidenceSnapshot:
     development = "running" if run is not None else "baseline_registered"
+    if run is not None and run.state == "completed":
+        development = "completed"
+    if handoff is not None:
+        development = "handoff_committed"
     if promotion.candidate is not None:
         development = "candidate_retained"
     formal = "not_performed"
@@ -884,6 +981,7 @@ def _actions(
     stage: LifecycleStage,
     control: _ControlBundle,
     promotion: _PromotionBundle,
+    handoff: _LoadedArtifact | None,
 ) -> tuple[str, ...]:
     if stage is LifecycleStage.AWAITING_A0 and control.request is not None:
         return ("review_a0",)
@@ -892,7 +990,7 @@ def _actions(
     if stage is LifecycleStage.RESEARCH_RUNNING:
         return ("view_run",)
     if stage is LifecycleStage.RESEARCH_COMPLETE:
-        return ("inspect_handoff",)
+        return ("import_candidate",) if handoff is not None else ("inspect_handoff",)
     if stage is LifecycleStage.CANDIDATE_RETAINED:
         return ("run_formal_validation",)
     if stage is LifecycleStage.FORMAL_VALIDATION:
@@ -981,8 +1079,136 @@ def _artifact_ref(
     )
 
 
+def _select_exact_promotion_bundle(
+    *,
+    task_id: str,
+    candidates: Sequence[_LoadedArtifact],
+    validations: Sequence[_LoadedArtifact],
+    gates: Sequence[_LoadedArtifact],
+    receipts: Sequence[_LoadedArtifact],
+    warnings: list[PortalWarning],
+) -> _PromotionBundle:
+    """Select one candidate branch while preserving exact downstream bindings.
+
+    Validation and Gate artifacts live in sibling owner directories and may be
+    produced repeatedly.  A timestamp-only zip can therefore combine bytes
+    that were never reviewed together.  The portal follows the newest sealed
+    candidate, then admits only artifacts whose explicit ids and raw digests
+    bind that candidate/evidence round.  Receipt state is selected separately
+    because a fresh validation/gate round may legitimately follow the previous
+    authorization receipt.
+    """
+
+    candidate = _latest(candidates)
+    if candidate is None:
+        receipt = _latest(receipts)
+        if receipt is not None:
+            warnings.append(
+                PortalWarning(
+                    code="PROMOTION_CANDIDATE_MISSING",
+                    message=f"promotion receipt has no available candidate bytes for task {task_id}",
+                    source="promotion",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+        return _PromotionBundle(None, None, None, receipt)
+
+    candidate_id = candidate.payload.get("candidate_id")
+    if not isinstance(candidate_id, str) or not candidate_id:
+        warnings.append(
+            PortalWarning(
+                code="PROMOTION_CANDIDATE_ID_MISSING",
+                message=f"candidate lacks a stable candidate_id: {candidate.ref.locator}",
+                source="promotion",
+                severity=WarningSeverity.ERROR,
+                task_id=task_id,
+            )
+        )
+        return _PromotionBundle(candidate, None, None, None)
+    candidate_sha256 = candidate.ref.sha256
+
+    exact_validations = [
+        artifact
+        for artifact in validations
+        if artifact.payload.get("candidate_id") == candidate_id
+        and artifact.payload.get("candidate_sha256") == candidate_sha256
+    ]
+    validation = _latest(exact_validations)
+    same_candidate_validations = [
+        artifact for artifact in validations if artifact.payload.get("candidate_id") == candidate_id
+    ]
+    if validation is None and same_candidate_validations:
+        warnings.append(
+            PortalWarning(
+                code="VALIDATION_CANDIDATE_DIGEST_MISMATCH",
+                message=f"formal validation binds stale candidate bytes for task {task_id}",
+                source="promotion",
+                severity=WarningSeverity.ERROR,
+                task_id=task_id,
+            )
+        )
+
+    gate = None
+    if validation is not None:
+        gate = _latest(
+            [
+                artifact
+                for artifact in gates
+                if artifact.payload.get("candidate_id") == candidate_id
+                and artifact.payload.get("candidate_sha256") == candidate_sha256
+                and artifact.payload.get("validation_sha256") == validation.ref.sha256
+            ]
+        )
+        same_round_gates = [
+            artifact
+            for artifact in gates
+            if artifact.payload.get("candidate_id") == candidate_id
+            and artifact.payload.get("candidate_sha256") == candidate_sha256
+        ]
+        if gate is None and same_round_gates:
+            warnings.append(
+                PortalWarning(
+                    code="GATE_VALIDATION_DIGEST_MISMATCH",
+                    message=f"ModificationGate evidence does not bind the current validation bytes for task {task_id}",
+                    source="promotion",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+
+    exact_receipts: list[_LoadedArtifact] = []
+    for artifact in receipts:
+        bindings = artifact.payload.get("bindings")
+        if (
+            artifact.payload.get("candidate_id") == candidate_id
+            and isinstance(bindings, Mapping)
+            and bindings.get("candidate_sha256") == candidate_sha256
+        ):
+            exact_receipts.append(artifact)
+    receipt = _latest(exact_receipts)
+    same_candidate_receipts = [
+        artifact for artifact in receipts if artifact.payload.get("candidate_id") == candidate_id
+    ]
+    if receipt is None and same_candidate_receipts:
+        warnings.append(
+            PortalWarning(
+                code="RECEIPT_CANDIDATE_DIGEST_MISMATCH",
+                message=f"promotion receipt binds stale candidate bytes for task {task_id}",
+                source="promotion",
+                severity=WarningSeverity.ERROR,
+                task_id=task_id,
+            )
+        )
+    return _PromotionBundle(candidate, validation, gate, receipt)
+
+
 def _latest(artifacts: Sequence[_LoadedArtifact]) -> _LoadedArtifact | None:
-    return max(artifacts, key=lambda artifact: _created_at(artifact.payload), default=None)
+    return max(
+        artifacts,
+        key=lambda artifact: (_created_at(artifact.payload), artifact.ref.locator),
+        default=None,
+    )
 
 
 def _created_at(payload: Mapping[str, Any]) -> str:

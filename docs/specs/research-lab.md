@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.1 architecture freeze；read-only aggregation + opt-in exact A0 operations implemented
+> Status: v1.2 architecture freeze；exact-bound aggregation + opt-in A0 operations implemented
 > Last updated: 2026-08-29
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -63,7 +63,12 @@ Lab 不成为新的研究、验证、gate 或 wiring owner。它只做两件事�
 - `warnings[]`：hash drift、source drift、stale status、缺 validator/adapter 等 fail-closed 状态。
 
 collector 不遍历 producer 私有结构重建状态。只接受正式 JSON/schema、Praxist JSON 输出和 Labs 自有 CAS；
-任何 malformed artifact 单独形成 typed warning，不能静默跳过后让 UI 显示“健康”。
+任何 malformed artifact 单独形成 typed warning，不能静默跳过后让 UI 显示“健康”。Promotion 视图不能把各目录
+“按时间最新”的 Candidate、Validation、Gate、Receipt 直接拼接：Candidate 来自
+`artifacts/research_promotion/`，Validation/Gate 同时读取各自 owner 的
+`artifacts/research_validation/`、`artifacts/research_gate/`，下游 artifact 必须用 candidate id/raw SHA 和
+validation raw SHA 精确绑定后才进入同一视图。Receipt 作为上一轮 authorization boundary 单独显示，以允许新一轮
+formal/gate evidence 在其后形成 A2 输入。
 
 ## 4. Lifecycle 与正交状态
 
@@ -96,6 +101,11 @@ stage 只是导航视图，不替代 authority。以下状态始终正交显示�
 
 Research completion 不自动进入 formal validation；formal PASS 不自动进入 SHADOW；SHADOW observation 不自动
 进入 ACTIVE。每条边都必须有 exact artifact 与 named human review。
+
+Praxist status 的 `completed` 是 process lifecycle readout，不等于 committed handoff。Lab 只在 completed run 的固定
+`<run_dir>/volvence_handoff.json` 读取 `forge-praxist-candidate-handoff.v1`，并核对 `task_id/run_id`；缺失、schema
+错误或交叉绑定不一致时只开放 inspection，不开放 Candidate import。Forge importer 仍负责完整的 run/boundary/result/
+file hash 二次校验。
 
 ## 5. Product surface
 
@@ -154,7 +164,7 @@ adapter 仍消费 receipt 并执行自身协议。
 
 | Endpoint | 状态 | Owner seam |
 |---|---|---|
-| `GET snapshot/task/session` | 已实现 | portal collector/session |
+| `GET snapshot/task/session` | 已实现；含跨 owner exact promotion graph 与 completed handoff | portal collector/session |
 | `POST a0/review` | 已实现，mutation mode 默认关闭 | `forge research-approve` |
 | `POST reconcile` | 已实现，仅当 fresh snapshot 发布 `reconcile` 动作 | `forge research-reconcile --once --request ...` |
 | scan/import/A1/A2/rollback | 后续收敛包；UI 只能展示 blocker | 对应 Forge owner 尚未接入 portal |

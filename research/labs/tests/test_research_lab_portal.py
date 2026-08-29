@@ -271,20 +271,23 @@ def test_duplicate_active_runs_block_the_task(tmp_path: Path) -> None:
 def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Path) -> None:
     _make_task(tmp_path)
     promotion = tmp_path / "artifacts" / "research_promotion" / TASK_ID / ("c" * 64)
-    _write_json(
+    candidate_id = "research-candidate:" + "c" * 64
+    candidate_sha = _write_json(
         promotion / "candidate.json",
         {
             "schema_version": "forge-research-candidate.v1",
-            "candidate_id": "research-candidate:" + "c" * 64,
+            "candidate_id": candidate_id,
             "task_id": TASK_ID,
             "created_at": "2026-08-29T14:04:00Z",
         },
     )
-    _write_json(
+    validation_sha = _write_json(
         promotion / "validation.json",
         {
             "schema_version": "forge-research-validation.v1",
             "task_id": TASK_ID,
+            "candidate_id": candidate_id,
+            "candidate_sha256": candidate_sha,
             "status": "PASS",
             "created_at": "2026-08-29T14:05:00Z",
         },
@@ -294,6 +297,9 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
         {
             "schema_version": "forge-research-gate.v1",
             "task_id": TASK_ID,
+            "candidate_id": candidate_id,
+            "candidate_sha256": candidate_sha,
+            "validation_sha256": validation_sha,
             "decision": "ALLOW",
             "created_at": "2026-08-29T14:06:00Z",
         },
@@ -304,6 +310,7 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
             "schema_version": "forge-research-promotion-receipt.v1",
             "receipt_id": "research-receipt:" + "d" * 64,
             "task_id": TASK_ID,
+            "candidate_id": candidate_id,
             "outcome": "AUTHORIZED",
             "action": "authorize",
             "transition": {
@@ -311,6 +318,7 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
                 "requested_wiring": "shadow",
                 "resulting_wiring": "shadow",
             },
+            "bindings": {"candidate_sha256": candidate_sha},
             "authority": {"target_adapter_apply_required": True},
             "created_at": "2026-08-29T14:07:00Z",
         },
@@ -324,6 +332,104 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
     assert item.authority.runtime_wiring == "disabled"
     assert item.authority.target_adapter_apply_required is True
     assert item.evidence.shadow == "authorized_not_applied"
+
+
+def test_promotion_graph_reads_owner_roots_and_refuses_cross_round_gate(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    promotion = tmp_path / "artifacts" / "research_promotion" / TASK_ID / ("c" * 64)
+    candidate_id = "research-candidate:" + "c" * 64
+    candidate_sha = _write_json(
+        promotion / "candidate.json",
+        {
+            "schema_version": "forge-research-candidate.v1",
+            "candidate_id": candidate_id,
+            "task_id": TASK_ID,
+            "created_at": "2026-08-29T14:04:00Z",
+        },
+    )
+    validation_sha = _write_json(
+        tmp_path / "artifacts" / "research_validation" / "formal.json",
+        {
+            "schema_version": "forge-research-validation.v1",
+            "task_id": TASK_ID,
+            "candidate_id": candidate_id,
+            "candidate_sha256": candidate_sha,
+            "status": "PASS",
+            "created_at": "2026-08-29T14:05:00Z",
+        },
+    )
+    _write_json(
+        tmp_path / "artifacts" / "research_gate" / "stale.json",
+        {
+            "schema_version": "forge-research-gate.v1",
+            "task_id": TASK_ID,
+            "candidate_id": candidate_id,
+            "candidate_sha256": candidate_sha,
+            "validation_sha256": "0" * 64,
+            "decision": "ALLOW",
+            "created_at": "2026-08-29T14:07:00Z",
+        },
+    )
+
+    stale = _collector(tmp_path, []).collect().items[0]
+    assert stale.lifecycle.stage is LifecycleStage.FORMAL_VALIDATION
+    assert stale.authority.formal_validation_status == "pass"
+    assert stale.authority.modification_gate_decision == "not_evaluated"
+    assert {ref.locator for ref in stale.bindings} >= {
+        "artifacts/research_validation/formal.json",
+    }
+    assert any(warning.code == "GATE_VALIDATION_DIGEST_MISMATCH" for warning in stale.warnings)
+
+    _write_json(
+        tmp_path / "artifacts" / "research_gate" / "exact.json",
+        {
+            "schema_version": "forge-research-gate.v1",
+            "task_id": TASK_ID,
+            "candidate_id": candidate_id,
+            "candidate_sha256": candidate_sha,
+            "validation_sha256": validation_sha,
+            "decision": "ALLOW",
+            "created_at": "2026-08-29T14:08:00Z",
+        },
+    )
+
+    exact = _collector(tmp_path, []).collect().items[0]
+    assert exact.lifecycle.stage is LifecycleStage.AWAITING_A1
+    assert exact.authority.modification_gate_decision == "allow"
+    assert {ref.locator for ref in exact.bindings} >= {
+        "artifacts/research_validation/formal.json",
+        "artifacts/research_gate/exact.json",
+    }
+
+
+def test_completed_run_requires_canonical_exact_handoff_before_import(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=True)
+    status = _running_status(tmp_path)
+    status["state"] = "completed"
+
+    before = _collector(tmp_path, [status]).collect().items[0]
+    assert before.lifecycle.stage is LifecycleStage.RESEARCH_COMPLETE
+    assert before.lifecycle.blocking_reason == "committed Praxist handoff is not present"
+    assert before.available_actions == ("inspect_handoff",)
+    assert before.run is not None and before.run.pid is None
+
+    run_dir = Path(str(status["run_dir"]))
+    _write_json(
+        run_dir / "volvence_handoff.json",
+        {
+            "schema_version": "forge-praxist-candidate-handoff.v1",
+            "task_id": TASK_ID,
+            "run_id": "run_example",
+            "created_at": "2026-08-29T14:04:00Z",
+        },
+    )
+
+    after = _collector(tmp_path, [status]).collect().items[0]
+    assert after.lifecycle.stage is LifecycleStage.RESEARCH_COMPLETE
+    assert after.lifecycle.blocking_reason is None
+    assert after.available_actions == ("import_candidate",)
+    assert any(ref.kind == "praxist handoff" for ref in after.bindings)
 
 
 def test_loopback_server_exposes_get_and_refuses_post(tmp_path: Path) -> None:
