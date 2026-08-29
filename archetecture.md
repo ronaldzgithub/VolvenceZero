@@ -1,7 +1,7 @@
 # Volvence Architecture Boundary Charter
 
 > Status: active architecture entry
-> Last updated: 2026-08-01
+> Last updated: 2026-08-30
 > 文件名保留历史拼写，供现有链接兼容。
 
 ## First Principles
@@ -13,7 +13,7 @@
 - World / Self、semantic owners、platform governance 各有唯一写者。
 - 新能力以 `DISABLED/SHADOW/ACTIVE` 渐进迁移，并有证据、退出和回滚条件。
 
-## Current Wheel Boundary（39）
+## Current Wheel Boundary（40）
 
 ### Kernel / research core（8）
 
@@ -28,13 +28,13 @@
 | `vz-runtime` | Brain facade 与唯一跨业务 wheel 编排 |
 | `vz-embodiment-ant` | public-facade-only non-language embodiment testbed |
 
-### Lifeform / vertical / product（19）
+### Lifeform / vertical / product（20）
 
 | Group | Wheels |
 |---|---|
 | Core product | `lifeform-core`, `lifeform-affordance`, `lifeform-thinking`, `lifeform-ingestion`, `lifeform-expression`, `lifeform-service` |
 | Evolution / intake | `lifeform-evolution`, `lifeform-cultivation`, `lifeform-protocol-runtime`, `lifeform-mcp-bridge`, `lifeform-openai-compat`, `lifeform-synthetic-data` |
-| Verticals | `lifeform-domain-emogpt`, `lifeform-domain-coding`, `lifeform-domain-character`, `lifeform-domain-figure`, `lifeform-domain-growth-advisor`, `lifeform-domain-repair30`, `lifeform-domain-digital-employee` |
+| Verticals | `lifeform-domain-emogpt`, `lifeform-domain-coding`, `lifeform-domain-venture`, `lifeform-domain-character`, `lifeform-domain-figure`, `lifeform-domain-growth-advisor`, `lifeform-domain-repair30`, `lifeform-domain-digital-employee` |
 
 `lifeform-*` 只能经 Brain facade、contracts 与 ModificationGate 进入 brain core；禁止
 `vz-*` 反向 import `lifeform-*`。Vertical content 编译进既有 application/cognition

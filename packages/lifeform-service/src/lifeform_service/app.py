@@ -68,6 +68,10 @@ from lifeform_service.coding_brain_routes import (
     coding_brain_controller,
     register_coding_brain_routes,
 )
+from lifeform_service.venture_brain_routes import (
+    register_venture_brain_routes,
+    venture_brain_controller,
+)
 from lifeform_service.msc_runtime_collector import (
     build_msc_runtime_context_payload,
 )
@@ -368,6 +372,7 @@ def create_app(
         )
     app["relationship_intelligence_controller"] = relationship_controller
     register_coding_brain_routes(app)
+    register_venture_brain_routes(app)
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -932,6 +937,7 @@ async def _handle_close_session(request: web.Request) -> web.Response:
     if not closed:
         raise SessionNotFoundError(session_id)
     coding_brain_controller(request.app).drop_session(session_id)
+    venture_brain_controller(request.app).drop_session(session_id)
     evict_simulator_cache_entry(request.app, session_id)
     return _json_ok({"session_id": session_id, "closed": True})
 

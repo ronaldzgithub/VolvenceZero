@@ -1,7 +1,7 @@
 # Volvence Package Usage
 
-> Status: current 39-wheel package map and stable entry points
-> Last updated: 2026-08-01
+> Status: current 40-wheel package map and stable entry points
+> Last updated: 2026-08-30
 
 ## 1. 安装与稳定入口
 
@@ -59,7 +59,7 @@ brain = Brain(
 应用通常只直接依赖 `vz-runtime`；需要共享 schema 时依赖 `vz-contracts`。不要让产品
 代码拼装 `final_wiring` 内部模块。
 
-## 3. `lifeform-*`：产品与生命体层（19）
+## 3. `lifeform-*`：产品与生命体层（20）
 
 | Wheel | 职责 |
 |---|---|
@@ -77,6 +77,7 @@ brain = Brain(
 | `lifeform-synthetic-data` | deterministic truth、rendered text、canonical trajectory/task projections |
 | `lifeform-domain-emogpt` | relationship companion vertical |
 | `lifeform-domain-coding` | coding/pair-programmer vertical |
+| `lifeform-domain-venture` | Foundry-facing stateful commercial cognition sidecar vertical |
 | `lifeform-domain-character` | fictional character profile/package/manifest |
 | `lifeform-domain-figure` | historical figure corpus/verification/artifact vertical |
 | `lifeform-domain-growth-advisor` | long-term growth advisor vertical |

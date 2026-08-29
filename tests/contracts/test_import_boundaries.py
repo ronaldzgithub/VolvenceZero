@@ -782,6 +782,11 @@ PARALLEL_VERTICAL_PAIRS: tuple[tuple[str, str], ...] = (
     ("lifeform-domain-figure", "lifeform-domain-character"),
     ("lifeform-domain-growth-advisor", "lifeform-domain-character"),
     ("lifeform-domain-growth-advisor", "lifeform-domain-figure"),
+    ("lifeform-domain-venture", "lifeform-domain-coding"),
+    ("lifeform-domain-venture", "lifeform-domain-emogpt"),
+    ("lifeform-domain-venture", "lifeform-domain-character"),
+    ("lifeform-domain-venture", "lifeform-domain-figure"),
+    ("lifeform-domain-venture", "lifeform-domain-growth-advisor"),
 )
 
 
@@ -979,8 +984,8 @@ def test_dlaas_platform_does_not_import_lifeform_domain_internals(
 ) -> None:
     """Platform may only consume the small allowlist of lifeform public surfaces.
 
-    Domain wheels (``lifeform_domain_emogpt`` / ``lifeform_domain_coding``
-    / ``lifeform_domain_character``) are vertical-specific implementation
+    Domain wheels (``lifeform_domain_emogpt`` / ``lifeform_domain_coding`` /
+    ``lifeform_domain_venture`` / ``lifeform_domain_character``) are vertical-specific implementation
     details: the platform tier resolves a vertical via
     ``lifeform-service.verticals`` (which itself imports them through a
     lazy registry). Direct imports from the platform tier would couple
