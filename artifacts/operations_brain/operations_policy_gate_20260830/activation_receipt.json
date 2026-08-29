@@ -1,0 +1,18 @@
+{
+  "activation_receipt_id": "operations-policy-activation:f13c21df7c5c9ebeacac935c9aa69b198e57b3d5047512cec8e671cb9f94d161",
+  "activation_scope": "autocompany_staging",
+  "benchmark_report_id": "operations-policy-benchmark:e54fb30a1da563e9cd48795cb56dc4d9cb1690ebb0f4bf1aca0724c5675839fa",
+  "candidate_checkpoint_id": "operations-policy-checkpoint:02da650bef3710841dee540fc5c91b4b8769bf725b513c67813acc6dd794898c",
+  "candidate_checkpoint_sha256": "02da650bef3710841dee540fc5c91b4b8769bf725b513c67813acc6dd794898c",
+  "candidate_update_count": 720,
+  "content_sha256": "f13c21df7c5c9ebeacac935c9aa69b198e57b3d5047512cec8e671cb9f94d161",
+  "from_wiring_level": "shadow",
+  "issued_at_ms": 1788037203281,
+  "policy_artifact_id": "operations-bounded-linear-policy.v1",
+  "processed_credit_prefix_sha256": "efe051e1c7550ee3543a6fcf4d4b74e38b3b5405438ca856a497e270122fbe23",
+  "proposal_target": "operations.policy.wiring.autocompany_staging",
+  "review_id": "operations-promotion-review:59977d1b53913aed93197ac7fa06a8bd31231f15dc99ea5d54564a35e46faba0",
+  "rollback_config_field": "AUTOCOMPANY_OPERATIONS_BRAIN_WIRING",
+  "schema_version": "operations-policy-activation.v1",
+  "to_wiring_level": "active"
+}

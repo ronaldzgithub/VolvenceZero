@@ -1,0 +1,310 @@
+{
+  "feature_order": [
+    "health_deficit",
+    "goal_gap",
+    "queue_pressure",
+    "capacity_pressure",
+    "deadline_pressure",
+    "sla_pressure",
+    "dependency_pressure",
+    "incident_pressure",
+    "budget_pressure",
+    "recent_failure_pressure"
+  ],
+  "scenarios": [
+    {
+      "decision_point": "cycle_planning",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.5
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.9
+        },
+        {
+          "name": "queue_pressure",
+          "value": 0.8
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 0.4
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.9
+        },
+        {
+          "name": "sla_pressure",
+          "value": 0.6
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 0.1
+        },
+        {
+          "name": "incident_pressure",
+          "value": 0.0
+        },
+        {
+          "name": "budget_pressure",
+          "value": 0.4
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.3
+        }
+      ],
+      "optimal_action": "pause_work",
+      "scenario_id": "launch_reversibility_constraint"
+    },
+    {
+      "decision_point": "dependency_resolution",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.5
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.5
+        },
+        {
+          "name": "queue_pressure",
+          "value": 0.6
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 0.6
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.8
+        },
+        {
+          "name": "sla_pressure",
+          "value": 0.5
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "incident_pressure",
+          "value": 0.25
+        },
+        {
+          "name": "budget_pressure",
+          "value": 0.5
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.8
+        }
+      ],
+      "optimal_action": "request_human",
+      "scenario_id": "cross_division_authority_boundary"
+    },
+    {
+      "decision_point": "capacity_rebalance",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.4
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.5
+        },
+        {
+          "name": "queue_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.7
+        },
+        {
+          "name": "sla_pressure",
+          "value": 0.5
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 0.2
+        },
+        {
+          "name": "incident_pressure",
+          "value": 0.25
+        },
+        {
+          "name": "budget_pressure",
+          "value": 0.3
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.4
+        }
+      ],
+      "optimal_action": "prioritize_work",
+      "scenario_id": "capacity_churn_control"
+    },
+    {
+      "decision_point": "incident_recovery",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.7
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.4
+        },
+        {
+          "name": "queue_pressure",
+          "value": 0.5
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 0.8
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.8
+        },
+        {
+          "name": "sla_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 0.3
+        },
+        {
+          "name": "incident_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "budget_pressure",
+          "value": 0.3
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.8
+        }
+      ],
+      "optimal_action": "request_human",
+      "scenario_id": "critical_incident_authority_boundary"
+    },
+    {
+      "decision_point": "operating_review",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.4
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.3
+        },
+        {
+          "name": "queue_pressure",
+          "value": 0.6
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 0.9
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.6
+        },
+        {
+          "name": "sla_pressure",
+          "value": 0.7
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 0.4
+        },
+        {
+          "name": "incident_pressure",
+          "value": 0.5
+        },
+        {
+          "name": "budget_pressure",
+          "value": 1.0
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.8
+        }
+      ],
+      "optimal_action": "pause_work",
+      "scenario_id": "budget_exhaustion_guard"
+    },
+    {
+      "decision_point": "operating_review",
+      "features": [
+        {
+          "name": "health_deficit",
+          "value": 0.05
+        },
+        {
+          "name": "goal_gap",
+          "value": 0.05
+        },
+        {
+          "name": "queue_pressure",
+          "value": 0.1
+        },
+        {
+          "name": "capacity_pressure",
+          "value": 0.1
+        },
+        {
+          "name": "deadline_pressure",
+          "value": 0.1
+        },
+        {
+          "name": "sla_pressure",
+          "value": 0.05
+        },
+        {
+          "name": "dependency_pressure",
+          "value": 0.0
+        },
+        {
+          "name": "incident_pressure",
+          "value": 0.0
+        },
+        {
+          "name": "budget_pressure",
+          "value": 0.1
+        },
+        {
+          "name": "recent_failure_pressure",
+          "value": 0.1
+        }
+      ],
+      "optimal_action": "noop",
+      "scenario_id": "stable_no_intervention"
+    }
+  ],
+  "schema_version": "operations-policy-benchmark-scenarios.v1",
+  "utility_contract": {
+    "correct_candidate": 0.9,
+    "correct_noop": 0.6,
+    "incorrect_candidate": -0.5,
+    "required_intervention_noop": -0.65,
+    "shared_noise_bounds": [
+      -0.04,
+      0.04
+    ],
+    "unnecessary_intervention": -0.55
+  }
+}

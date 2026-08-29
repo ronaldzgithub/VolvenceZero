@@ -1,0 +1,15 @@
+{
+  "benchmark_report_id": "operations-policy-benchmark:e54fb30a1da563e9cd48795cb56dc4d9cb1690ebb0f4bf1aca0724c5675839fa",
+  "blocking_reasons": [],
+  "capacity_cost": 0.0,
+  "content_sha256": "59977d1b53913aed93197ac7fa06a8bd31231f15dc99ea5d54564a35e46faba0",
+  "decision": "allow",
+  "desired_gate": "offline",
+  "new_value_hash": "02da650bef3710841dee540fc5c91b4b8769bf725b513c67813acc6dd794898c",
+  "old_value_hash": "9e0508b61601c634c01502a52a58c673a3fbf04575cc56d6ab03df7a9fa80d0b",
+  "proposal_target": "operations.policy.wiring.autocompany_staging",
+  "review_id": "operations-promotion-review:59977d1b53913aed93197ac7fa06a8bd31231f15dc99ea5d54564a35e46faba0",
+  "rollback_evidence": "operations-shadow-rollback:operations-policy-benchmark:e54fb30a1da563e9cd48795cb56dc4d9cb1690ebb0f4bf1aca0724c5675839fa:AUTOCOMPANY_OPERATIONS_BRAIN_WIRING",
+  "schema_version": "operations-promotion-review.v1",
+  "validation_delta": 0.915
+}

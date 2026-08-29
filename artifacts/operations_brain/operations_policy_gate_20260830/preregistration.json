@@ -1,0 +1,26 @@
+{
+  "arms": [
+    "noop",
+    "uniform_candidate",
+    "frozen_theta0",
+    "pe_credit_learned"
+  ],
+  "evaluation_cycles": 120,
+  "evaluation_writeback_allowed": false,
+  "learning_input": "exactly pe:task, pe:relationship, pe:regime, pe:action",
+  "paired_interval": "mean_delta_minus_1.96_standard_errors",
+  "primary_baseline_rule": "maximum held-out mean among non-learning arms",
+  "primary_metric": "normalized_multiobjective_utility",
+  "production_default_changed": false,
+  "promotion_thresholds": {
+    "minimum_correct_action_rate": 0.75,
+    "minimum_evaluation_cycles": 60,
+    "minimum_favorable_rate": 0.75,
+    "minimum_training_cycles": 120,
+    "minimum_validation_delta": 0.05,
+    "paired_delta_lower_95_must_be_positive": true
+  },
+  "schema_version": "operations-policy-benchmark-preregistration.v1",
+  "seed": 20260830,
+  "training_cycles": 720
+}

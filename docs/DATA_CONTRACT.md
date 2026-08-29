@@ -1322,14 +1322,17 @@ checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / ve
 
 | 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
 |---|---|---|---|
-| `OperationsContextRequest` | AutoCompany 提交已确认事实；`lifeform-domain-operations` 校验 schema | company/cycle/workstream/decision identity、division/action catalog allowlist、closed decision point、typed evidence、约束、成本/人力/时间窗、不确定性 | 输入契约；禁止从自由文本推断 evidence class、route、division 或 action |
-| `OperationsContextPackSnapshot` | `lifeform-domain-operations.OperationsBrainController` | 只读 Memory owner 的 operations-tagged `RetrievalResult` 与同拍 PE public snapshot | `ACTIVE`；content-addressed；显式发布 opaque live-session/source entry/evidence/settlement lineage；不包含已应用建议 |
-| `OperationsAdviceSnapshot` | 同上；候选可由注入的严格结构化 advisor 提供 | 同拍 owner readout、pack source lineage、AutoCompany typed request | v1 固定 `SHADOW` + `applied=false`；target division/action catalog/cost/risk/approval fail closed；无 actuator |
-| `OperationsOutcomeReport` / `OperationsOutcomeReceipt` | report 事实、work-order evidence 与 field aggregate verdict 由 AutoCompany 提交；receipt 由 operations controller 发布 | Memory facade、semantic task event；仅 `field_operation_result` 可额外走 typed `EnvironmentOutcome -> prediction_error` | append-only / idempotent；simulation/internal_review/machine_check 与单项 progress/cost/incident/human-load 不得成为 PE reward；work-order locator 必须匹配 `work_order_ref` |
+| `OperationsContextRequest` / `OperationsStateSnapshot` | AutoCompany 拥有运营事实与快照内容；`lifeform-domain-operations` 校验 schema | company/cycle/workstream/decision identity、division/action catalog allowlist、closed decision point、typed division/goal/work/dependency/incident/recent-outcome、evidence、约束与 operating window | v2 input frozen/content-addressed；state scope/currency/catalog/evidence 必须精确一致；禁止从自由文本推断 evidence class、route、division 或 action |
+| `OperationsPolicyCheckpoint` | `lifeform-domain-operations.OperationsPolicy` 解释权重/update lineage；`vz-memory` 仅作 identity/company-scoped persistence carrier | frozen state features、owner-issued source prediction、exact PE-derived `OperationsPolicyCredit` | checkpoint-in/checkpoint-out；bounded parameters；同 count 分叉 fail loudly；只有实际采用动作的 exact prediction/outcome/四轴 credit 可更新，evaluation/judge 不可作为 update input |
+| `OperationsContextPackSnapshot` | `lifeform-domain-operations.OperationsBrainController` | 只读 Memory owner 的 operations-tagged `RetrievalResult`、policy checkpoint 与同拍 PE/credit public snapshot | `ACTIVE` 产品快照；content-addressed；发布 source/selection/settlement/policy-update lineage；不声称建议已应用 |
+| `OperationsAdviceSnapshot` / `OperationsPolicyDecision` | `lifeform-domain-operations.OperationsPolicy` 生成排名/干预；controller 发布 | frozen state、允许范围、checkpoint、召回 entry ids、同拍 PE owner 的 `source_prediction_id` | 默认 `SHADOW` + `applied=false`；staging ACTIVE 必须 exact ModificationGate receipt；target division/catalog/cost/risk/approval fail closed；无 actuator |
+| `OperationsOutcomeReport` / `OperationsOutcomeReceipt` | report/selection/work-order evidence 与 field aggregate verdict 由 AutoCompany 提交；receipt 由 operations controller 发布 | Memory facade、semantic task event；仅 `field_operation_result` 可额外走 typed `EnvironmentOutcome -> prediction_error -> credit` | append-only/idempotent；v2 冻结 candidate→selection→work-order→outcome lineage；`policy_action_applied` 与 `candidate_applied` 分离，拒绝/覆盖 ACTIVE 建议不归因给 policy；SHADOW 不可 applied/learned；work-order locator 必须匹配 `work_order_ref` |
+| `OperationsPolicyBenchmarkReport` / `OperationsPromotionReview` / `OperationsPolicyActivationReceipt` | benchmark harness 发布 readout；系统 `ModificationGate` 拥有 allow/block；activation issuer 发布 receipt | 固定 scenario/protocol、matched non-learning baselines、candidate checkpoint、rollback evidence | content-addressed；当前 evidence=`deterministic_simulation`、scope=`autocompany_staging`；production default 不变且不可复用 staging receipt |
 
 该产品面复用既有 `memory`、`execution_result`、`environment outcome`、`prediction_error` 与 credit owner，
-不注册新 kernel slot。Operations controller 仅持有有界 live-session idempotency/lineage；不拥有或访问
-AutoCompany 的 OKR、预算、审批、工作单 SSOT、division dispatch 或治理 ledger。
+不注册新 kernel slot。Operations controller 仅持有有界 live-session idempotency/lineage；AutoCompany adapter
+持久化 selection/work-order/outcome 因果链。Brain 不拥有或访问 AutoCompany 的 OKR、预算、审批、工作单
+SSOT、division dispatch 或治理 ledger。
 
 ---
 
@@ -2988,8 +2991,11 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `venture_advice` | VentureBrainController | `lifeform-domain-venture` | VentureAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | evidence / comparison only；不得进入 ACTIVE rendered context、Foundry gate 或 actuator |
 | `venture_outcome_receipt` | VentureBrainController | `lifeform-domain-venture` | VentureOutcomeReceipt | ACTIVE（产品回执） | Foundry typed outcome 提交 | Foundry adapter；副作用只经 Brain/Lifeform facade 进入 memory / semantic / eligible environment-outcome owners |
 | `operations_context_pack` | OperationsBrainController | `lifeform-domain-operations` | OperationsContextPackSnapshot | ACTIVE | 每个 AutoCompany operating decision request | AutoCompany adapter；消费 operations-tagged memory / prediction_error 公共 readout，不进入 kernel propagate |
-| `operations_advice` | OperationsBrainController | `lifeform-domain-operations` | OperationsAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | catalog-bounded evidence/comparison only；不得进入 ACTIVE rendered context、AutoCompany approval/dispatch 或 actuator |
+| `operations_state` | AutoCompany adapter | external product owner | OperationsStateSnapshot | INPUT / frozen | 每个 v2 decision request | OperationsPolicy；只读 typed snapshot，不进入 kernel propagate，Brain 不重建 AutoCompany ledger |
+| `operations_policy_checkpoint` | OperationsPolicy | `lifeform-domain-operations`（`vz-memory` carrier） | OperationsPolicyCheckpoint | SHADOW 默认；receipt-authorized staging ACTIVE | 每次 exact PE/credit settlement 后 | OperationsPolicy/Controller；bounded、company-scoped、checkpoint-in/checkpoint-out |
+| `operations_advice` | OperationsPolicy + OperationsBrainController | `lifeform-domain-operations` | OperationsAdviceSnapshot | SHADOW 默认；仅 exact ModificationGate receipt 可 staging ACTIVE | 随 Context Pack | catalog-bounded selection surface；`applied=false`；不得绕过 AutoCompany approval/dispatch 或 actuator |
 | `operations_outcome_receipt` | OperationsBrainController | `lifeform-domain-operations` | OperationsOutcomeReceipt | ACTIVE（产品回执） | AutoCompany typed work-order outcome 提交 | AutoCompany adapter；副作用只经 Brain/Lifeform facade 进入 memory / semantic / eligible environment-outcome owners |
+| `operations_policy_activation` | ModificationGate review + Operations activation issuer | `lifeform-domain-operations` | OperationsPolicyActivationReceipt | OFFLINE artifact；scope=`autocompany_staging` | benchmark/promotion 时 | AutoCompany deploy config loader；exact checkpoint/credit-prefix authorization，单字段回滚，production 不消费当前 receipt |
 
 **lifeform-side slot 不变量**：
 

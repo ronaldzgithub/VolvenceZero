@@ -455,7 +455,7 @@ def test_execution_outcome_keeps_all_operational_costs_and_metric_lineage() -> N
         OperationsOutcomeReport.from_json(invalid)
 
 
-def test_advice_is_catalog_bounded_falsifiable_and_permanently_shadow() -> None:
+def test_advice_is_catalog_bounded_falsifiable_and_shadow_by_default() -> None:
     prediction = OperationsEstimateRange(
         metric="error_rate",
         lower_bound=0.0,
@@ -499,7 +499,7 @@ def test_advice_is_catalog_bounded_falsifiable_and_permanently_shadow() -> None:
         replace(candidate, risk_level=OperationsRiskLevel.UNASSESSED)
     with pytest.raises(ValueError, match="unknown fields"):
         OperationsAdviceSnapshot.from_json({**advice.to_json(), "unknown": True})
-    with pytest.raises(ValueError, match="SHADOW"):
+    with pytest.raises(ValueError, match="requires a policy decision"):
         OperationsAdviceSnapshot(
             advice_id="operations-advice:" + "e" * 64,
             source_turn_index=1,

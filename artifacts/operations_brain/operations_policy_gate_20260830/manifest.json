@@ -1,0 +1,18 @@
+{
+  "activation_receipt_id": "operations-policy-activation:f13c21df7c5c9ebeacac935c9aa69b198e57b3d5047512cec8e671cb9f94d161",
+  "activation_scope": "autocompany_staging",
+  "benchmark_report_id": "operations-policy-benchmark:e54fb30a1da563e9cd48795cb56dc4d9cb1690ebb0f4bf1aca0724c5675839fa",
+  "evidence_scope": "deterministic_simulation",
+  "file_sha256": {
+    "activation_receipt.json": "ee17dfdcdb749fa4d3c00f7f7002e756eff17add4b2c50c0a6f7fd8a918d8962",
+    "benchmark_report.json": "016bd4c30be23b9eb0b5cbb0ae720ad59d82387d4be80be55b3af501afd87d68",
+    "candidate_checkpoint.json": "09c3b35a35cd29bb3e12076be08b315700b769af3aedd421888a0f4e38704cfa",
+    "preregistration.json": "e3b5f91f3f98f594d56d73240aa493d9ddf5350cd9ed82d818f8677c62e71e34",
+    "promotion_review.json": "46621a4a09976ef377b2c2032394cf6f9fa4ee2c53bb03b1f0ccf0663c466c72",
+    "scenario_set.json": "70410b6341712af0d3a43e735df855e7ed93be033c2a4b56866859070ac03431"
+  },
+  "production_default_changed": false,
+  "promotion_review_id": "operations-promotion-review:59977d1b53913aed93197ac7fa06a8bd31231f15dc99ea5d54564a35e46faba0",
+  "rollback_config_field": "AUTOCOMPANY_OPERATIONS_BRAIN_WIRING",
+  "schema_version": "operations-policy-evidence-bundle.v1"
+}

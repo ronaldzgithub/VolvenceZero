@@ -30,6 +30,8 @@ from volvence_zero.memory import (
     Track,
 )
 from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.credit import CreditSnapshot
+from volvence_zero.runtime import WiringLevel
 
 from lifeform_domain_operations.operations_brain_contracts import (
     EXPERIENCE_RECORD_SCHEMA_VERSION,
@@ -41,11 +43,25 @@ from lifeform_domain_operations.operations_brain_contracts import (
     OperationsOutcomeReport,
     OperationsOutcomeRoute,
     OperationsOutcomeVerdict,
+    OperationsPolicyCheckpoint,
+    OperationsPolicyCredit,
+    OperationsPolicyDecision,
+    OperationsPolicyMode,
+    OperationsPolicyUpdateReceipt,
     OperationsRecalledExperience,
     OperationsReversibility,
     OperationsRiskLevel,
     OperationsSettlementState,
     stable_content_sha256,
+)
+from lifeform_domain_operations.operations_policy import (
+    OPERATIONS_POLICY_NOOP_CANDIDATE_ID,
+    OperationsPolicy,
+    default_operations_policy_checkpoint,
+    settle_operations_policy_credit,
+)
+from lifeform_domain_operations.operations_promotion import (
+    OperationsPolicyActivationReceipt,
 )
 
 
@@ -135,6 +151,9 @@ class _SessionLedger:
     outcomes_by_outcome_id: dict[str, _OutcomeLineage] = field(default_factory=dict)
     latest_context_pack_id: str = ""
     pending_environment_outcome_id: str = ""
+    policy_checkpoints_by_company_id: dict[str, OperationsPolicyCheckpoint] = field(
+        default_factory=dict
+    )
 
 
 _VERDICT_MEASUREMENT = {
@@ -192,6 +211,17 @@ def _prediction_error_snapshot(turn_result: object) -> PredictionErrorSnapshot:
         raise RuntimeError("Operations Brain turn published no prediction_error snapshot")
     if not isinstance(published.value, PredictionErrorSnapshot):
         raise TypeError("prediction_error slot must publish PredictionErrorSnapshot")
+    return published.value
+
+
+def _credit_snapshot(turn_result: object) -> CreditSnapshot:
+    published = turn_result.active_snapshots.get("credit")
+    if published is None:
+        published = turn_result.shadow_snapshots.get("credit")
+    if published is None:
+        raise RuntimeError("Operations Brain turn published no credit snapshot")
+    if not isinstance(published.value, CreditSnapshot):
+        raise TypeError("credit slot must publish CreditSnapshot")
     return published.value
 
 
@@ -353,9 +383,15 @@ def _context_digest_payload(
     pe_magnitude: float,
     pe_bootstrap: bool,
     advice: OperationsAdviceSnapshot,
+    settled_policy_credits: tuple[OperationsPolicyCredit, ...],
+    policy_updates: tuple[OperationsPolicyUpdateReceipt, ...],
 ) -> dict[str, object]:
-    return {
-        "schema_version": "operations-context-pack.v1",
+    payload = {
+        "schema_version": (
+            "operations-context-pack.v2"
+            if request.operations_state is not None
+            else "operations-context-pack.v1"
+        ),
         "session_id": session_id,
         "session_lineage_id": session_lineage_id,
         "request": request.to_json(),
@@ -376,19 +412,37 @@ def _context_digest_payload(
         "advice": advice.to_json(),
         "wiring_level": "active",
     }
+    if request.operations_state is not None:
+        payload["settled_policy_credits"] = [
+            item.to_json() for item in settled_policy_credits
+        ]
+        payload["policy_updates"] = [item.to_json() for item in policy_updates]
+    return payload
 
 
 def _environment_outcome_for_report(
     *,
     request: OperationsContextRequest,
     report: OperationsOutcomeReport,
+    policy_decision: OperationsPolicyDecision | None,
 ) -> EnvironmentOutcome:
     normalized = _VERDICT_MEASUREMENT[report.verdict]
+    if (
+        report.selection_wiring_level is WiringLevel.ACTIVE
+        and report.policy_action_applied
+    ):
+        action_id = (
+            report.selected_candidate_id
+            if report.candidate_applied
+            else OPERATIONS_POLICY_NOOP_CANDIDATE_ID
+        )
+    else:
+        action_id = f"autocompany-work-order:{_short_hash(report.work_order_ref)}"
     return EnvironmentOutcome(
         outcome_id=f"operations-field-outcome:{_short_hash(report.outcome_id)}",
         event_id=f"operations-report:{_short_hash(report.outcome_id)}",
         outcome_kind=EnvironmentEventKind.SCENE_EVENT,
-        action_id=f"autocompany-work-order:{_short_hash(report.work_order_ref)}",
+        action_id=action_id,
         status=f"autocompany_{report.verdict.value}",
         summary=report.summary,
         detail=report.detail,
@@ -408,6 +462,11 @@ def _environment_outcome_for_report(
             f"company={request.company_id}; decision={request.decision_id}; "
             f"work_order={report.work_order_ref}; point={request.decision_point.value}"
         ),
+        prediction_id=(
+            policy_decision.source_prediction_id
+            if policy_decision is not None
+            else None
+        ),
     )
 
 
@@ -418,6 +477,11 @@ class OperationsBrainController:
         self,
         *,
         advice_provider: OperationsAdviceProvider | None = None,
+        policy: OperationsPolicy | None = None,
+        policy_mode: OperationsPolicyMode = OperationsPolicyMode.LEARNED,
+        policy_checkpoint_seed: OperationsPolicyCheckpoint | None = None,
+        policy_wiring_level: WiringLevel = WiringLevel.SHADOW,
+        activation_receipt: OperationsPolicyActivationReceipt | None = None,
         max_records_per_session: int = 512,
         max_session_ledgers: int = 1_024,
     ) -> None:
@@ -429,7 +493,46 @@ class OperationsBrainController:
             raise ValueError("max_records_per_session must be positive")
         if isinstance(max_session_ledgers, bool) or not isinstance(max_session_ledgers, int) or max_session_ledgers < 1:
             raise ValueError("max_session_ledgers must be positive")
+        if not isinstance(policy_mode, OperationsPolicyMode):
+            raise TypeError("policy_mode must be OperationsPolicyMode")
+        if policy_checkpoint_seed is not None and not isinstance(
+            policy_checkpoint_seed,
+            OperationsPolicyCheckpoint,
+        ):
+            raise TypeError(
+                "policy_checkpoint_seed must be an OperationsPolicyCheckpoint"
+            )
+        if policy_wiring_level not in {WiringLevel.SHADOW, WiringLevel.ACTIVE}:
+            raise ValueError("policy_wiring_level must be SHADOW or ACTIVE")
+        if activation_receipt is not None and not isinstance(
+            activation_receipt,
+            OperationsPolicyActivationReceipt,
+        ):
+            raise TypeError(
+                "activation_receipt must be an OperationsPolicyActivationReceipt"
+            )
+        if (
+            policy_wiring_level is WiringLevel.ACTIVE
+            and activation_receipt is None
+        ):
+            raise ValueError(
+                "ACTIVE Operations policy requires a ModificationGate activation receipt"
+            )
+        if (
+            policy_wiring_level is WiringLevel.ACTIVE
+            and policy_checkpoint_seed is not None
+            and activation_receipt is not None
+            and not activation_receipt.authorizes(policy_checkpoint_seed)
+        ):
+            raise ValueError(
+                "ModificationGate activation receipt does not authorize the checkpoint seed"
+            )
         self._advice_provider = advice_provider or EmptyOperationsAdviceProvider()
+        self._policy = policy or OperationsPolicy()
+        self._policy_mode = policy_mode
+        self._policy_checkpoint_seed = policy_checkpoint_seed
+        self._policy_wiring_level = policy_wiring_level
+        self._activation_receipt = activation_receipt
         self._max_records_per_session = max_records_per_session
         self._max_session_ledgers = max_session_ledgers
         self._ledgers: dict[str, _SessionLedger] = {}
@@ -480,6 +583,17 @@ class OperationsBrainController:
             observed_at_ms = int(time.time() * 1_000) if generated_at_ms is None else generated_at_ms
             if isinstance(observed_at_ms, bool) or not isinstance(observed_at_ms, int) or observed_at_ms < 0:
                 raise ValueError("generated_at_ms must be a non-negative integer")
+            if (
+                request.operations_state is not None
+                and request.company_id not in ledger.policy_checkpoints_by_company_id
+            ):
+                ledger.policy_checkpoints_by_company_id[request.company_id] = (
+                    self._restore_policy_checkpoint(
+                        session=session,
+                        company_id=request.company_id,
+                        timestamp_ms=observed_at_ms,
+                    )
+                )
 
             result = await session.run_turn(
                 _context_observation(request),
@@ -492,7 +606,17 @@ class OperationsBrainController:
             pending = ledger.pending_environment_outcome_id
             if pending and pending not in settled_outcome_ids:
                 raise RuntimeError("pending Operations field outcome was not settled by the next context turn")
+            settled_policy_credits: tuple[OperationsPolicyCredit, ...] = ()
+            policy_updates: tuple[OperationsPolicyUpdateReceipt, ...] = ()
             if pending:
+                settled_policy_credits, policy_updates = self._settle_policy_update(
+                    session=session,
+                    ledger=ledger,
+                    result=result,
+                    prediction_error=pe,
+                    environment_outcome_id=pending,
+                    timestamp_ms=observed_at_ms,
+                )
                 ledger.pending_environment_outcome_id = ""
             settled_evidence_ref_ids = self._settled_evidence_refs(
                 ledger=ledger,
@@ -533,13 +657,34 @@ class OperationsBrainController:
                     for reference in experience.report.evidence_refs
                 )
             )
-            candidates = await self._advice_provider.propose(
-                request=request,
-                recalled_experiences=included_experiences,
-                source_turn_index=pe.turn_index,
-                candidate_regime_id=result.active_regime or "",
-                candidate_abstract_action=result.active_abstract_action or "",
-            )
+            policy_decision: OperationsPolicyDecision | None = None
+            advice_wiring_level = WiringLevel.SHADOW
+            activation_receipt_id = ""
+            if request.operations_state is not None:
+                checkpoint = ledger.policy_checkpoints_by_company_id.get(
+                    request.company_id
+                )
+                if checkpoint is None:
+                    raise RuntimeError("Operations policy checkpoint was not restored")
+                (
+                    advice_wiring_level,
+                    activation_receipt_id,
+                ) = self._resolve_policy_wiring(checkpoint)
+                candidates, policy_decision = self._policy.decide(
+                    request=request,
+                    recalled_experiences=included_experiences,
+                    source_prediction_id=pe.next_prediction.prediction_id,
+                    checkpoint=checkpoint,
+                    mode=self._policy_mode,
+                )
+            else:
+                candidates = await self._advice_provider.propose(
+                    request=request,
+                    recalled_experiences=included_experiences,
+                    source_turn_index=pe.turn_index,
+                    candidate_regime_id=result.active_regime or "",
+                    candidate_abstract_action=result.active_abstract_action or "",
+                )
             if not isinstance(candidates, tuple):
                 raise TypeError("OperationsAdviceProvider must return a tuple")
             self._validate_advice_lineage(
@@ -554,9 +699,12 @@ class OperationsBrainController:
                 "candidate_regime_id": result.active_regime or "",
                 "candidate_abstract_action": result.active_abstract_action or "",
                 "candidates": [candidate.to_json() for candidate in candidates],
-                "wiring_level": "shadow",
+                "wiring_level": advice_wiring_level.value,
                 "applied": False,
             }
+            if policy_decision is not None:
+                advice_payload["policy_decision"] = policy_decision.to_json()
+                advice_payload["activation_receipt_id"] = activation_receipt_id
             advice_digest = stable_content_sha256(advice_payload)
             advice = OperationsAdviceSnapshot(
                 advice_id=f"operations-advice:{advice_digest}",
@@ -564,12 +712,15 @@ class OperationsBrainController:
                 candidate_regime_id=result.active_regime or "",
                 candidate_abstract_action=result.active_abstract_action or "",
                 candidates=candidates,
+                policy_decision=policy_decision,
+                activation_receipt_id=activation_receipt_id,
+                wiring_level=advice_wiring_level,
                 rationale=(
-                    "Strict structured candidate projection; SHADOW only, "
-                    "excluded from rendered_context, and never an AutoCompany decision."
+                    "Strict structured candidate projection; AutoCompany retains "
+                    "selection and execution authority."
                     if candidates
                     else "No qualified structured advisor candidate was supplied; "
-                    "the SHADOW advice set is explicitly empty."
+                    "the advice set is explicitly empty."
                 ),
             )
             context_payload = _context_digest_payload(
@@ -590,6 +741,8 @@ class OperationsBrainController:
                 pe_magnitude=float(pe.error.magnitude),
                 pe_bootstrap=pe.bootstrap,
                 advice=advice,
+                settled_policy_credits=settled_policy_credits,
+                policy_updates=policy_updates,
             )
             context_digest = stable_content_sha256(context_payload)
             snapshot = OperationsContextPackSnapshot(
@@ -613,6 +766,8 @@ class OperationsBrainController:
                 pe_magnitude=float(pe.error.magnitude),
                 pe_bootstrap=pe.bootstrap,
                 advice=advice,
+                settled_policy_credits=settled_policy_credits,
+                policy_updates=policy_updates,
             )
             ledger.contexts_by_request_id[request.request_id] = _ContextLineage(
                 request_digest=request_digest,
@@ -669,6 +824,10 @@ class OperationsBrainController:
                 raise OperationsBrainLineageError("outcome decision_id must match its Operations Context Pack")
             if report.execution_outcome.currency != request.operating_window.currency:
                 raise OperationsBrainLineageError("outcome currency must match the Context Pack resource window")
+            self._validate_policy_selection(
+                context_pack=context_pack,
+                report=report,
+            )
             if report.pe_eligible:
                 if report.context_pack_id != ledger.latest_context_pack_id:
                     raise OperationsBrainLineageError(
@@ -680,7 +839,13 @@ class OperationsBrainController:
                     )
 
             environment_outcome = (
-                _environment_outcome_for_report(request=request, report=report) if report.pe_eligible else None
+                _environment_outcome_for_report(
+                    request=request,
+                    report=report,
+                    policy_decision=context_pack.advice.policy_decision,
+                )
+                if report.pe_eligible
+                else None
             )
             task_event_seed = _short_hash(f"{session_id}:{report.outcome_id}")
             task_event_ids = session.submit_task_event(
@@ -729,7 +894,11 @@ class OperationsBrainController:
                 else OperationsSettlementState.NOT_PE_ELIGIBLE
             )
             receipt_payload = {
-                "schema_version": "operations-outcome-receipt.v1",
+                "schema_version": (
+                    "operations-outcome-receipt.v2"
+                    if report.source_advice_id
+                    else "operations-outcome-receipt.v1"
+                ),
                 "session_id": session_id,
                 "session_lineage_id": ledger.session_lineage_id,
                 "company_id": request.company_id,
@@ -740,7 +909,7 @@ class OperationsBrainController:
                 "report": report.to_json(),
                 "action_turn_index": context_pack.source_turn_index,
                 "source_advice_id": context_pack.advice.advice_id,
-                "source_advice_applied": False,
+                "source_advice_applied": report.policy_action_applied,
                 "memory_entry_id": memory_entry.entry_id,
                 "memory_persisted": memory_persisted,
                 "task_event_ids": list(task_event_ids),
@@ -748,6 +917,14 @@ class OperationsBrainController:
                 "learning_route": route.value,
                 "settlement_state": settlement_state.value,
             }
+            if report.source_advice_id:
+                receipt_payload.update(
+                    {
+                        "source_policy_decision_id": report.policy_decision_id,
+                        "selection_id": report.selection_id,
+                        "selected_candidate_id": report.selected_candidate_id,
+                    }
+                )
             receipt_digest = stable_content_sha256(receipt_payload)
             receipt = OperationsOutcomeReceipt(
                 receipt_id=f"operations-outcome-receipt:{receipt_digest}",
@@ -762,13 +939,16 @@ class OperationsBrainController:
                 report=report,
                 action_turn_index=context_pack.source_turn_index,
                 source_advice_id=context_pack.advice.advice_id,
-                source_advice_applied=False,
+                source_advice_applied=report.policy_action_applied,
                 memory_entry_id=memory_entry.entry_id,
                 memory_persisted=memory_persisted,
                 task_event_ids=task_event_ids,
                 environment_outcome_id=environment_outcome_id,
                 learning_route=route,
                 settlement_state=settlement_state,
+                source_policy_decision_id=report.policy_decision_id,
+                selection_id=report.selection_id,
+                selected_candidate_id=report.selected_candidate_id,
             )
             ledger.outcomes_by_outcome_id[report.outcome_id] = _OutcomeLineage(
                 report_digest=report_digest,
@@ -778,6 +958,313 @@ class OperationsBrainController:
                 ledger.pending_environment_outcome_id = environment_outcome_id
             self._trim_outcomes(ledger)
             return receipt, True
+
+    @staticmethod
+    def _validate_policy_selection(
+        *,
+        context_pack: OperationsContextPackSnapshot,
+        report: OperationsOutcomeReport,
+    ) -> None:
+        decision = context_pack.advice.policy_decision
+        if decision is None:
+            if report.source_advice_id:
+                raise OperationsBrainLineageError(
+                    "v1 Context Pack cannot accept v2 policy selection lineage"
+                )
+            return
+        if not report.source_advice_id:
+            raise OperationsBrainLineageError(
+                "v2 Context Pack outcomes require persisted selection lineage"
+            )
+        if report.source_advice_id != context_pack.advice.advice_id:
+            raise OperationsBrainLineageError("outcome source_advice_id mismatch")
+        if report.policy_decision_id != decision.policy_decision_id:
+            raise OperationsBrainLineageError("outcome policy_decision_id mismatch")
+        if report.selection_wiring_level is not context_pack.advice.wiring_level:
+            raise OperationsBrainLineageError(
+                "outcome selection_wiring_level does not match published advice"
+            )
+        if report.activation_receipt_id != context_pack.advice.activation_receipt_id:
+            raise OperationsBrainLineageError(
+                "outcome activation_receipt_id does not match published advice"
+            )
+        candidates = {
+            item.candidate_id for item in context_pack.advice.candidates
+        }
+        if report.selected_candidate_id and report.selected_candidate_id not in candidates:
+            raise OperationsBrainLineageError(
+                "outcome selected_candidate_id is outside the published advice"
+            )
+        if report.selection_wiring_level is WiringLevel.SHADOW:
+            if report.policy_action_applied or report.candidate_applied:
+                raise OperationsBrainLineageError(
+                    "SHADOW selection cannot claim an applied policy action"
+                )
+            return
+        if decision.action.value == "intervene":
+            if not report.policy_action_applied:
+                if report.candidate_applied or report.selected_candidate_id:
+                    raise OperationsBrainLineageError(
+                        "ignored ACTIVE intervention cannot claim a candidate"
+                    )
+                return
+            if not report.candidate_applied or (
+                report.selected_candidate_id != decision.selected_candidate_id
+            ):
+                raise OperationsBrainLineageError(
+                    "ACTIVE selection must apply the exact policy candidate"
+                )
+        else:
+            if report.candidate_applied or report.selected_candidate_id:
+                raise OperationsBrainLineageError(
+                    "ACTIVE NOOP selection cannot claim a candidate"
+                )
+
+    def _resolve_policy_wiring(
+        self,
+        checkpoint: OperationsPolicyCheckpoint,
+    ) -> tuple[WiringLevel, str]:
+        if self._policy_wiring_level is WiringLevel.SHADOW:
+            return WiringLevel.SHADOW, ""
+        receipt = self._activation_receipt
+        if receipt is None:
+            raise OperationsBrainLineageError(
+                "ACTIVE Operations policy has no activation receipt"
+            )
+        if not receipt.authorizes(checkpoint):
+            raise OperationsBrainLineageError(
+                "ModificationGate activation receipt does not authorize the restored checkpoint"
+            )
+        return WiringLevel.ACTIVE, receipt.activation_receipt_id
+
+    def _restore_policy_checkpoint(
+        self,
+        *,
+        session: LifeformSession,
+        company_id: str,
+        timestamp_ms: int,
+    ) -> OperationsPolicyCheckpoint:
+        company_facet = f"company:{_short_hash(company_id)}"
+        retrieval = session.retrieve_memory(
+            RetrievalQuery(
+                text="operations policy checkpoint",
+                track=Track.WORLD,
+                strata=(MemoryStratum.EPISODIC, MemoryStratum.DURABLE),
+                limit=80,
+                facets=("operations-policy-checkpoint", company_facet),
+            ),
+            timestamp_ms=timestamp_ms,
+        )
+        checkpoints: list[OperationsPolicyCheckpoint] = []
+        for entry in retrieval.entries:
+            if (
+                "operations-policy-checkpoint" not in entry.tags
+                or company_facet not in entry.tags
+            ):
+                continue
+            try:
+                payload = json.loads(entry.content)
+            except json.JSONDecodeError as exc:
+                raise OperationsBrainMemoryContractError(
+                    f"policy checkpoint memory {entry.entry_id!r} is not JSON"
+                ) from exc
+            if not isinstance(payload, dict) or set(payload) != {
+                "schema_version",
+                "company_id",
+                "checkpoint",
+            }:
+                raise OperationsBrainMemoryContractError(
+                    f"policy checkpoint memory {entry.entry_id!r} has invalid shape"
+                )
+            if payload["schema_version"] != "operations-policy-memory-record.v1":
+                raise OperationsBrainMemoryContractError(
+                    f"policy checkpoint memory {entry.entry_id!r} has unsupported schema"
+                )
+            if payload["company_id"] != company_id:
+                raise OperationsBrainMemoryContractError(
+                    "operations policy company payload does not match retrieval facet"
+                )
+            checkpoint_payload = payload["checkpoint"]
+            if not isinstance(checkpoint_payload, dict):
+                raise OperationsBrainMemoryContractError(
+                    f"policy checkpoint memory {entry.entry_id!r} checkpoint is invalid"
+                )
+            try:
+                checkpoints.append(
+                    OperationsPolicyCheckpoint.from_json(checkpoint_payload)
+                )
+            except (TypeError, ValueError) as exc:
+                raise OperationsBrainMemoryContractError(
+                    f"policy checkpoint memory {entry.entry_id!r} violates contract: {exc}"
+                ) from exc
+        if not checkpoints:
+            checkpoint = self._policy_checkpoint_seed
+            if checkpoint is None:
+                if self._policy_wiring_level is WiringLevel.ACTIVE:
+                    raise OperationsBrainMemoryContractError(
+                        "ACTIVE Operations policy requires an installed promoted checkpoint"
+                    )
+                checkpoint = default_operations_policy_checkpoint()
+            self._persist_policy_checkpoint(
+                session=session,
+                company_id=company_id,
+                checkpoint=checkpoint,
+                timestamp_ms=timestamp_ms,
+            )
+            return checkpoint
+        maximum_update_count = max(item.update_count for item in checkpoints)
+        latest = tuple(
+            item for item in checkpoints if item.update_count == maximum_update_count
+        )
+        latest_ids = {item.checkpoint_id for item in latest}
+        if len(latest_ids) != 1:
+            raise OperationsBrainMemoryContractError(
+                "Operations policy has divergent checkpoints at one update count"
+            )
+        restored = latest[0]
+        seed = self._policy_checkpoint_seed
+        if self._policy_wiring_level is WiringLevel.ACTIVE and seed is not None:
+            receipt = self._activation_receipt
+            if receipt is None or not receipt.authorizes(seed):
+                raise OperationsBrainMemoryContractError(
+                    "ACTIVE checkpoint seed lacks exact activation authorization"
+                )
+            if restored.update_count < seed.update_count:
+                self._persist_policy_checkpoint(
+                    session=session,
+                    company_id=company_id,
+                    checkpoint=seed,
+                    timestamp_ms=timestamp_ms,
+                )
+                return seed
+        return restored
+
+    @staticmethod
+    def _persist_policy_checkpoint(
+        *,
+        session: LifeformSession,
+        company_id: str,
+        checkpoint: OperationsPolicyCheckpoint,
+        timestamp_ms: int,
+    ) -> None:
+        company_facet = f"company:{_short_hash(company_id)}"
+        session.write_memory(
+            MemoryWriteRequest(
+                content=json.dumps(
+                    {
+                        "schema_version": "operations-policy-memory-record.v1",
+                        "company_id": company_id,
+                        "checkpoint": checkpoint.to_json(),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                track=Track.WORLD,
+                stratum=MemoryStratum.EPISODIC,
+                tags=(
+                    "operations-policy-checkpoint",
+                    company_facet,
+                    f"policy-artifact:{checkpoint.artifact_id}",
+                    f"policy-update-count:{checkpoint.update_count}",
+                ),
+                strength=0.95,
+            ),
+            timestamp_ms=timestamp_ms,
+        )
+        session.persist_memory()
+
+    def _settle_policy_update(
+        self,
+        *,
+        session: LifeformSession,
+        ledger: _SessionLedger,
+        result: object,
+        prediction_error: PredictionErrorSnapshot,
+        environment_outcome_id: str,
+        timestamp_ms: int,
+    ) -> tuple[
+        tuple[OperationsPolicyCredit, ...],
+        tuple[OperationsPolicyUpdateReceipt, ...],
+    ]:
+        lineage = next(
+            (
+                item
+                for item in ledger.outcomes_by_outcome_id.values()
+                if item.receipt.environment_outcome_id == environment_outcome_id
+            ),
+            None,
+        )
+        if lineage is None:
+            raise OperationsBrainLineageError(
+                "settled environment outcome has no Operations report lineage"
+            )
+        report = lineage.receipt.report
+        if not report.source_advice_id:
+            return (), ()
+        context_pack = ledger.contexts_by_pack_id.get(report.context_pack_id)
+        if context_pack is None:
+            raise OperationsBrainLineageError(
+                "policy settlement Context Pack is not in the live ledger"
+            )
+        decision = context_pack.advice.policy_decision
+        if decision is None:
+            raise OperationsBrainLineageError(
+                "v2 outcome references Context Pack without a policy decision"
+            )
+        if report.selection_wiring_level is WiringLevel.SHADOW:
+            if report.policy_action_applied or report.candidate_applied:
+                raise OperationsBrainLineageError(
+                    "SHADOW policy selection cannot be credited as applied"
+                )
+            return (), ()
+        if not report.policy_action_applied:
+            return (), ()
+        if report.policy_decision_id != decision.policy_decision_id:
+            raise OperationsBrainLineageError(
+                "outcome policy decision lineage mismatch"
+            )
+        if decision.action.value == "intervene":
+            if (
+                not report.candidate_applied
+                or report.selected_candidate_id != decision.selected_candidate_id
+            ):
+                raise OperationsBrainLineageError(
+                    "ACTIVE intervention outcome does not match policy selection"
+                )
+            credited_candidate_id = report.selected_candidate_id
+        else:
+            if report.candidate_applied or report.selected_candidate_id:
+                raise OperationsBrainLineageError(
+                    "ACTIVE NOOP outcome cannot claim a candidate"
+                )
+            credited_candidate_id = OPERATIONS_POLICY_NOOP_CANDIDATE_ID
+        company_id = context_pack.request.company_id
+        checkpoint = ledger.policy_checkpoints_by_company_id.get(company_id)
+        if checkpoint is None:
+            raise RuntimeError("Operations policy checkpoint is unavailable")
+        credit = settle_operations_policy_credit(
+            prediction_error_snapshot=prediction_error,
+            credit_snapshot=_credit_snapshot(result),
+            policy_decision_id=decision.policy_decision_id,
+            selection_id=report.selection_id,
+            candidate_id=credited_candidate_id,
+            environment_outcome_id=environment_outcome_id,
+        )
+        next_checkpoint, update = self._policy.observe_credit(
+            checkpoint=checkpoint,
+            decision=decision,
+            candidates=context_pack.advice.candidates,
+            credit=credit,
+        )
+        ledger.policy_checkpoints_by_company_id[company_id] = next_checkpoint
+        self._persist_policy_checkpoint(
+            session=session,
+            company_id=company_id,
+            checkpoint=next_checkpoint,
+            timestamp_ms=timestamp_ms,
+        )
+        return (credit,), (update,)
 
     def drop_session(self, session: LifeformSession | str) -> None:
         """Discard bounded product lineage for a closed live session."""

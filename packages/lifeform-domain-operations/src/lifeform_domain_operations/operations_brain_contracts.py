@@ -1,4 +1,4 @@
-"""Strict frozen contracts for the AutoCompany-facing Operations Brain v1.
+"""Strict frozen contracts for the AutoCompany-facing Operations Brain v1/v2.
 
 AutoCompany supplies evidence class, operating scope, action-catalog identity,
 and outcome verdict as explicit protocol fields. Free text is context only and
@@ -24,6 +24,28 @@ ADVICE_SCHEMA_VERSION = "operations-advice.v1"
 OUTCOME_REPORT_SCHEMA_VERSION = "operations-outcome-report.v1"
 OUTCOME_RECEIPT_SCHEMA_VERSION = "operations-outcome-receipt.v1"
 EXPERIENCE_RECORD_SCHEMA_VERSION = "operations-experience-record.v1"
+CONTEXT_REQUEST_V2_SCHEMA_VERSION = "operations-context-request.v2"
+CONTEXT_PACK_V2_SCHEMA_VERSION = "operations-context-pack.v2"
+ADVICE_V2_SCHEMA_VERSION = "operations-advice.v2"
+OUTCOME_REPORT_V2_SCHEMA_VERSION = "operations-outcome-report.v2"
+OUTCOME_RECEIPT_V2_SCHEMA_VERSION = "operations-outcome-receipt.v2"
+OPERATIONS_STATE_SCHEMA_VERSION = "operations-state-snapshot.v1"
+OPERATIONS_POLICY_CHECKPOINT_SCHEMA_VERSION = "operations-policy-checkpoint.v1"
+OPERATIONS_POLICY_DECISION_SCHEMA_VERSION = "operations-policy-decision.v1"
+OPERATIONS_POLICY_CREDIT_SCHEMA_VERSION = "operations-policy-credit.v1"
+OPERATIONS_POLICY_UPDATE_SCHEMA_VERSION = "operations-policy-update.v1"
+OPERATIONS_POLICY_FEATURE_ORDER = (
+    "health_deficit",
+    "goal_gap",
+    "queue_pressure",
+    "capacity_pressure",
+    "deadline_pressure",
+    "sla_pressure",
+    "dependency_pressure",
+    "incident_pressure",
+    "budget_pressure",
+    "recent_failure_pressure",
+)
 
 
 class OperationsDecisionPoint(str, Enum):
@@ -88,6 +110,32 @@ class OperationsAdviceKind(str, Enum):
     RECOVER_INCIDENT = "recover_incident"
     PAUSE_WORK = "pause_work"
     REQUEST_HUMAN = "request_human"
+
+
+class OperationsWorkItemStatus(str, Enum):
+    QUEUED = "queued"
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class OperationsIncidentSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class OperationsPolicyMode(str, Enum):
+    NOOP = "noop"
+    FROZEN = "frozen"
+    LEARNED = "learned"
+
+
+class OperationsPolicyAction(str, Enum):
+    NOOP = "noop"
+    INTERVENE = "intervene"
 
 
 class OperationsOutcomeKind(str, Enum):
@@ -673,6 +721,690 @@ class OperationsOperatingWindow:
 
 
 @dataclass(frozen=True)
+class OperationsGoalState:
+    goal_id: str
+    division_id: str
+    progress: float
+    target_progress: float
+    weight: float
+    deadline_ms: int
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("goal_id", self.goal_id, max_length=256)
+        _require_text("division_id", self.division_id, max_length=256)
+        _require_probability("progress", self.progress)
+        _require_probability("target_progress", self.target_progress)
+        weight = _require_numeric("weight", self.weight)
+        if not 0.0 < weight <= 1.0:
+            raise ValueError("weight must be in (0, 1]")
+        _require_non_negative_int("deadline_ms", self.deadline_ms)
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=32,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(cls, payload: Mapping[str, object]) -> "OperationsGoalState":
+        fields = frozenset(
+            {
+                "goal_id",
+                "division_id",
+                "progress",
+                "target_progress",
+                "weight",
+                "deadline_ms",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            goal_id=payload["goal_id"],
+            division_id=payload["division_id"],
+            progress=payload["progress"],
+            target_progress=payload["target_progress"],
+            weight=payload["weight"],
+            deadline_ms=payload["deadline_ms"],
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "goal_id": self.goal_id,
+            "division_id": self.division_id,
+            "progress": float(self.progress),
+            "target_progress": float(self.target_progress),
+            "weight": float(self.weight),
+            "deadline_ms": self.deadline_ms,
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsWorkItemState:
+    work_item_id: str
+    division_id: str
+    action_catalog_id: str
+    status: OperationsWorkItemStatus
+    progress: float
+    priority: float
+    deadline_ms: int
+    required_human_minutes: int
+    expected_cost_minor: int
+    dependency_ids: tuple[str, ...]
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("work_item_id", self.work_item_id, max_length=256)
+        _require_text("division_id", self.division_id, max_length=256)
+        _require_text("action_catalog_id", self.action_catalog_id, max_length=256)
+        if not isinstance(self.status, OperationsWorkItemStatus):
+            raise ValueError("status must be an OperationsWorkItemStatus")
+        _require_probability("progress", self.progress)
+        _require_probability("priority", self.priority)
+        _require_non_negative_int("deadline_ms", self.deadline_ms)
+        _require_non_negative_int(
+            "required_human_minutes",
+            self.required_human_minutes,
+        )
+        _require_non_negative_int("expected_cost_minor", self.expected_cost_minor)
+        _require_string_tuple(
+            "dependency_ids",
+            self.dependency_ids,
+            max_items=64,
+            item_max_length=256,
+        )
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=32,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(cls, payload: Mapping[str, object]) -> "OperationsWorkItemState":
+        fields = frozenset(
+            {
+                "work_item_id",
+                "division_id",
+                "action_catalog_id",
+                "status",
+                "progress",
+                "priority",
+                "deadline_ms",
+                "required_human_minutes",
+                "expected_cost_minor",
+                "dependency_ids",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            work_item_id=payload["work_item_id"],
+            division_id=payload["division_id"],
+            action_catalog_id=payload["action_catalog_id"],
+            status=_closed_enum(
+                OperationsWorkItemStatus,
+                "status",
+                payload["status"],
+            ),
+            progress=payload["progress"],
+            priority=payload["priority"],
+            deadline_ms=payload["deadline_ms"],
+            required_human_minutes=payload["required_human_minutes"],
+            expected_cost_minor=payload["expected_cost_minor"],
+            dependency_ids=tuple(
+                _array("dependency_ids", payload["dependency_ids"])
+            ),
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "work_item_id": self.work_item_id,
+            "division_id": self.division_id,
+            "action_catalog_id": self.action_catalog_id,
+            "status": self.status.value,
+            "progress": float(self.progress),
+            "priority": float(self.priority),
+            "deadline_ms": self.deadline_ms,
+            "required_human_minutes": self.required_human_minutes,
+            "expected_cost_minor": self.expected_cost_minor,
+            "dependency_ids": list(self.dependency_ids),
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsDependencyState:
+    dependency_id: str
+    predecessor_work_item_id: str
+    successor_work_item_id: str
+    resolved: bool
+    criticality: float
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("dependency_id", self.dependency_id, max_length=256)
+        _require_text(
+            "predecessor_work_item_id",
+            self.predecessor_work_item_id,
+            max_length=256,
+        )
+        _require_text(
+            "successor_work_item_id",
+            self.successor_work_item_id,
+            max_length=256,
+        )
+        if self.predecessor_work_item_id == self.successor_work_item_id:
+            raise ValueError("dependency endpoints must differ")
+        if not isinstance(self.resolved, bool):
+            raise ValueError("resolved must be a boolean")
+        _require_probability("criticality", self.criticality)
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=32,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsDependencyState":
+        fields = frozenset(
+            {
+                "dependency_id",
+                "predecessor_work_item_id",
+                "successor_work_item_id",
+                "resolved",
+                "criticality",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            dependency_id=payload["dependency_id"],
+            predecessor_work_item_id=payload["predecessor_work_item_id"],
+            successor_work_item_id=payload["successor_work_item_id"],
+            resolved=payload["resolved"],
+            criticality=payload["criticality"],
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "dependency_id": self.dependency_id,
+            "predecessor_work_item_id": self.predecessor_work_item_id,
+            "successor_work_item_id": self.successor_work_item_id,
+            "resolved": self.resolved,
+            "criticality": float(self.criticality),
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsIncidentState:
+    incident_id: str
+    division_id: str
+    severity: OperationsIncidentSeverity
+    open: bool
+    started_at_ms: int
+    sla_deadline_ms: int
+    estimated_recovery_minutes: int
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("incident_id", self.incident_id, max_length=256)
+        _require_text("division_id", self.division_id, max_length=256)
+        if not isinstance(self.severity, OperationsIncidentSeverity):
+            raise ValueError("severity must be an OperationsIncidentSeverity")
+        if not isinstance(self.open, bool):
+            raise ValueError("open must be a boolean")
+        started = _require_non_negative_int("started_at_ms", self.started_at_ms)
+        deadline = _require_non_negative_int(
+            "sla_deadline_ms",
+            self.sla_deadline_ms,
+        )
+        if deadline < started:
+            raise ValueError("sla_deadline_ms must be >= started_at_ms")
+        _require_non_negative_int(
+            "estimated_recovery_minutes",
+            self.estimated_recovery_minutes,
+        )
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=32,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(cls, payload: Mapping[str, object]) -> "OperationsIncidentState":
+        fields = frozenset(
+            {
+                "incident_id",
+                "division_id",
+                "severity",
+                "open",
+                "started_at_ms",
+                "sla_deadline_ms",
+                "estimated_recovery_minutes",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            incident_id=payload["incident_id"],
+            division_id=payload["division_id"],
+            severity=_closed_enum(
+                OperationsIncidentSeverity,
+                "severity",
+                payload["severity"],
+            ),
+            open=payload["open"],
+            started_at_ms=payload["started_at_ms"],
+            sla_deadline_ms=payload["sla_deadline_ms"],
+            estimated_recovery_minutes=payload["estimated_recovery_minutes"],
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "incident_id": self.incident_id,
+            "division_id": self.division_id,
+            "severity": self.severity.value,
+            "open": self.open,
+            "started_at_ms": self.started_at_ms,
+            "sla_deadline_ms": self.sla_deadline_ms,
+            "estimated_recovery_minutes": self.estimated_recovery_minutes,
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsRecentOutcomeState:
+    outcome_id: str
+    division_id: str
+    candidate_id: str
+    utility: float
+    observed_at_ms: int
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("outcome_id", self.outcome_id, max_length=256)
+        _require_text("division_id", self.division_id, max_length=256)
+        _require_optional_text("candidate_id", self.candidate_id, max_length=256)
+        utility = _require_numeric("utility", self.utility)
+        if not -1.0 <= utility <= 1.0:
+            raise ValueError("utility must be in [-1, 1]")
+        _require_non_negative_int("observed_at_ms", self.observed_at_ms)
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=32,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsRecentOutcomeState":
+        fields = frozenset(
+            {
+                "outcome_id",
+                "division_id",
+                "candidate_id",
+                "utility",
+                "observed_at_ms",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            outcome_id=payload["outcome_id"],
+            division_id=payload["division_id"],
+            candidate_id=payload["candidate_id"],
+            utility=payload["utility"],
+            observed_at_ms=payload["observed_at_ms"],
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "outcome_id": self.outcome_id,
+            "division_id": self.division_id,
+            "candidate_id": self.candidate_id,
+            "utility": float(self.utility),
+            "observed_at_ms": self.observed_at_ms,
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsDivisionState:
+    division_id: str
+    health: float
+    available_human_minutes: int
+    committed_human_minutes: int
+    queue_depth: int
+    sla_breach_probability: float
+    budget_remaining_minor: int
+    cost_to_date_minor: int
+    evidence_ref_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_text("division_id", self.division_id, max_length=256)
+        _require_probability("health", self.health)
+        _require_non_negative_int(
+            "available_human_minutes",
+            self.available_human_minutes,
+        )
+        _require_non_negative_int(
+            "committed_human_minutes",
+            self.committed_human_minutes,
+        )
+        _require_non_negative_int("queue_depth", self.queue_depth)
+        _require_probability(
+            "sla_breach_probability",
+            self.sla_breach_probability,
+        )
+        _require_non_negative_int(
+            "budget_remaining_minor",
+            self.budget_remaining_minor,
+        )
+        _require_non_negative_int("cost_to_date_minor", self.cost_to_date_minor)
+        _require_string_tuple(
+            "evidence_ref_ids",
+            self.evidence_ref_ids,
+            max_items=64,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsDivisionState":
+        fields = frozenset(
+            {
+                "division_id",
+                "health",
+                "available_human_minutes",
+                "committed_human_minutes",
+                "queue_depth",
+                "sla_breach_probability",
+                "budget_remaining_minor",
+                "cost_to_date_minor",
+                "evidence_ref_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        return cls(
+            division_id=payload["division_id"],
+            health=payload["health"],
+            available_human_minutes=payload["available_human_minutes"],
+            committed_human_minutes=payload["committed_human_minutes"],
+            queue_depth=payload["queue_depth"],
+            sla_breach_probability=payload["sla_breach_probability"],
+            budget_remaining_minor=payload["budget_remaining_minor"],
+            cost_to_date_minor=payload["cost_to_date_minor"],
+            evidence_ref_ids=tuple(
+                _array("evidence_ref_ids", payload["evidence_ref_ids"])
+            ),
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "division_id": self.division_id,
+            "health": float(self.health),
+            "available_human_minutes": self.available_human_minutes,
+            "committed_human_minutes": self.committed_human_minutes,
+            "queue_depth": self.queue_depth,
+            "sla_breach_probability": float(self.sla_breach_probability),
+            "budget_remaining_minor": self.budget_remaining_minor,
+            "cost_to_date_minor": self.cost_to_date_minor,
+            "evidence_ref_ids": list(self.evidence_ref_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsStateSnapshot:
+    state_snapshot_id: str
+    content_sha256: str
+    as_of_ms: int
+    currency: str
+    divisions: tuple[OperationsDivisionState, ...]
+    goals: tuple[OperationsGoalState, ...]
+    work_items: tuple[OperationsWorkItemState, ...]
+    dependencies: tuple[OperationsDependencyState, ...]
+    incidents: tuple[OperationsIncidentState, ...]
+    recent_outcomes: tuple[OperationsRecentOutcomeState, ...]
+
+    def __post_init__(self) -> None:
+        _require_content_id(
+            "state_snapshot_id",
+            self.state_snapshot_id,
+            prefix="operations-state:",
+        )
+        _require_sha256("content_sha256", self.content_sha256)
+        if self.state_snapshot_id != f"operations-state:{self.content_sha256}":
+            raise ValueError("state_snapshot_id must match content_sha256")
+        _require_non_negative_int("as_of_ms", self.as_of_ms)
+        _require_currency(self.currency)
+        for name, values, item_type, maximum, allow_empty in (
+            ("divisions", self.divisions, OperationsDivisionState, 64, False),
+            ("goals", self.goals, OperationsGoalState, 256, True),
+            ("work_items", self.work_items, OperationsWorkItemState, 512, True),
+            (
+                "dependencies",
+                self.dependencies,
+                OperationsDependencyState,
+                1_024,
+                True,
+            ),
+            ("incidents", self.incidents, OperationsIncidentState, 256, True),
+            (
+                "recent_outcomes",
+                self.recent_outcomes,
+                OperationsRecentOutcomeState,
+                256,
+                True,
+            ),
+        ):
+            _require_typed_tuple(
+                name,
+                values,
+                item_type=item_type,
+                max_items=maximum,
+                allow_empty=allow_empty,
+            )
+        _require_unique_ids(
+            "divisions",
+            tuple(item.division_id for item in self.divisions),
+        )
+        _require_unique_ids("goals", tuple(item.goal_id for item in self.goals))
+        _require_unique_ids(
+            "work_items",
+            tuple(item.work_item_id for item in self.work_items),
+        )
+        _require_unique_ids(
+            "dependencies",
+            tuple(item.dependency_id for item in self.dependencies),
+        )
+        _require_unique_ids(
+            "incidents",
+            tuple(item.incident_id for item in self.incidents),
+        )
+        _require_unique_ids(
+            "recent_outcomes",
+            tuple(item.outcome_id for item in self.recent_outcomes),
+        )
+        divisions = {item.division_id for item in self.divisions}
+        scoped = {
+            item.division_id
+            for item in (
+                *self.goals,
+                *self.work_items,
+                *self.incidents,
+                *self.recent_outcomes,
+            )
+        }
+        if scoped - divisions:
+            raise ValueError("state children reference unknown division ids")
+        work_item_ids = {item.work_item_id for item in self.work_items}
+        dependency_ids = {item.dependency_id for item in self.dependencies}
+        for item in self.dependencies:
+            if (
+                item.predecessor_work_item_id not in work_item_ids
+                or item.successor_work_item_id not in work_item_ids
+            ):
+                raise ValueError("dependency edge references unknown work item ids")
+        for item in self.work_items:
+            if set(item.dependency_ids) - dependency_ids:
+                raise ValueError("work item references unknown dependency ids")
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        as_of_ms: int,
+        currency: str,
+        divisions: tuple[OperationsDivisionState, ...],
+        goals: tuple[OperationsGoalState, ...] = (),
+        work_items: tuple[OperationsWorkItemState, ...] = (),
+        dependencies: tuple[OperationsDependencyState, ...] = (),
+        incidents: tuple[OperationsIncidentState, ...] = (),
+        recent_outcomes: tuple[OperationsRecentOutcomeState, ...] = (),
+    ) -> "OperationsStateSnapshot":
+        core = {
+            "schema_version": OPERATIONS_STATE_SCHEMA_VERSION,
+            "as_of_ms": as_of_ms,
+            "currency": currency,
+            "divisions": [item.to_json() for item in divisions],
+            "goals": [item.to_json() for item in goals],
+            "work_items": [item.to_json() for item in work_items],
+            "dependencies": [item.to_json() for item in dependencies],
+            "incidents": [item.to_json() for item in incidents],
+            "recent_outcomes": [item.to_json() for item in recent_outcomes],
+        }
+        digest = stable_content_sha256(core)
+        return cls(
+            state_snapshot_id=f"operations-state:{digest}",
+            content_sha256=digest,
+            as_of_ms=as_of_ms,
+            currency=currency,
+            divisions=divisions,
+            goals=goals,
+            work_items=work_items,
+            dependencies=dependencies,
+            incidents=incidents,
+            recent_outcomes=recent_outcomes,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsStateSnapshot":
+        fields = frozenset(
+            {
+                "schema_version",
+                "state_snapshot_id",
+                "content_sha256",
+                "as_of_ms",
+                "currency",
+                "divisions",
+                "goals",
+                "work_items",
+                "dependencies",
+                "incidents",
+                "recent_outcomes",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        if payload["schema_version"] != OPERATIONS_STATE_SCHEMA_VERSION:
+            raise ValueError(
+                f"schema_version must be {OPERATIONS_STATE_SCHEMA_VERSION!r}"
+            )
+        snapshot = cls(
+            state_snapshot_id=payload["state_snapshot_id"],
+            content_sha256=payload["content_sha256"],
+            as_of_ms=payload["as_of_ms"],
+            currency=payload["currency"],
+            divisions=tuple(
+                OperationsDivisionState.from_json(_mapping("divisions[]", item))
+                for item in _array("divisions", payload["divisions"])
+            ),
+            goals=tuple(
+                OperationsGoalState.from_json(_mapping("goals[]", item))
+                for item in _array("goals", payload["goals"])
+            ),
+            work_items=tuple(
+                OperationsWorkItemState.from_json(_mapping("work_items[]", item))
+                for item in _array("work_items", payload["work_items"])
+            ),
+            dependencies=tuple(
+                OperationsDependencyState.from_json(
+                    _mapping("dependencies[]", item)
+                )
+                for item in _array("dependencies", payload["dependencies"])
+            ),
+            incidents=tuple(
+                OperationsIncidentState.from_json(_mapping("incidents[]", item))
+                for item in _array("incidents", payload["incidents"])
+            ),
+            recent_outcomes=tuple(
+                OperationsRecentOutcomeState.from_json(
+                    _mapping("recent_outcomes[]", item)
+                )
+                for item in _array("recent_outcomes", payload["recent_outcomes"])
+            ),
+        )
+        core = snapshot.to_json()
+        core.pop("state_snapshot_id")
+        core.pop("content_sha256")
+        if stable_content_sha256(core) != snapshot.content_sha256:
+            raise ValueError("Operations state content_sha256 does not match payload")
+        return snapshot
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": OPERATIONS_STATE_SCHEMA_VERSION,
+            "state_snapshot_id": self.state_snapshot_id,
+            "content_sha256": self.content_sha256,
+            "as_of_ms": self.as_of_ms,
+            "currency": self.currency,
+            "divisions": [item.to_json() for item in self.divisions],
+            "goals": [item.to_json() for item in self.goals],
+            "work_items": [item.to_json() for item in self.work_items],
+            "dependencies": [item.to_json() for item in self.dependencies],
+            "incidents": [item.to_json() for item in self.incidents],
+            "recent_outcomes": [item.to_json() for item in self.recent_outcomes],
+        }
+
+
+@dataclass(frozen=True)
 class OperationsContextRequest:
     request_id: str
     company_id: str
@@ -689,6 +1421,7 @@ class OperationsContextRequest:
     evidence_refs: tuple[OperationsEvidenceRef, ...]
     memory_limit: int = 8
     max_context_chars: int = 8_000
+    operations_state: OperationsStateSnapshot | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -780,6 +1513,47 @@ class OperationsContextRequest:
             or not 512 <= self.max_context_chars <= 32_000
         ):
             raise ValueError("max_context_chars must be an integer from 512 to 32000")
+        if self.operations_state is not None:
+            if not isinstance(self.operations_state, OperationsStateSnapshot):
+                raise ValueError(
+                    "operations_state must be an OperationsStateSnapshot"
+                )
+            if self.operations_state.currency != self.operating_window.currency:
+                raise ValueError(
+                    "operations_state currency must match operating_window"
+                )
+            state_divisions = {
+                item.division_id for item in self.operations_state.divisions
+            }
+            if state_divisions != known_divisions:
+                raise ValueError(
+                    "operations_state divisions must exactly match division_ids"
+                )
+            state_catalog_ids = {
+                item.action_catalog_id
+                for item in self.operations_state.work_items
+            }
+            if state_catalog_ids - set(self.action_catalog_ids):
+                raise ValueError(
+                    "operations_state references unknown action catalog ids"
+                )
+            state_refs = {
+                reference_id
+                for collection in (
+                    self.operations_state.divisions,
+                    self.operations_state.goals,
+                    self.operations_state.work_items,
+                    self.operations_state.dependencies,
+                    self.operations_state.incidents,
+                    self.operations_state.recent_outcomes,
+                )
+                for item in collection
+                for reference_id in item.evidence_ref_ids
+            }
+            if state_refs - known_refs:
+                raise ValueError(
+                    "operations_state references unknown evidence ids"
+                )
 
     @classmethod
     def from_json(cls, payload: Mapping[str, object]) -> "OperationsContextRequest":
@@ -801,6 +1575,7 @@ class OperationsContextRequest:
                 "evidence_refs",
                 "memory_limit",
                 "max_context_chars",
+                "operations_state",
             }
         )
         required = frozenset(
@@ -822,8 +1597,20 @@ class OperationsContextRequest:
             }
         )
         _strict_payload(payload, allowed=allowed, required=required)
-        if payload["schema_version"] != CONTEXT_REQUEST_SCHEMA_VERSION:
-            raise ValueError(f"schema_version must be {CONTEXT_REQUEST_SCHEMA_VERSION!r}")
+        schema_version = payload["schema_version"]
+        if schema_version not in {
+            CONTEXT_REQUEST_SCHEMA_VERSION,
+            CONTEXT_REQUEST_V2_SCHEMA_VERSION,
+        }:
+            raise ValueError(
+                "schema_version must be a supported Operations Context Request version"
+            )
+        if schema_version == CONTEXT_REQUEST_SCHEMA_VERSION and "operations_state" in payload:
+            raise ValueError("operations_state requires operations-context-request.v2")
+        if schema_version == CONTEXT_REQUEST_V2_SCHEMA_VERSION and "operations_state" not in payload:
+            raise ValueError(
+                "schema_version operations-context-request.v2 requires operations_state"
+            )
         facts = tuple(
             OperationsFact.from_json(_mapping("confirmed_facts[]", item))
             for item in _array("confirmed_facts", payload["confirmed_facts"])
@@ -864,11 +1651,22 @@ class OperationsContextRequest:
             evidence_refs=evidence_refs,
             memory_limit=payload.get("memory_limit", 8),
             max_context_chars=payload.get("max_context_chars", 8_000),
+            operations_state=(
+                OperationsStateSnapshot.from_json(
+                    _mapping("operations_state", payload["operations_state"])
+                )
+                if "operations_state" in payload
+                else None
+            ),
         )
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "schema_version": CONTEXT_REQUEST_SCHEMA_VERSION,
+        payload = {
+            "schema_version": (
+                CONTEXT_REQUEST_V2_SCHEMA_VERSION
+                if self.operations_state is not None
+                else CONTEXT_REQUEST_SCHEMA_VERSION
+            ),
             "request_id": self.request_id,
             "company_id": self.company_id,
             "cycle_id": self.cycle_id,
@@ -885,6 +1683,9 @@ class OperationsContextRequest:
             "memory_limit": self.memory_limit,
             "max_context_chars": self.max_context_chars,
         }
+        if self.operations_state is not None:
+            payload["operations_state"] = self.operations_state.to_json()
+        return payload
 
 
 @dataclass(frozen=True)
@@ -1100,6 +1901,770 @@ class OperationsAdviceCandidate:
 
 
 @dataclass(frozen=True)
+class OperationsPolicyCheckpoint:
+    checkpoint_id: str
+    content_sha256: str
+    artifact_id: str
+    action_weights: tuple[tuple[str, tuple[float, ...]], ...]
+    intervention_weights: tuple[float, ...]
+    intervention_bias: float
+    learning_rate: float
+    max_abs_parameter: float
+    update_count: int
+    processed_credit_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_content_id(
+            "checkpoint_id",
+            self.checkpoint_id,
+            prefix="operations-policy-checkpoint:",
+        )
+        _require_sha256("content_sha256", self.content_sha256)
+        if self.checkpoint_id != f"operations-policy-checkpoint:{self.content_sha256}":
+            raise ValueError("checkpoint_id must match content_sha256")
+        _require_text("artifact_id", self.artifact_id, max_length=256)
+        if not isinstance(self.action_weights, tuple):
+            raise ValueError("action_weights must be a tuple")
+        expected_actions = tuple(item.value for item in OperationsAdviceKind)
+        if tuple(name for name, _ in self.action_weights) != expected_actions:
+            raise ValueError("action_weights must follow OperationsAdviceKind order")
+        feature_count = len(OPERATIONS_POLICY_FEATURE_ORDER)
+        for name, weights in self.action_weights:
+            _require_text("action_weights name", name, max_length=64)
+            if not isinstance(weights, tuple) or len(weights) != feature_count:
+                raise ValueError("action weight rows must match policy feature order")
+            for value in weights:
+                numeric = _require_numeric("action weight", value)
+                if abs(numeric) > self.max_abs_parameter:
+                    raise ValueError("action weight exceeds max_abs_parameter")
+        if (
+            not isinstance(self.intervention_weights, tuple)
+            or len(self.intervention_weights) != feature_count
+        ):
+            raise ValueError("intervention_weights must match policy feature order")
+        for value in (*self.intervention_weights, self.intervention_bias):
+            numeric = _require_numeric("intervention parameter", value)
+            if abs(numeric) > self.max_abs_parameter:
+                raise ValueError("intervention parameter exceeds max_abs_parameter")
+        learning_rate = _require_numeric("learning_rate", self.learning_rate)
+        if not 0.0 < learning_rate <= 0.5:
+            raise ValueError("learning_rate must be in (0, 0.5]")
+        parameter_cap = _require_numeric(
+            "max_abs_parameter",
+            self.max_abs_parameter,
+        )
+        if not 0.5 <= parameter_cap <= 8.0:
+            raise ValueError("max_abs_parameter must be in [0.5, 8]")
+        _require_non_negative_int("update_count", self.update_count)
+        _require_string_tuple(
+            "processed_credit_ids",
+            self.processed_credit_ids,
+            max_items=4_096,
+            item_max_length=256,
+        )
+        if len(self.processed_credit_ids) != self.update_count:
+            raise ValueError("processed credit count must equal update_count")
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        artifact_id: str,
+        action_weights: tuple[tuple[str, tuple[float, ...]], ...],
+        intervention_weights: tuple[float, ...],
+        intervention_bias: float,
+        learning_rate: float,
+        max_abs_parameter: float,
+        update_count: int = 0,
+        processed_credit_ids: tuple[str, ...] = (),
+    ) -> "OperationsPolicyCheckpoint":
+        core = {
+            "schema_version": OPERATIONS_POLICY_CHECKPOINT_SCHEMA_VERSION,
+            "artifact_id": artifact_id,
+            "feature_order": list(OPERATIONS_POLICY_FEATURE_ORDER),
+            "action_weights": [
+                {"action": action, "weights": list(weights)}
+                for action, weights in action_weights
+            ],
+            "intervention_weights": list(intervention_weights),
+            "intervention_bias": intervention_bias,
+            "learning_rate": learning_rate,
+            "max_abs_parameter": max_abs_parameter,
+            "update_count": update_count,
+            "processed_credit_ids": list(processed_credit_ids),
+        }
+        digest = stable_content_sha256(core)
+        return cls(
+            checkpoint_id=f"operations-policy-checkpoint:{digest}",
+            content_sha256=digest,
+            artifact_id=artifact_id,
+            action_weights=action_weights,
+            intervention_weights=intervention_weights,
+            intervention_bias=intervention_bias,
+            learning_rate=learning_rate,
+            max_abs_parameter=max_abs_parameter,
+            update_count=update_count,
+            processed_credit_ids=processed_credit_ids,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsPolicyCheckpoint":
+        fields = frozenset(
+            {
+                "schema_version",
+                "checkpoint_id",
+                "content_sha256",
+                "artifact_id",
+                "feature_order",
+                "action_weights",
+                "intervention_weights",
+                "intervention_bias",
+                "learning_rate",
+                "max_abs_parameter",
+                "update_count",
+                "processed_credit_ids",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        if payload["schema_version"] != OPERATIONS_POLICY_CHECKPOINT_SCHEMA_VERSION:
+            raise ValueError("unsupported Operations policy checkpoint schema")
+        if tuple(_array("feature_order", payload["feature_order"])) != OPERATIONS_POLICY_FEATURE_ORDER:
+            raise ValueError("Operations policy feature order drift")
+        rows: list[tuple[str, tuple[float, ...]]] = []
+        for item in _array("action_weights", payload["action_weights"]):
+            row = _mapping("action_weights[]", item)
+            _strict_payload(
+                row,
+                allowed=frozenset({"action", "weights"}),
+                required=frozenset({"action", "weights"}),
+            )
+            rows.append(
+                (
+                    row["action"],
+                    tuple(_array("weights", row["weights"])),
+                )
+            )
+        checkpoint = cls(
+            checkpoint_id=payload["checkpoint_id"],
+            content_sha256=payload["content_sha256"],
+            artifact_id=payload["artifact_id"],
+            action_weights=tuple(rows),
+            intervention_weights=tuple(
+                _array("intervention_weights", payload["intervention_weights"])
+            ),
+            intervention_bias=payload["intervention_bias"],
+            learning_rate=payload["learning_rate"],
+            max_abs_parameter=payload["max_abs_parameter"],
+            update_count=payload["update_count"],
+            processed_credit_ids=tuple(
+                _array("processed_credit_ids", payload["processed_credit_ids"])
+            ),
+        )
+        core = checkpoint.to_json()
+        core.pop("checkpoint_id")
+        core.pop("content_sha256")
+        if stable_content_sha256(core) != checkpoint.content_sha256:
+            raise ValueError("Operations policy checkpoint digest mismatch")
+        return checkpoint
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": OPERATIONS_POLICY_CHECKPOINT_SCHEMA_VERSION,
+            "checkpoint_id": self.checkpoint_id,
+            "content_sha256": self.content_sha256,
+            "artifact_id": self.artifact_id,
+            "feature_order": list(OPERATIONS_POLICY_FEATURE_ORDER),
+            "action_weights": [
+                {"action": action, "weights": [float(value) for value in weights]}
+                for action, weights in self.action_weights
+            ],
+            "intervention_weights": [
+                float(value) for value in self.intervention_weights
+            ],
+            "intervention_bias": float(self.intervention_bias),
+            "learning_rate": float(self.learning_rate),
+            "max_abs_parameter": float(self.max_abs_parameter),
+            "update_count": self.update_count,
+            "processed_credit_ids": list(self.processed_credit_ids),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsRankedCandidate:
+    candidate_id: str
+    rank: int
+    policy_score: float
+    selection_probability: float
+    feature_values: tuple[tuple[str, float], ...]
+
+    def __post_init__(self) -> None:
+        _require_text("candidate_id", self.candidate_id, max_length=256)
+        if isinstance(self.rank, bool) or not isinstance(self.rank, int) or self.rank < 1:
+            raise ValueError("rank must be a positive integer")
+        _require_numeric("policy_score", self.policy_score)
+        _require_probability("selection_probability", self.selection_probability)
+        if not isinstance(self.feature_values, tuple):
+            raise ValueError("feature_values must be a tuple")
+        if tuple(name for name, _ in self.feature_values) != OPERATIONS_POLICY_FEATURE_ORDER:
+            raise ValueError("feature_values must follow policy feature order")
+        for _, value in self.feature_values:
+            _require_probability("feature value", value)
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsRankedCandidate":
+        fields = frozenset(
+            {
+                "candidate_id",
+                "rank",
+                "policy_score",
+                "selection_probability",
+                "feature_values",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        feature_values = tuple(
+            (
+                _mapping("feature_values[]", item)["name"],
+                _mapping("feature_values[]", item)["value"],
+            )
+            for item in _array("feature_values", payload["feature_values"])
+        )
+        return cls(
+            candidate_id=payload["candidate_id"],
+            rank=payload["rank"],
+            policy_score=payload["policy_score"],
+            selection_probability=payload["selection_probability"],
+            feature_values=feature_values,
+        )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "candidate_id": self.candidate_id,
+            "rank": self.rank,
+            "policy_score": float(self.policy_score),
+            "selection_probability": float(self.selection_probability),
+            "feature_values": [
+                {"name": name, "value": float(value)}
+                for name, value in self.feature_values
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class OperationsPolicyDecision:
+    policy_decision_id: str
+    content_sha256: str
+    checkpoint_id: str
+    checkpoint_update_count: int
+    state_snapshot_id: str
+    source_prediction_id: str
+    mode: OperationsPolicyMode
+    action: OperationsPolicyAction
+    recommended_candidate_id: str
+    selected_candidate_id: str
+    intervention_probability: float
+    ranked_candidates: tuple[OperationsRankedCandidate, ...]
+    rationale_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_content_id(
+            "policy_decision_id",
+            self.policy_decision_id,
+            prefix="operations-policy-decision:",
+        )
+        _require_sha256("content_sha256", self.content_sha256)
+        if self.policy_decision_id != f"operations-policy-decision:{self.content_sha256}":
+            raise ValueError("policy_decision_id must match content_sha256")
+        _require_content_id(
+            "checkpoint_id",
+            self.checkpoint_id,
+            prefix="operations-policy-checkpoint:",
+        )
+        _require_non_negative_int(
+            "checkpoint_update_count",
+            self.checkpoint_update_count,
+        )
+        _require_content_id(
+            "state_snapshot_id",
+            self.state_snapshot_id,
+            prefix="operations-state:",
+        )
+        _require_text(
+            "source_prediction_id",
+            self.source_prediction_id,
+            max_length=512,
+        )
+        if not isinstance(self.mode, OperationsPolicyMode):
+            raise ValueError("mode must be an OperationsPolicyMode")
+        if not isinstance(self.action, OperationsPolicyAction):
+            raise ValueError("action must be an OperationsPolicyAction")
+        _require_text(
+            "recommended_candidate_id",
+            self.recommended_candidate_id,
+            max_length=256,
+        )
+        _require_optional_text(
+            "selected_candidate_id",
+            self.selected_candidate_id,
+            max_length=256,
+        )
+        _require_probability(
+            "intervention_probability",
+            self.intervention_probability,
+        )
+        _require_typed_tuple(
+            "ranked_candidates",
+            self.ranked_candidates,
+            item_type=OperationsRankedCandidate,
+            max_items=32,
+            allow_empty=False,
+        )
+        candidate_ids = tuple(item.candidate_id for item in self.ranked_candidates)
+        _require_unique_ids("ranked_candidates", candidate_ids)
+        if tuple(item.rank for item in self.ranked_candidates) != tuple(
+            range(1, len(self.ranked_candidates) + 1)
+        ):
+            raise ValueError("ranked candidate ranks must be contiguous")
+        if self.recommended_candidate_id != candidate_ids[0]:
+            raise ValueError("recommended candidate must be rank 1")
+        if self.action is OperationsPolicyAction.NOOP and self.selected_candidate_id:
+            raise ValueError("NOOP decisions cannot select a candidate")
+        if self.action is OperationsPolicyAction.INTERVENE:
+            if self.selected_candidate_id != self.recommended_candidate_id:
+                raise ValueError("INTERVENE decisions must select the recommendation")
+        _require_string_tuple(
+            "rationale_codes",
+            self.rationale_codes,
+            max_items=16,
+            item_max_length=256,
+            allow_empty=False,
+        )
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        checkpoint_id: str,
+        checkpoint_update_count: int,
+        state_snapshot_id: str,
+        source_prediction_id: str,
+        mode: OperationsPolicyMode,
+        action: OperationsPolicyAction,
+        recommended_candidate_id: str,
+        selected_candidate_id: str,
+        intervention_probability: float,
+        ranked_candidates: tuple[OperationsRankedCandidate, ...],
+        rationale_codes: tuple[str, ...],
+    ) -> "OperationsPolicyDecision":
+        core = {
+            "schema_version": OPERATIONS_POLICY_DECISION_SCHEMA_VERSION,
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_update_count": checkpoint_update_count,
+            "state_snapshot_id": state_snapshot_id,
+            "source_prediction_id": source_prediction_id,
+            "mode": mode.value,
+            "action": action.value,
+            "recommended_candidate_id": recommended_candidate_id,
+            "selected_candidate_id": selected_candidate_id,
+            "intervention_probability": intervention_probability,
+            "ranked_candidates": [item.to_json() for item in ranked_candidates],
+            "rationale_codes": list(rationale_codes),
+        }
+        digest = stable_content_sha256(core)
+        return cls(
+            policy_decision_id=f"operations-policy-decision:{digest}",
+            content_sha256=digest,
+            checkpoint_id=checkpoint_id,
+            checkpoint_update_count=checkpoint_update_count,
+            state_snapshot_id=state_snapshot_id,
+            source_prediction_id=source_prediction_id,
+            mode=mode,
+            action=action,
+            recommended_candidate_id=recommended_candidate_id,
+            selected_candidate_id=selected_candidate_id,
+            intervention_probability=intervention_probability,
+            ranked_candidates=ranked_candidates,
+            rationale_codes=rationale_codes,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsPolicyDecision":
+        fields = frozenset(
+            {
+                "schema_version",
+                "policy_decision_id",
+                "content_sha256",
+                "checkpoint_id",
+                "checkpoint_update_count",
+                "state_snapshot_id",
+                "source_prediction_id",
+                "mode",
+                "action",
+                "recommended_candidate_id",
+                "selected_candidate_id",
+                "intervention_probability",
+                "ranked_candidates",
+                "rationale_codes",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        if payload["schema_version"] != OPERATIONS_POLICY_DECISION_SCHEMA_VERSION:
+            raise ValueError("unsupported Operations policy decision schema")
+        decision = cls(
+            policy_decision_id=payload["policy_decision_id"],
+            content_sha256=payload["content_sha256"],
+            checkpoint_id=payload["checkpoint_id"],
+            checkpoint_update_count=payload["checkpoint_update_count"],
+            state_snapshot_id=payload["state_snapshot_id"],
+            source_prediction_id=payload["source_prediction_id"],
+            mode=_closed_enum(OperationsPolicyMode, "mode", payload["mode"]),
+            action=_closed_enum(
+                OperationsPolicyAction,
+                "action",
+                payload["action"],
+            ),
+            recommended_candidate_id=payload["recommended_candidate_id"],
+            selected_candidate_id=payload["selected_candidate_id"],
+            intervention_probability=payload["intervention_probability"],
+            ranked_candidates=tuple(
+                OperationsRankedCandidate.from_json(
+                    _mapping("ranked_candidates[]", item)
+                )
+                for item in _array(
+                    "ranked_candidates",
+                    payload["ranked_candidates"],
+                )
+            ),
+            rationale_codes=tuple(
+                _array("rationale_codes", payload["rationale_codes"])
+            ),
+        )
+        core = decision.to_json()
+        core.pop("policy_decision_id")
+        core.pop("content_sha256")
+        if stable_content_sha256(core) != decision.content_sha256:
+            raise ValueError("Operations policy decision digest mismatch")
+        return decision
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": OPERATIONS_POLICY_DECISION_SCHEMA_VERSION,
+            "policy_decision_id": self.policy_decision_id,
+            "content_sha256": self.content_sha256,
+            "checkpoint_id": self.checkpoint_id,
+            "checkpoint_update_count": self.checkpoint_update_count,
+            "state_snapshot_id": self.state_snapshot_id,
+            "source_prediction_id": self.source_prediction_id,
+            "mode": self.mode.value,
+            "action": self.action.value,
+            "recommended_candidate_id": self.recommended_candidate_id,
+            "selected_candidate_id": self.selected_candidate_id,
+            "intervention_probability": float(self.intervention_probability),
+            "ranked_candidates": [item.to_json() for item in self.ranked_candidates],
+            "rationale_codes": list(self.rationale_codes),
+        }
+
+
+@dataclass(frozen=True)
+class OperationsPolicyCredit:
+    credit_id: str
+    content_sha256: str
+    policy_decision_id: str
+    selection_id: str
+    candidate_id: str
+    environment_outcome_id: str
+    prediction_id: str
+    signed_prediction_error: float
+    source_credit_record_ids: tuple[str, ...]
+    observed_at_ms: int
+
+    def __post_init__(self) -> None:
+        _require_content_id(
+            "credit_id",
+            self.credit_id,
+            prefix="operations-policy-credit:",
+        )
+        _require_sha256("content_sha256", self.content_sha256)
+        if self.credit_id != f"operations-policy-credit:{self.content_sha256}":
+            raise ValueError("credit_id must match content_sha256")
+        _require_content_id(
+            "policy_decision_id",
+            self.policy_decision_id,
+            prefix="operations-policy-decision:",
+        )
+        for name, value in (
+            ("selection_id", self.selection_id),
+            ("candidate_id", self.candidate_id),
+            ("environment_outcome_id", self.environment_outcome_id),
+            ("prediction_id", self.prediction_id),
+        ):
+            _require_text(name, value, max_length=512)
+        value = _require_numeric(
+            "signed_prediction_error",
+            self.signed_prediction_error,
+        )
+        if not -1.0 <= value <= 1.0:
+            raise ValueError("signed_prediction_error must be in [-1, 1]")
+        _require_string_tuple(
+            "source_credit_record_ids",
+            self.source_credit_record_ids,
+            max_items=8,
+            item_max_length=256,
+            allow_empty=False,
+        )
+        if len(self.source_credit_record_ids) != 4:
+            raise ValueError("Operations policy credit requires all four PE credits")
+        _require_non_negative_int("observed_at_ms", self.observed_at_ms)
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        policy_decision_id: str,
+        selection_id: str,
+        candidate_id: str,
+        environment_outcome_id: str,
+        prediction_id: str,
+        signed_prediction_error: float,
+        source_credit_record_ids: tuple[str, ...],
+        observed_at_ms: int,
+    ) -> "OperationsPolicyCredit":
+        core = {
+            "schema_version": OPERATIONS_POLICY_CREDIT_SCHEMA_VERSION,
+            "policy_decision_id": policy_decision_id,
+            "selection_id": selection_id,
+            "candidate_id": candidate_id,
+            "environment_outcome_id": environment_outcome_id,
+            "prediction_id": prediction_id,
+            "signed_prediction_error": signed_prediction_error,
+            "source_credit_record_ids": list(source_credit_record_ids),
+            "observed_at_ms": observed_at_ms,
+        }
+        digest = stable_content_sha256(core)
+        return cls(
+            credit_id=f"operations-policy-credit:{digest}",
+            content_sha256=digest,
+            policy_decision_id=policy_decision_id,
+            selection_id=selection_id,
+            candidate_id=candidate_id,
+            environment_outcome_id=environment_outcome_id,
+            prediction_id=prediction_id,
+            signed_prediction_error=signed_prediction_error,
+            source_credit_record_ids=source_credit_record_ids,
+            observed_at_ms=observed_at_ms,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsPolicyCredit":
+        fields = frozenset(
+            {
+                "schema_version",
+                "credit_id",
+                "content_sha256",
+                "policy_decision_id",
+                "selection_id",
+                "candidate_id",
+                "environment_outcome_id",
+                "prediction_id",
+                "signed_prediction_error",
+                "source_credit_record_ids",
+                "observed_at_ms",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        if payload["schema_version"] != OPERATIONS_POLICY_CREDIT_SCHEMA_VERSION:
+            raise ValueError("unsupported Operations policy credit schema")
+        credit = cls(
+            credit_id=payload["credit_id"],
+            content_sha256=payload["content_sha256"],
+            policy_decision_id=payload["policy_decision_id"],
+            selection_id=payload["selection_id"],
+            candidate_id=payload["candidate_id"],
+            environment_outcome_id=payload["environment_outcome_id"],
+            prediction_id=payload["prediction_id"],
+            signed_prediction_error=payload["signed_prediction_error"],
+            source_credit_record_ids=tuple(
+                _array(
+                    "source_credit_record_ids",
+                    payload["source_credit_record_ids"],
+                )
+            ),
+            observed_at_ms=payload["observed_at_ms"],
+        )
+        core = credit.to_json()
+        core.pop("credit_id")
+        core.pop("content_sha256")
+        if stable_content_sha256(core) != credit.content_sha256:
+            raise ValueError("Operations policy credit digest mismatch")
+        return credit
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": OPERATIONS_POLICY_CREDIT_SCHEMA_VERSION,
+            "credit_id": self.credit_id,
+            "content_sha256": self.content_sha256,
+            "policy_decision_id": self.policy_decision_id,
+            "selection_id": self.selection_id,
+            "candidate_id": self.candidate_id,
+            "environment_outcome_id": self.environment_outcome_id,
+            "prediction_id": self.prediction_id,
+            "signed_prediction_error": float(self.signed_prediction_error),
+            "source_credit_record_ids": list(self.source_credit_record_ids),
+            "observed_at_ms": self.observed_at_ms,
+        }
+
+
+@dataclass(frozen=True)
+class OperationsPolicyUpdateReceipt:
+    update_id: str
+    content_sha256: str
+    credit_id: str
+    policy_decision_id: str
+    candidate_id: str
+    previous_checkpoint_id: str
+    next_checkpoint_id: str
+    parameter_delta_l2: float
+    update_count: int
+
+    def __post_init__(self) -> None:
+        _require_content_id(
+            "update_id",
+            self.update_id,
+            prefix="operations-policy-update:",
+        )
+        _require_sha256("content_sha256", self.content_sha256)
+        if self.update_id != f"operations-policy-update:{self.content_sha256}":
+            raise ValueError("update_id must match content_sha256")
+        _require_content_id(
+            "credit_id",
+            self.credit_id,
+            prefix="operations-policy-credit:",
+        )
+        _require_content_id(
+            "policy_decision_id",
+            self.policy_decision_id,
+            prefix="operations-policy-decision:",
+        )
+        _require_text("candidate_id", self.candidate_id, max_length=256)
+        for name, value in (
+            ("previous_checkpoint_id", self.previous_checkpoint_id),
+            ("next_checkpoint_id", self.next_checkpoint_id),
+        ):
+            _require_content_id(
+                name,
+                value,
+                prefix="operations-policy-checkpoint:",
+            )
+        delta = _require_numeric("parameter_delta_l2", self.parameter_delta_l2)
+        if delta < 0.0:
+            raise ValueError("parameter_delta_l2 must be non-negative")
+        count = _require_non_negative_int("update_count", self.update_count)
+        if count < 1:
+            raise ValueError("update_count must be positive")
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        credit_id: str,
+        policy_decision_id: str,
+        candidate_id: str,
+        previous_checkpoint_id: str,
+        next_checkpoint_id: str,
+        parameter_delta_l2: float,
+        update_count: int,
+    ) -> "OperationsPolicyUpdateReceipt":
+        core = {
+            "schema_version": OPERATIONS_POLICY_UPDATE_SCHEMA_VERSION,
+            "credit_id": credit_id,
+            "policy_decision_id": policy_decision_id,
+            "candidate_id": candidate_id,
+            "previous_checkpoint_id": previous_checkpoint_id,
+            "next_checkpoint_id": next_checkpoint_id,
+            "parameter_delta_l2": parameter_delta_l2,
+            "update_count": update_count,
+        }
+        digest = stable_content_sha256(core)
+        return cls(
+            update_id=f"operations-policy-update:{digest}",
+            content_sha256=digest,
+            credit_id=credit_id,
+            policy_decision_id=policy_decision_id,
+            candidate_id=candidate_id,
+            previous_checkpoint_id=previous_checkpoint_id,
+            next_checkpoint_id=next_checkpoint_id,
+            parameter_delta_l2=parameter_delta_l2,
+            update_count=update_count,
+        )
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "OperationsPolicyUpdateReceipt":
+        fields = frozenset(
+            {
+                "schema_version",
+                "update_id",
+                "content_sha256",
+                "credit_id",
+                "policy_decision_id",
+                "candidate_id",
+                "previous_checkpoint_id",
+                "next_checkpoint_id",
+                "parameter_delta_l2",
+                "update_count",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields)
+        if payload["schema_version"] != OPERATIONS_POLICY_UPDATE_SCHEMA_VERSION:
+            raise ValueError("unsupported Operations policy update schema")
+        receipt = cls(
+            update_id=payload["update_id"],
+            content_sha256=payload["content_sha256"],
+            credit_id=payload["credit_id"],
+            policy_decision_id=payload["policy_decision_id"],
+            candidate_id=payload["candidate_id"],
+            previous_checkpoint_id=payload["previous_checkpoint_id"],
+            next_checkpoint_id=payload["next_checkpoint_id"],
+            parameter_delta_l2=payload["parameter_delta_l2"],
+            update_count=payload["update_count"],
+        )
+        core = receipt.to_json()
+        core.pop("update_id")
+        core.pop("content_sha256")
+        if stable_content_sha256(core) != receipt.content_sha256:
+            raise ValueError("Operations policy update digest mismatch")
+        return receipt
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": OPERATIONS_POLICY_UPDATE_SCHEMA_VERSION,
+            "update_id": self.update_id,
+            "content_sha256": self.content_sha256,
+            "credit_id": self.credit_id,
+            "policy_decision_id": self.policy_decision_id,
+            "candidate_id": self.candidate_id,
+            "previous_checkpoint_id": self.previous_checkpoint_id,
+            "next_checkpoint_id": self.next_checkpoint_id,
+            "parameter_delta_l2": float(self.parameter_delta_l2),
+            "update_count": self.update_count,
+        }
+
+
+@dataclass(frozen=True)
 class OperationsAdviceSnapshot:
     advice_id: str
     source_turn_index: int
@@ -1107,6 +2672,8 @@ class OperationsAdviceSnapshot:
     candidate_abstract_action: str
     candidates: tuple[OperationsAdviceCandidate, ...]
     rationale: str
+    policy_decision: OperationsPolicyDecision | None = None
+    activation_receipt_id: str = ""
     wiring_level: WiringLevel = WiringLevel.SHADOW
     applied: bool = False
 
@@ -1127,12 +2694,36 @@ class OperationsAdviceSnapshot:
         )
         _require_unique_ids("candidates", tuple(item.candidate_id for item in self.candidates))
         _require_text("rationale", self.rationale, max_length=2_000)
-        if self.wiring_level is not WiringLevel.SHADOW:
-            raise ValueError("Operations advice must remain WiringLevel.SHADOW")
+        if self.policy_decision is not None:
+            if not isinstance(self.policy_decision, OperationsPolicyDecision):
+                raise ValueError(
+                    "policy_decision must be an OperationsPolicyDecision"
+                )
+            if not self.candidates:
+                raise ValueError("v2 policy advice must contain candidates")
+            if tuple(item.candidate_id for item in self.candidates) != tuple(
+                item.candidate_id
+                for item in self.policy_decision.ranked_candidates
+            ):
+                raise ValueError(
+                    "advice candidates must match policy ranking order"
+                )
+        if self.wiring_level not in {WiringLevel.SHADOW, WiringLevel.ACTIVE}:
+            raise ValueError("Operations advice must be SHADOW or ACTIVE")
+        if self.wiring_level is WiringLevel.ACTIVE:
+            if self.policy_decision is None:
+                raise ValueError("ACTIVE Operations advice requires a policy decision")
+            _require_content_id(
+                "activation_receipt_id",
+                self.activation_receipt_id,
+                prefix="operations-policy-activation:",
+            )
+        elif self.activation_receipt_id:
+            raise ValueError("SHADOW advice cannot carry an activation receipt")
         if not isinstance(self.applied, bool):
             raise ValueError("applied must be a boolean")
         if self.applied:
-            raise ValueError("SHADOW Operations advice cannot be applied")
+            raise ValueError("Operations advice publication cannot claim applied")
 
     @classmethod
     def from_json(cls, payload: Mapping[str, object]) -> "OperationsAdviceSnapshot":
@@ -1145,13 +2736,32 @@ class OperationsAdviceSnapshot:
                 "candidate_abstract_action",
                 "candidates",
                 "rationale",
+                "policy_decision",
+                "activation_receipt_id",
                 "wiring_level",
                 "applied",
             }
         )
-        _strict_payload(payload, allowed=fields, required=fields)
-        if payload["schema_version"] != ADVICE_SCHEMA_VERSION:
-            raise ValueError(f"schema_version must be {ADVICE_SCHEMA_VERSION!r}")
+        _strict_payload(
+            payload,
+            allowed=fields,
+            required=fields - {"policy_decision", "activation_receipt_id"},
+        )
+        schema_version = payload["schema_version"]
+        if schema_version not in {ADVICE_SCHEMA_VERSION, ADVICE_V2_SCHEMA_VERSION}:
+            raise ValueError("unsupported Operations advice schema")
+        if schema_version == ADVICE_SCHEMA_VERSION and {
+            "policy_decision",
+            "activation_receipt_id",
+        } & set(payload):
+            raise ValueError("policy activation fields require operations-advice.v2")
+        if schema_version == ADVICE_V2_SCHEMA_VERSION and not {
+            "policy_decision",
+            "activation_receipt_id",
+        }.issubset(payload):
+            raise ValueError(
+                "operations-advice.v2 requires policy_decision and activation_receipt_id"
+            )
         return cls(
             advice_id=payload["advice_id"],
             source_turn_index=payload["source_turn_index"],
@@ -1162,13 +2772,25 @@ class OperationsAdviceSnapshot:
                 for item in _array("candidates", payload["candidates"])
             ),
             rationale=payload["rationale"],
+            policy_decision=(
+                OperationsPolicyDecision.from_json(
+                    _mapping("policy_decision", payload["policy_decision"])
+                )
+                if "policy_decision" in payload
+                else None
+            ),
+            activation_receipt_id=payload.get("activation_receipt_id", ""),
             wiring_level=_closed_enum(WiringLevel, "wiring_level", payload["wiring_level"]),
             applied=payload["applied"],
         )
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "schema_version": ADVICE_SCHEMA_VERSION,
+        payload = {
+            "schema_version": (
+                ADVICE_V2_SCHEMA_VERSION
+                if self.policy_decision is not None
+                else ADVICE_SCHEMA_VERSION
+            ),
             "advice_id": self.advice_id,
             "source_turn_index": self.source_turn_index,
             "candidate_regime_id": self.candidate_regime_id,
@@ -1178,6 +2800,10 @@ class OperationsAdviceSnapshot:
             "wiring_level": self.wiring_level.value,
             "applied": self.applied,
         }
+        if self.policy_decision is not None:
+            payload["policy_decision"] = self.policy_decision.to_json()
+            payload["activation_receipt_id"] = self.activation_receipt_id
+        return payload
 
 
 @dataclass(frozen=True)
@@ -1404,6 +3030,14 @@ class OperationsOutcomeReport:
     observed_at_ms: int
     evidence_refs: tuple[OperationsEvidenceRef, ...]
     execution_outcome: OperationsExecutionOutcome
+    source_advice_id: str = ""
+    policy_decision_id: str = ""
+    selection_id: str = ""
+    selected_candidate_id: str = ""
+    activation_receipt_id: str = ""
+    selection_wiring_level: WiringLevel = WiringLevel.SHADOW
+    policy_action_applied: bool = False
+    candidate_applied: bool = False
 
     def __post_init__(self) -> None:
         _require_text("outcome_id", self.outcome_id, max_length=256)
@@ -1441,6 +3075,71 @@ class OperationsOutcomeReport:
             raise ValueError("all outcome evidence refs must match evidence_class")
         if not isinstance(self.execution_outcome, OperationsExecutionOutcome):
             raise ValueError("execution_outcome must be an OperationsExecutionOutcome")
+        lineage_values = (
+            self.source_advice_id,
+            self.policy_decision_id,
+            self.selection_id,
+        )
+        if any(lineage_values) and not all(lineage_values):
+            raise ValueError("v2 selection lineage must be complete")
+        if self.source_advice_id:
+            _require_content_id(
+                "source_advice_id",
+                self.source_advice_id,
+                prefix="operations-advice:",
+            )
+            _require_content_id(
+                "policy_decision_id",
+                self.policy_decision_id,
+                prefix="operations-policy-decision:",
+            )
+            _require_text("selection_id", self.selection_id, max_length=512)
+            _require_optional_text(
+                "selected_candidate_id",
+                self.selected_candidate_id,
+                max_length=256,
+            )
+        elif (
+            self.selected_candidate_id
+            or self.activation_receipt_id
+            or self.selection_wiring_level is WiringLevel.ACTIVE
+            or self.policy_action_applied
+            or self.candidate_applied
+        ):
+            raise ValueError("policy selection fields require v2 selection lineage")
+        if self.selection_wiring_level not in {
+            WiringLevel.SHADOW,
+            WiringLevel.ACTIVE,
+        }:
+            raise ValueError("selection_wiring_level must be SHADOW or ACTIVE")
+        if self.selection_wiring_level is WiringLevel.ACTIVE:
+            _require_content_id(
+                "activation_receipt_id",
+                self.activation_receipt_id,
+                prefix="operations-policy-activation:",
+            )
+        elif self.activation_receipt_id:
+            raise ValueError("SHADOW selection cannot carry activation_receipt_id")
+        if not isinstance(self.policy_action_applied, bool):
+            raise ValueError("policy_action_applied must be a boolean")
+        if (
+            self.policy_action_applied
+            and self.selection_wiring_level is not WiringLevel.ACTIVE
+        ):
+            raise ValueError("policy_action_applied requires ACTIVE selection wiring")
+        if not isinstance(self.candidate_applied, bool):
+            raise ValueError("candidate_applied must be a boolean")
+        if self.selected_candidate_id and not self.candidate_applied:
+            raise ValueError("selected_candidate_id requires candidate_applied")
+        if self.candidate_applied:
+            if not self.selected_candidate_id:
+                raise ValueError("candidate_applied requires selected_candidate_id")
+            if self.selection_wiring_level is not WiringLevel.ACTIVE:
+                raise ValueError("candidate_applied requires ACTIVE selection wiring")
+            if not self.policy_action_applied:
+                raise ValueError(
+                    "candidate_applied requires policy_action_applied"
+                )
         known_refs = {reference.ref_id for reference in self.evidence_refs}
         metric_refs = {
             reference_id
@@ -1576,11 +3275,39 @@ class OperationsOutcomeReport:
                 "observed_at_ms",
                 "evidence_refs",
                 "execution_outcome",
+                "source_advice_id",
+                "policy_decision_id",
+                "selection_id",
+                "selected_candidate_id",
+                "selection_wiring_level",
+                "activation_receipt_id",
+                "policy_action_applied",
+                "candidate_applied",
             }
         )
-        _strict_payload(payload, allowed=fields, required=fields)
-        if payload["schema_version"] != OUTCOME_REPORT_SCHEMA_VERSION:
-            raise ValueError(f"schema_version must be {OUTCOME_REPORT_SCHEMA_VERSION!r}")
+        v2_fields = frozenset(
+            {
+                "source_advice_id",
+                "policy_decision_id",
+                "selection_id",
+                "selected_candidate_id",
+                "selection_wiring_level",
+                "activation_receipt_id",
+                "policy_action_applied",
+                "candidate_applied",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields - v2_fields)
+        schema_version = payload["schema_version"]
+        if schema_version not in {
+            OUTCOME_REPORT_SCHEMA_VERSION,
+            OUTCOME_REPORT_V2_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Operations Outcome Report schema")
+        if schema_version == OUTCOME_REPORT_SCHEMA_VERSION and set(payload) & v2_fields:
+            raise ValueError("selection lineage requires operations-outcome-report.v2")
+        if schema_version == OUTCOME_REPORT_V2_SCHEMA_VERSION and not v2_fields.issubset(payload):
+            raise ValueError("operations-outcome-report.v2 requires selection lineage")
         evidence_refs = tuple(
             OperationsEvidenceRef.from_json(_mapping("evidence_refs[]", item))
             for item in _array("evidence_refs", payload["evidence_refs"])
@@ -1605,11 +3332,31 @@ class OperationsOutcomeReport:
             execution_outcome=OperationsExecutionOutcome.from_json(
                 _mapping("execution_outcome", payload["execution_outcome"])
             ),
+            source_advice_id=payload.get("source_advice_id", ""),
+            policy_decision_id=payload.get("policy_decision_id", ""),
+            selection_id=payload.get("selection_id", ""),
+            selected_candidate_id=payload.get("selected_candidate_id", ""),
+            selection_wiring_level=(
+                _closed_enum(
+                    WiringLevel,
+                    "selection_wiring_level",
+                    payload["selection_wiring_level"],
+                )
+                if "selection_wiring_level" in payload
+                else WiringLevel.SHADOW
+            ),
+            activation_receipt_id=payload.get("activation_receipt_id", ""),
+            policy_action_applied=payload.get("policy_action_applied", False),
+            candidate_applied=payload.get("candidate_applied", False),
         )
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "schema_version": OUTCOME_REPORT_SCHEMA_VERSION,
+        payload = {
+            "schema_version": (
+                OUTCOME_REPORT_V2_SCHEMA_VERSION
+                if self.source_advice_id
+                else OUTCOME_REPORT_SCHEMA_VERSION
+            ),
             "outcome_id": self.outcome_id,
             "context_pack_id": self.context_pack_id,
             "decision_id": self.decision_id,
@@ -1624,6 +3371,20 @@ class OperationsOutcomeReport:
             "evidence_refs": [reference.to_json() for reference in self.evidence_refs],
             "execution_outcome": self.execution_outcome.to_json(),
         }
+        if self.source_advice_id:
+            payload.update(
+                {
+                    "source_advice_id": self.source_advice_id,
+                    "policy_decision_id": self.policy_decision_id,
+                    "selection_id": self.selection_id,
+                    "selected_candidate_id": self.selected_candidate_id,
+                    "selection_wiring_level": self.selection_wiring_level.value,
+                    "activation_receipt_id": self.activation_receipt_id,
+                    "policy_action_applied": self.policy_action_applied,
+                    "candidate_applied": self.candidate_applied,
+                }
+            )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -1714,6 +3475,8 @@ class OperationsContextPackSnapshot:
     pe_magnitude: float
     pe_bootstrap: bool
     advice: OperationsAdviceSnapshot
+    settled_policy_credits: tuple[OperationsPolicyCredit, ...] = ()
+    policy_updates: tuple[OperationsPolicyUpdateReceipt, ...] = ()
     wiring_level: WiringLevel = WiringLevel.ACTIVE
 
     def __post_init__(self) -> None:
@@ -1781,6 +3544,36 @@ class OperationsContextPackSnapshot:
             raise ValueError("pe_bootstrap must be a boolean")
         if not isinstance(self.advice, OperationsAdviceSnapshot):
             raise ValueError("advice must be an OperationsAdviceSnapshot")
+        _require_typed_tuple(
+            "settled_policy_credits",
+            self.settled_policy_credits,
+            item_type=OperationsPolicyCredit,
+            max_items=4,
+        )
+        _require_typed_tuple(
+            "policy_updates",
+            self.policy_updates,
+            item_type=OperationsPolicyUpdateReceipt,
+            max_items=4,
+        )
+        if len(self.settled_policy_credits) != len(self.policy_updates):
+            raise ValueError("policy credit/update counts must match")
+        for credit, update in zip(
+            self.settled_policy_credits,
+            self.policy_updates,
+            strict=True,
+        ):
+            if update.credit_id != credit.credit_id:
+                raise ValueError("policy update credit lineage mismatch")
+            if credit.environment_outcome_id not in self.settled_outcome_ids:
+                raise ValueError("policy credit must reference a settled outcome")
+        if self.request.operations_state is None:
+            if self.advice.policy_decision is not None:
+                raise ValueError("v1 Context Pack cannot publish policy advice")
+            if self.settled_policy_credits or self.policy_updates:
+                raise ValueError("v1 Context Pack cannot publish policy settlement")
+        elif self.advice.policy_decision is None:
+            raise ValueError("v2 Context Pack requires policy advice")
         if self.wiring_level is not WiringLevel.ACTIVE:
             raise ValueError("Operations Context Pack must be WiringLevel.ACTIVE")
 
@@ -1809,12 +3602,23 @@ class OperationsContextPackSnapshot:
                 "pe_magnitude",
                 "pe_bootstrap",
                 "advice",
+                "settled_policy_credits",
+                "policy_updates",
                 "wiring_level",
             }
         )
-        _strict_payload(payload, allowed=fields, required=fields)
-        if payload["schema_version"] != CONTEXT_PACK_SCHEMA_VERSION:
-            raise ValueError(f"schema_version must be {CONTEXT_PACK_SCHEMA_VERSION!r}")
+        v2_fields = frozenset({"settled_policy_credits", "policy_updates"})
+        _strict_payload(payload, allowed=fields, required=fields - v2_fields)
+        schema_version = payload["schema_version"]
+        if schema_version not in {
+            CONTEXT_PACK_SCHEMA_VERSION,
+            CONTEXT_PACK_V2_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Operations Context Pack schema")
+        if schema_version == CONTEXT_PACK_SCHEMA_VERSION and set(payload) & v2_fields:
+            raise ValueError("policy settlement fields require Context Pack v2")
+        if schema_version == CONTEXT_PACK_V2_SCHEMA_VERSION and not v2_fields.issubset(payload):
+            raise ValueError("Context Pack v2 requires policy settlement fields")
         snapshot = cls(
             context_pack_id=payload["context_pack_id"],
             content_sha256=payload["content_sha256"],
@@ -1842,8 +3646,31 @@ class OperationsContextPackSnapshot:
             pe_magnitude=payload["pe_magnitude"],
             pe_bootstrap=payload["pe_bootstrap"],
             advice=OperationsAdviceSnapshot.from_json(_mapping("advice", payload["advice"])),
+            settled_policy_credits=tuple(
+                OperationsPolicyCredit.from_json(
+                    _mapping("settled_policy_credits[]", item)
+                )
+                for item in _array(
+                    "settled_policy_credits",
+                    payload.get("settled_policy_credits", ()),
+                )
+            ),
+            policy_updates=tuple(
+                OperationsPolicyUpdateReceipt.from_json(
+                    _mapping("policy_updates[]", item)
+                )
+                for item in _array(
+                    "policy_updates",
+                    payload.get("policy_updates", ()),
+                )
+            ),
             wiring_level=_closed_enum(WiringLevel, "wiring_level", payload["wiring_level"]),
         )
+        is_v2 = snapshot.request.operations_state is not None
+        if is_v2 != (schema_version == CONTEXT_PACK_V2_SCHEMA_VERSION):
+            raise ValueError("Operations Context Pack/request schema versions drift")
+        if is_v2 != (snapshot.advice.policy_decision is not None):
+            raise ValueError("Operations Context Pack v2 requires policy advice")
         digest_payload = snapshot.to_json()
         digest_payload.pop("context_pack_id")
         digest_payload.pop("content_sha256")
@@ -1852,8 +3679,12 @@ class OperationsContextPackSnapshot:
         return snapshot
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "schema_version": CONTEXT_PACK_SCHEMA_VERSION,
+        payload = {
+            "schema_version": (
+                CONTEXT_PACK_V2_SCHEMA_VERSION
+                if self.request.operations_state is not None
+                else CONTEXT_PACK_SCHEMA_VERSION
+            ),
             "context_pack_id": self.context_pack_id,
             "content_sha256": self.content_sha256,
             "session_id": self.session_id,
@@ -1876,6 +3707,14 @@ class OperationsContextPackSnapshot:
             "advice": self.advice.to_json(),
             "wiring_level": self.wiring_level.value,
         }
+        if self.request.operations_state is not None:
+            payload["settled_policy_credits"] = [
+                item.to_json() for item in self.settled_policy_credits
+            ]
+            payload["policy_updates"] = [
+                item.to_json() for item in self.policy_updates
+            ]
+        return payload
 
 
 @dataclass(frozen=True)
@@ -1899,6 +3738,9 @@ class OperationsOutcomeReceipt:
     environment_outcome_id: str
     learning_route: OperationsOutcomeRoute
     settlement_state: OperationsSettlementState
+    source_policy_decision_id: str = ""
+    selection_id: str = ""
+    selected_candidate_id: str = ""
 
     def __post_init__(self) -> None:
         _require_content_id(
@@ -1936,8 +3778,28 @@ class OperationsOutcomeReceipt:
         _require_non_negative_int("action_turn_index", self.action_turn_index)
         if not isinstance(self.source_advice_applied, bool):
             raise ValueError("source_advice_applied must be a boolean")
-        if self.source_advice_applied:
-            raise ValueError("Operations v1 receipts cannot claim SHADOW advice was applied")
+        if self.report.source_advice_id:
+            if self.source_advice_id != self.report.source_advice_id:
+                raise ValueError("receipt/report source_advice_id mismatch")
+            if self.source_policy_decision_id != self.report.policy_decision_id:
+                raise ValueError("receipt/report policy_decision_id mismatch")
+            if self.selection_id != self.report.selection_id:
+                raise ValueError("receipt/report selection_id mismatch")
+            if self.selected_candidate_id != self.report.selected_candidate_id:
+                raise ValueError("receipt/report selected_candidate_id mismatch")
+            if (
+                self.source_advice_applied
+                is not self.report.policy_action_applied
+            ):
+                raise ValueError("receipt/report policy_action_applied mismatch")
+        elif any(
+            (
+                self.source_policy_decision_id,
+                self.selection_id,
+                self.selected_candidate_id,
+            )
+        ) or self.source_advice_applied:
+            raise ValueError("v1 receipts cannot claim policy selection lineage")
         if not isinstance(self.memory_persisted, bool):
             raise ValueError("memory_persisted must be a boolean")
         _require_string_tuple(
@@ -1993,11 +3855,29 @@ class OperationsOutcomeReceipt:
                 "environment_outcome_id",
                 "learning_route",
                 "settlement_state",
+                "source_policy_decision_id",
+                "selection_id",
+                "selected_candidate_id",
             }
         )
-        _strict_payload(payload, allowed=fields, required=fields)
-        if payload["schema_version"] != OUTCOME_RECEIPT_SCHEMA_VERSION:
-            raise ValueError(f"schema_version must be {OUTCOME_RECEIPT_SCHEMA_VERSION!r}")
+        v2_fields = frozenset(
+            {
+                "source_policy_decision_id",
+                "selection_id",
+                "selected_candidate_id",
+            }
+        )
+        _strict_payload(payload, allowed=fields, required=fields - v2_fields)
+        schema_version = payload["schema_version"]
+        if schema_version not in {
+            OUTCOME_RECEIPT_SCHEMA_VERSION,
+            OUTCOME_RECEIPT_V2_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Operations Outcome Receipt schema")
+        if schema_version == OUTCOME_RECEIPT_SCHEMA_VERSION and set(payload) & v2_fields:
+            raise ValueError("policy lineage requires operations-outcome-receipt.v2")
+        if schema_version == OUTCOME_RECEIPT_V2_SCHEMA_VERSION and not v2_fields.issubset(payload):
+            raise ValueError("operations-outcome-receipt.v2 requires policy lineage")
         receipt = cls(
             receipt_id=payload["receipt_id"],
             content_sha256=payload["content_sha256"],
@@ -2026,6 +3906,12 @@ class OperationsOutcomeReceipt:
                 "settlement_state",
                 payload["settlement_state"],
             ),
+            source_policy_decision_id=payload.get(
+                "source_policy_decision_id",
+                "",
+            ),
+            selection_id=payload.get("selection_id", ""),
+            selected_candidate_id=payload.get("selected_candidate_id", ""),
         )
         digest_payload = receipt.to_json()
         digest_payload.pop("receipt_id")
@@ -2035,8 +3921,12 @@ class OperationsOutcomeReceipt:
         return receipt
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "schema_version": OUTCOME_RECEIPT_SCHEMA_VERSION,
+        payload = {
+            "schema_version": (
+                OUTCOME_RECEIPT_V2_SCHEMA_VERSION
+                if self.source_policy_decision_id
+                else OUTCOME_RECEIPT_SCHEMA_VERSION
+            ),
             "receipt_id": self.receipt_id,
             "content_sha256": self.content_sha256,
             "session_id": self.session_id,
@@ -2057,15 +3947,30 @@ class OperationsOutcomeReceipt:
             "learning_route": self.learning_route.value,
             "settlement_state": self.settlement_state.value,
         }
+        if self.source_policy_decision_id:
+            payload.update(
+                {
+                    "source_policy_decision_id": self.source_policy_decision_id,
+                    "selection_id": self.selection_id,
+                    "selected_candidate_id": self.selected_candidate_id,
+                }
+            )
+        return payload
 
 
 __all__ = (
     "ADVICE_SCHEMA_VERSION",
+    "ADVICE_V2_SCHEMA_VERSION",
     "CONTEXT_PACK_SCHEMA_VERSION",
+    "CONTEXT_PACK_V2_SCHEMA_VERSION",
     "CONTEXT_REQUEST_SCHEMA_VERSION",
+    "CONTEXT_REQUEST_V2_SCHEMA_VERSION",
     "EXPERIENCE_RECORD_SCHEMA_VERSION",
     "OUTCOME_RECEIPT_SCHEMA_VERSION",
+    "OUTCOME_RECEIPT_V2_SCHEMA_VERSION",
     "OUTCOME_REPORT_SCHEMA_VERSION",
+    "OUTCOME_REPORT_V2_SCHEMA_VERSION",
+    "OPERATIONS_POLICY_FEATURE_ORDER",
     "OperationsAdviceCandidate",
     "OperationsAdviceKind",
     "OperationsAdviceSnapshot",
@@ -2084,17 +3989,33 @@ __all__ = (
     "OperationsEvidenceRole",
     "OperationsFact",
     "OperationsFactKind",
+    "OperationsGoalState",
+    "OperationsIncidentSeverity",
+    "OperationsIncidentState",
     "OperationsMetricObservation",
     "OperationsOutcomeKind",
     "OperationsOutcomeReceipt",
     "OperationsOutcomeReport",
     "OperationsOutcomeRoute",
     "OperationsOutcomeVerdict",
+    "OperationsPolicyAction",
+    "OperationsPolicyCheckpoint",
+    "OperationsPolicyCredit",
+    "OperationsPolicyDecision",
+    "OperationsPolicyMode",
+    "OperationsPolicyUpdateReceipt",
+    "OperationsRankedCandidate",
+    "OperationsRecentOutcomeState",
     "OperationsRecalledExperience",
     "OperationsOperatingWindow",
     "OperationsReversibility",
     "OperationsRiskLevel",
     "OperationsSettlementState",
+    "OperationsStateSnapshot",
     "OperationsUncertainty",
+    "OperationsDependencyState",
+    "OperationsDivisionState",
+    "OperationsWorkItemState",
+    "OperationsWorkItemStatus",
     "stable_content_sha256",
 )

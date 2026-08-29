@@ -1,9 +1,14 @@
 # lifeform-domain-operations
 
-AutoCompany-facing Operations Brain v1 is a stateful operational-cognition sidecar,
+AutoCompany-facing Operations Brain v1/v2 is a stateful operational-cognition sidecar,
 not a second COO or execution authority. It publishes an ACTIVE memory-first Context
-Pack, a separately marked SHADOW advice snapshot, and accepts only strict,
-AutoCompany-typed work-order outcomes.
+Pack, a non-empty bounded policy surface that is SHADOW by default, and accepts only
+strict AutoCompany-typed work-order outcomes. v2 ranks typed candidates and learns
+intervention timing only from exact Prediction Error credit lineage. Every policy
+decision is bound to an owner-issued source prediction; an outcome earns policy
+credit only when AutoCompany explicitly records that the policy action was applied.
+Rejecting or overriding an ACTIVE suggestion therefore cannot be misattributed to
+the policy.
 
 Stable Python entry points:
 
@@ -32,6 +37,18 @@ receipt, created = await controller.publish_outcome(
 )
 ```
 
+Staging ACTIVE requires both the promoted checkpoint and its exact
+`OperationsPolicyActivationReceipt`; setting ACTIVE without a receipt fails at
+controller construction. The checked evidence bundle is generated with:
+
+```text
+python scripts/run_operations_policy_benchmark.py \
+  --output-dir artifacts/operations_brain/<new-run-id>
+```
+
+The current gate is based on deterministic simulation and is scoped only to
+`autocompany_staging`; it does not change the production SHADOW default.
+
 HTTP projection:
 
 ```text
@@ -48,4 +65,4 @@ individual progress events, judge scores, and advice adoption do not.
 
 See [`docs/specs/operations-brain.md`](../../docs/specs/operations-brain.md) for the
 complete contract, enum matrix, multi-objective outcome shape, adapter sequence,
-rollback, and v1 limitations.
+PE/credit learning path, promotion/rollback, and evidence limitations.
