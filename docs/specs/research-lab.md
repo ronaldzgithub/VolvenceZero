@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.2 architecture freeze；exact-bound aggregation + opt-in A0 operations implemented
+> Status: v1.3 architecture freeze；exact-bound aggregation + local promotion delegation implemented
 > Last updated: 2026-08-29
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -167,12 +167,22 @@ adapter 仍消费 receipt 并执行自身协议。
 | `GET snapshot/task/session` | 已实现；含跨 owner exact promotion graph 与 completed handoff | portal collector/session |
 | `POST a0/review` | 已实现，mutation mode 默认关闭 | `forge research-approve` |
 | `POST reconcile` | 已实现，仅当 fresh snapshot 发布 `reconcile` 动作 | `forge research-reconcile --once --request ...` |
-| scan/import/A1/A2/rollback | 后续收敛包；UI 只能展示 blocker | 对应 Forge owner 尚未接入 portal |
+| `POST candidates/import` | 已实现；只接受 completed run 的 exact Task/Handoff/run id | `forge research-import-praxist` |
+| `POST a1/authorize-shadow` | 已实现；首次或 fresh rollback boundary 的 exact Candidate/Validation/Gate | `forge research-authorize --to-wiring shadow` |
+| `POST a2/authorize-active` | 已实现；要求 fresh Validation/Gate 与 exact previous SHADOW receipt | `forge research-authorize --to-wiring active` |
+| `POST rollback` | 已实现；服务从 current receipt 机械派生唯一相邻降级目标 | `forge research-rollback` |
+| `POST scan` | 后续收敛包；UI 只能展示 scanner readiness | `forge research-scan --once` 尚未接入 portal |
 
 `GET /api/v1/session` 只向同源本地 UI 发布当前进程 CSRF token 和已启用动作。mutation 服务不接受 locator、raw
 argv 或 extra args；客户端只提交 snapshot revision、Task id、artifact id/hash、named actor、reason 与 typed
 decision。服务从 fresh snapshot 反查正式 locator、重算文件 SHA，并在 action 仍可用时构造固定 argv。Forge 自身仍
 二次验证 Request identity、全部 binding bytes、全局 capacity 与 reconcile lock，因此 portal 的预检不替代 owner gate。
+
+Promotion endpoint 同样不接受 path：import 绑定 Task SHA、Handoff SHA 与 run id；A1/A2 绑定 Task/Candidate id+SHA、
+Validation/Gate SHA 以及 nullable/exact previous receipt；rollback 只绑定 current Receipt id+SHA，降级目标由 receipt 的
+`shadow→disabled` 或 `active→shadow` 唯一决定。owner 成功后，Lab 必须重新 collect 并读取新 Candidate/Receipt，核对
+hash chain 后才返回 `current_revision`。`research-authorize` 的合法 `BLOCKED`（CLI exit 2）只有在新负 receipt 精确出现
+时才作为业务结果接受；无新 receipt 的 non-zero 仍是 owner command failure。
 
 ## 7. Local-first deployment
 
@@ -193,10 +203,12 @@ controlled local mode；它只启动 API 与 Web、检查端口和依赖、在�
 1. **Foundation**：冻结 Forge/Praxist pilot 与 control-plane contracts；不含 UI。
 2. **Read-only Lab**：Sites web shell + `ResearchLabSnapshot` collector + local GET API；不含 mutation。
 3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。**已实现。**
-4. **Promotion operations**：candidate/formal/A1/A2/rollback UI；缺 validator/adapter 时只显示 blocker。
+4. **Promotion operations**：candidate import 与 A1/A2/rollback backend 已实现；Web action consumer 待接。缺
+   validator/adapter 时仍只显示 blocker。
 5. **Remote/read-only mirror**：可选；不扩本地控制权限。
 
-根目录 launcher 已实现，但不改变第 4 包仍未接入 owner mutation seam 的事实。
+根目录 launcher 已实现；第 4 包现已接入 Forge mutation seam，但不会生成 formal/gate evidence，也不会替 target
+adapter apply wiring。
 
 每包独立提交、测试和回滚。共享 snapshot shape 先冻结，writer/collector 与 web consumer 分开提交。
 

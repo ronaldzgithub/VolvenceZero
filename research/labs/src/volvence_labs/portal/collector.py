@@ -853,6 +853,11 @@ def _lifecycle(
     if promotion.receipt is not None:
         payload = promotion.receipt.payload
         if payload.get("outcome") == "BLOCKED":
+            if _has_fresh_authorization_evidence(promotion):
+                transition = payload.get("transition")
+                resulting = transition.get("resulting_wiring") if isinstance(transition, Mapping) else None
+                retry_stage = LifecycleStage.AWAITING_A2 if resulting == "shadow" else LifecycleStage.AWAITING_A1
+                return LifecycleSnapshot(retry_stage, None, None, _created_at(promotion.gate.payload))
             reasons = payload.get("blocking_reasons")
             reason = "; ".join(str(value) for value in reasons) if isinstance(reasons, list) else "promotion blocked"
             return LifecycleSnapshot(LifecycleStage.BLOCKED, None, reason, _created_at(payload))
@@ -860,6 +865,13 @@ def _lifecycle(
         action = payload.get("action")
         resulting = transition.get("resulting_wiring") if isinstance(transition, Mapping) else None
         if action == "rollback" and resulting == "disabled":
+            if _has_fresh_authorization_evidence(promotion):
+                return LifecycleSnapshot(
+                    LifecycleStage.AWAITING_A1,
+                    LifecycleStage.SHADOW,
+                    None,
+                    _created_at(promotion.gate.payload),
+                )
             return LifecycleSnapshot(LifecycleStage.ROLLED_BACK, None, None, _created_at(payload))
         if resulting == "active":
             return LifecycleSnapshot(
@@ -869,6 +881,13 @@ def _lifecycle(
                 _created_at(payload),
             )
         if resulting == "shadow":
+            if _has_fresh_authorization_evidence(promotion):
+                return LifecycleSnapshot(
+                    LifecycleStage.AWAITING_A2,
+                    LifecycleStage.ACTIVE,
+                    None,
+                    _created_at(promotion.gate.payload),
+                )
             return LifecycleSnapshot(
                 LifecycleStage.AWAITING_A1,
                 LifecycleStage.SHADOW,
@@ -995,15 +1014,49 @@ def _actions(
         return ("run_formal_validation",)
     if stage is LifecycleStage.FORMAL_VALIDATION:
         return ("view_formal_evidence",)
-    if stage is LifecycleStage.AWAITING_A1 and promotion.receipt is None:
+    if stage is LifecycleStage.AWAITING_A1:
+        if _receipt_can_rollback(promotion.receipt):
+            return ("rollback",)
         return ("authorize_shadow",)
     if stage is LifecycleStage.AWAITING_A2:
-        return ("authorize_active",)
+        return ("authorize_active",) if _can_authorize_active(promotion) else ("rollback",)
     if stage in {LifecycleStage.SHADOW, LifecycleStage.ACTIVE}:
         return ("rollback",)
     if stage is LifecycleStage.BLOCKED:
         return ("inspect_blocker",)
     return ()
+
+
+def _has_fresh_authorization_evidence(promotion: _PromotionBundle) -> bool:
+    if promotion.validation is None or promotion.gate is None or promotion.receipt is None:
+        return False
+    if promotion.validation.payload.get("status") != "PASS" or promotion.gate.payload.get("decision") != "ALLOW":
+        return False
+    bindings = promotion.receipt.payload.get("bindings")
+    if not isinstance(bindings, Mapping):
+        return False
+    return (
+        bindings.get("validation_sha256") != promotion.validation.ref.sha256
+        and bindings.get("gate_sha256") != promotion.gate.ref.sha256
+    )
+
+
+def _receipt_can_rollback(receipt: _LoadedArtifact | None) -> bool:
+    if receipt is None or receipt.payload.get("outcome") != "AUTHORIZED":
+        return False
+    transition = receipt.payload.get("transition")
+    return isinstance(transition, Mapping) and transition.get("resulting_wiring") in {"shadow", "active"}
+
+
+def _can_authorize_active(promotion: _PromotionBundle) -> bool:
+    if not _has_fresh_authorization_evidence(promotion) or promotion.receipt is None:
+        return False
+    transition = promotion.receipt.payload.get("transition")
+    return (
+        promotion.receipt.payload.get("outcome") == "AUTHORIZED"
+        and isinstance(transition, Mapping)
+        and transition.get("resulting_wiring") == "shadow"
+    )
 
 
 def _summary(items: Sequence[ResearchLabItem]) -> ResearchLabSummary:

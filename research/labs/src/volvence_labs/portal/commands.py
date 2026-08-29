@@ -18,7 +18,13 @@ from .models import ArtifactRef, ResearchLabItem, ResearchLabSnapshot
 _TASK_ID = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 _MAX_ACTOR_LENGTH = 160
 _MAX_REASON_LENGTH = 2_000
+_TASK_KIND = "task"
 _REQUEST_KIND = "research request"
+_HANDOFF_KIND = "praxist handoff"
+_CANDIDATE_KIND = "candidate"
+_VALIDATION_KIND = "validation"
+_GATE_KIND = "gate"
+_RECEIPT_KIND = "receipt"
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +110,14 @@ class SubprocessForgeCommandRunner:
 class ResearchLabCommandService:
     """Validate portal commands against a fresh snapshot, then delegate to Forge."""
 
-    supported_actions = ("review_a0", "reconcile")
+    supported_actions = (
+        "review_a0",
+        "reconcile",
+        "import_candidate",
+        "authorize_shadow",
+        "authorize_active",
+        "rollback",
+    )
 
     def __init__(
         self,
@@ -206,33 +219,269 @@ class ResearchLabCommandService:
             binding=request_ref,
         )
 
+    def import_candidate(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "task_id",
+            "task_artifact_id",
+            "task_sha256",
+            "handoff_sha256",
+            "run_id",
+            "actor",
+            "reason",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        snapshot, item, _, _ = self._resolve_context(payload, action="import_candidate")
+        task_ref, task_path = self._resolve_binding(
+            item,
+            kind=_TASK_KIND,
+            submitted_id=_required_string(payload, "task_artifact_id"),
+            submitted_sha256=_required_sha256(payload, "task_sha256"),
+        )
+        handoff_ref, handoff_path = self._resolve_binding(
+            item,
+            kind=_HANDOFF_KIND,
+            submitted_sha256=_required_sha256(payload, "handoff_sha256"),
+        )
+        run_id = _required_string(payload, "run_id")
+        if item.run is None or item.run.run_id != run_id or item.run.run_dir is None:
+            raise PortalCommandError(
+                "run_binding_mismatch",
+                "submitted run_id does not match the completed Praxist run",
+                status_code=409,
+            )
+        run_dir = _resolve_repo_directory(self.repo_root, item.run.run_dir)
+        if handoff_path.parent != run_dir:
+            raise PortalCommandError(
+                "handoff_run_mismatch",
+                "canonical handoff is not located at the exact completed run root",
+                status_code=409,
+            )
+
+        owner_result = self._run_owner(
+            [
+                "--repo-root",
+                str(self.repo_root),
+                "research-import-praxist",
+                str(task_path),
+                str(handoff_path),
+                "--run-dir",
+                str(run_dir),
+            ]
+        )
+        current = self.collector.collect()
+        current_item = _required_task(current, item.task_id)
+        candidate_ref = _required_binding(current_item, _CANDIDATE_KIND)
+        if candidate_ref.sha256 == _binding_sha(item, _CANDIDATE_KIND):
+            raise PortalCommandError(
+                "owner_transition_missing",
+                "Forge returned success but no new exact Candidate became visible",
+                status_code=502,
+            )
+        return _command_response(
+            action="import_candidate",
+            task_id=item.task_id,
+            outcome="sealed",
+            message=_first_output_line(owner_result.stdout, fallback="Candidate import completed"),
+            previous=snapshot,
+            current=current,
+            binding=candidate_ref,
+            input_bindings=(task_ref, handoff_ref),
+        )
+
+    def authorize_shadow(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._authorize(payload, action="authorize_shadow", to_wiring="shadow")
+
+    def authorize_active(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._authorize(payload, action="authorize_active", to_wiring="active")
+
+    def rollback(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "task_id",
+            "receipt_id",
+            "receipt_sha256",
+            "actor",
+            "reason",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        snapshot, item, actor, reason = self._resolve_context(payload, action="rollback")
+        receipt_ref, receipt_path = self._resolve_binding(
+            item,
+            kind=_RECEIPT_KIND,
+            submitted_id=_required_string(payload, "receipt_id"),
+            submitted_sha256=_required_sha256(payload, "receipt_sha256"),
+        )
+        receipt = _read_json_object(receipt_path, context="promotion receipt")
+        transition = receipt.get("transition")
+        resulting = transition.get("resulting_wiring") if isinstance(transition, Mapping) else None
+        if receipt.get("outcome") != "AUTHORIZED" or resulting not in {"shadow", "active"}:
+            raise PortalCommandError(
+                "receipt_not_rollback_boundary",
+                "only an AUTHORIZED SHADOW or ACTIVE receipt can be rolled back",
+                status_code=409,
+            )
+        to_wiring = "disabled" if resulting == "shadow" else "shadow"
+        owner_result = self.runner(
+            (
+                "--repo-root",
+                str(self.repo_root),
+                "research-rollback",
+                str(receipt_path),
+                "--to-wiring",
+                to_wiring,
+                "--authorized-by",
+                actor,
+                "--reason",
+                reason,
+            )
+        )
+        current, new_receipt_ref, new_receipt = self._resolve_new_receipt(
+            previous=snapshot,
+            task_id=item.task_id,
+            previous_receipt_sha256=receipt_ref.sha256,
+            owner_result=owner_result,
+        )
+        if owner_result.returncode != 0:
+            detail = _first_output_line(owner_result.stderr, fallback=f"Forge exited with {owner_result.returncode}")
+            raise PortalCommandError("owner_command_failed", detail, status_code=409)
+        new_transition = new_receipt.get("transition")
+        if (
+            new_receipt.get("action") != "rollback"
+            or not isinstance(new_transition, Mapping)
+            or new_transition.get("resulting_wiring") != to_wiring
+        ):
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "Forge rollback receipt does not match the requested adjacent downgrade",
+                status_code=502,
+            )
+        return _command_response(
+            action="rollback",
+            task_id=item.task_id,
+            outcome="authorized",
+            message=_first_output_line(owner_result.stdout, fallback=f"Rollback authorized to {to_wiring}"),
+            previous=snapshot,
+            current=current,
+            binding=new_receipt_ref,
+            input_bindings=(receipt_ref,),
+        )
+
+    def _authorize(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        action: str,
+        to_wiring: str,
+    ) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "task_id",
+            "task_artifact_id",
+            "task_sha256",
+            "candidate_artifact_id",
+            "candidate_sha256",
+            "validation_sha256",
+            "gate_sha256",
+            "previous_receipt_id",
+            "previous_receipt_sha256",
+            "actor",
+            "reason",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        snapshot, item, actor, reason = self._resolve_context(payload, action=action)
+        task_ref, task_path = self._resolve_binding(
+            item,
+            kind=_TASK_KIND,
+            submitted_id=_required_string(payload, "task_artifact_id"),
+            submitted_sha256=_required_sha256(payload, "task_sha256"),
+        )
+        candidate_ref, candidate_path = self._resolve_binding(
+            item,
+            kind=_CANDIDATE_KIND,
+            submitted_id=_required_string(payload, "candidate_artifact_id"),
+            submitted_sha256=_required_sha256(payload, "candidate_sha256"),
+        )
+        validation_ref, validation_path = self._resolve_binding(
+            item,
+            kind=_VALIDATION_KIND,
+            submitted_sha256=_required_sha256(payload, "validation_sha256"),
+        )
+        gate_ref, gate_path = self._resolve_binding(
+            item,
+            kind=_GATE_KIND,
+            submitted_sha256=_required_sha256(payload, "gate_sha256"),
+        )
+        previous_ref, previous_path = self._resolve_previous_receipt(
+            item,
+            payload,
+            to_wiring=to_wiring,
+        )
+
+        arguments = [
+            "--repo-root",
+            str(self.repo_root),
+            "research-authorize",
+            str(task_path),
+            str(candidate_path),
+            str(validation_path),
+            str(gate_path),
+            "--to-wiring",
+            to_wiring,
+        ]
+        if previous_path is not None:
+            arguments.extend(("--previous-receipt", str(previous_path)))
+        arguments.extend(("--authorized-by", actor, "--reason", reason))
+
+        owner_result = self.runner(tuple(arguments))
+        current, new_receipt_ref, receipt = self._resolve_new_receipt(
+            previous=snapshot,
+            task_id=item.task_id,
+            previous_receipt_sha256=previous_ref.sha256 if previous_ref is not None else None,
+            owner_result=owner_result,
+        )
+        outcome = receipt.get("outcome")
+        expected_returncode = 0 if outcome == "AUTHORIZED" else 2 if outcome == "BLOCKED" else None
+        if expected_returncode is None or owner_result.returncode != expected_returncode:
+            detail = _first_output_line(owner_result.stderr, fallback=f"Forge exited with {owner_result.returncode}")
+            raise PortalCommandError("owner_command_failed", detail, status_code=409)
+        bindings = receipt.get("bindings")
+        transition = receipt.get("transition")
+        if (
+            receipt.get("candidate_id") != candidate_ref.artifact_id
+            or not isinstance(bindings, Mapping)
+            or bindings.get("candidate_sha256") != candidate_ref.sha256
+            or bindings.get("validation_sha256") != validation_ref.sha256
+            or bindings.get("gate_sha256") != gate_ref.sha256
+            or bindings.get("previous_receipt_sha256") != (previous_ref.sha256 if previous_ref is not None else None)
+            or not isinstance(transition, Mapping)
+            or transition.get("requested_wiring") != to_wiring
+        ):
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "Forge receipt does not bind the exact reviewed authorization inputs",
+                status_code=502,
+            )
+        return _command_response(
+            action=action,
+            task_id=item.task_id,
+            outcome=str(outcome).lower(),
+            message=_first_output_line(owner_result.stdout, fallback=f"{to_wiring} authorization completed"),
+            previous=snapshot,
+            current=current,
+            binding=new_receipt_ref,
+            input_bindings=tuple(
+                ref for ref in (task_ref, candidate_ref, validation_ref, gate_ref, previous_ref) if ref is not None
+            ),
+        )
+
     def _resolve_command(
         self,
         payload: Mapping[str, Any],
         *,
         action: str,
     ) -> tuple[ResearchLabSnapshot, ResearchLabItem, ArtifactRef, Path, str, str]:
-        requested_revision = _required_string(payload, "snapshot_revision")
-        task_id = _required_string(payload, "task_id")
-        if not _TASK_ID.fullmatch(task_id):
-            raise PortalCommandError("invalid_task_id", "task_id has an invalid shape", status_code=400)
-        actor = _bounded_text(payload, "actor", _MAX_ACTOR_LENGTH)
-        reason = _bounded_text(payload, "reason", _MAX_REASON_LENGTH)
-
-        snapshot = self.collector.collect()
-        if snapshot.revision != requested_revision:
-            raise PortalCommandError(
-                "stale_snapshot",
-                "Research Lab snapshot changed; refresh and review the exact artifacts again",
-                status_code=409,
-            )
-        item = _required_task(snapshot, task_id)
-        if action not in item.available_actions:
-            raise PortalCommandError(
-                "action_not_available",
-                f"{action} is not available while task is {item.lifecycle.stage.value}",
-                status_code=409,
-            )
+        snapshot, item, actor, reason = self._resolve_context(payload, action=action)
         request_ref = next((ref for ref in item.bindings if ref.kind == _REQUEST_KIND), None)
         if request_ref is None or request_ref.artifact_id is None:
             raise PortalCommandError(
@@ -261,6 +510,153 @@ class ResearchLabCommandService:
             )
         return snapshot, item, request_ref, request_path, actor, reason
 
+    def _resolve_context(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        action: str,
+    ) -> tuple[ResearchLabSnapshot, ResearchLabItem, str, str]:
+        requested_revision = _required_string(payload, "snapshot_revision")
+        task_id = _required_string(payload, "task_id")
+        if not _TASK_ID.fullmatch(task_id):
+            raise PortalCommandError("invalid_task_id", "task_id has an invalid shape", status_code=400)
+        actor = _bounded_text(payload, "actor", _MAX_ACTOR_LENGTH)
+        reason = _bounded_text(payload, "reason", _MAX_REASON_LENGTH)
+
+        snapshot = self.collector.collect()
+        if snapshot.revision != requested_revision:
+            raise PortalCommandError(
+                "stale_snapshot",
+                "Research Lab snapshot changed; refresh and review the exact artifacts again",
+                status_code=409,
+            )
+        item = _required_task(snapshot, task_id)
+        if action not in item.available_actions:
+            raise PortalCommandError(
+                "action_not_available",
+                f"{action} is not available while task is {item.lifecycle.stage.value}",
+                status_code=409,
+            )
+        return snapshot, item, actor, reason
+
+    def _resolve_binding(
+        self,
+        item: ResearchLabItem,
+        *,
+        kind: str,
+        submitted_sha256: str,
+        submitted_id: str | None = None,
+    ) -> tuple[ArtifactRef, Path]:
+        ref = _required_binding(item, kind)
+        if submitted_id is not None and ref.artifact_id != submitted_id:
+            raise PortalCommandError(
+                "artifact_identity_mismatch",
+                f"submitted artifact id does not match the current {kind}",
+                status_code=409,
+            )
+        if ref.sha256 != submitted_sha256:
+            raise PortalCommandError(
+                "artifact_digest_mismatch",
+                f"submitted artifact SHA-256 does not match the current {kind}",
+                status_code=409,
+            )
+        path = _resolve_repo_artifact(self.repo_root, ref.locator)
+        if _sha256_file(path) != ref.sha256:
+            raise PortalCommandError(
+                "artifact_drift",
+                f"{kind} bytes changed after snapshot collection",
+                status_code=409,
+            )
+        return ref, path
+
+    def _resolve_previous_receipt(
+        self,
+        item: ResearchLabItem,
+        payload: Mapping[str, Any],
+        *,
+        to_wiring: str,
+    ) -> tuple[ArtifactRef | None, Path | None]:
+        submitted_id = _optional_string(payload, "previous_receipt_id")
+        submitted_sha256 = _optional_sha256(payload, "previous_receipt_sha256")
+        if (submitted_id is None) is not (submitted_sha256 is None):
+            raise PortalCommandError(
+                "invalid_request",
+                "previous receipt id and SHA-256 must either both be null or both be strings",
+                status_code=400,
+            )
+        ref = next((value for value in item.bindings if value.kind == _RECEIPT_KIND), None)
+        eligible = False
+        if ref is not None:
+            path = _resolve_repo_artifact(self.repo_root, ref.locator)
+            receipt = _read_json_object(path, context="previous promotion receipt")
+            transition = receipt.get("transition")
+            resulting = transition.get("resulting_wiring") if isinstance(transition, Mapping) else None
+            eligible = receipt.get("outcome") == "AUTHORIZED" and (
+                (to_wiring == "active" and resulting == "shadow") or (to_wiring == "shadow" and resulting == "disabled")
+            )
+        if not eligible:
+            if to_wiring == "active":
+                raise PortalCommandError(
+                    "previous_receipt_missing",
+                    "ACTIVE authorization requires the current AUTHORIZED SHADOW receipt",
+                    status_code=409,
+                )
+            if submitted_id is not None or submitted_sha256 is not None:
+                raise PortalCommandError(
+                    "unexpected_previous_receipt",
+                    "this SHADOW authorization does not accept the submitted previous receipt",
+                    status_code=409,
+                )
+            return None, None
+        if ref is None:  # pragma: no cover - narrowed by eligible
+            raise AssertionError("eligible previous receipt must have a binding")
+        if submitted_id is None or submitted_sha256 is None:
+            raise PortalCommandError(
+                "previous_receipt_binding_missing",
+                "the exact previous receipt id and SHA-256 must be confirmed",
+                status_code=400,
+            )
+        return self._resolve_binding(
+            item,
+            kind=_RECEIPT_KIND,
+            submitted_id=submitted_id,
+            submitted_sha256=submitted_sha256,
+        )
+
+    def _resolve_new_receipt(
+        self,
+        *,
+        previous: ResearchLabSnapshot,
+        task_id: str,
+        previous_receipt_sha256: str | None,
+        owner_result: OwnerCommandResult,
+    ) -> tuple[ResearchLabSnapshot, ArtifactRef, Mapping[str, Any]]:
+        current = self.collector.collect()
+        current_item = _required_task(current, task_id)
+        receipt_ref = _required_binding(current_item, _RECEIPT_KIND)
+        if receipt_ref.sha256 == _binding_sha(previous.get_task(task_id), _RECEIPT_KIND):
+            if owner_result.returncode != 0:
+                detail = _first_output_line(
+                    owner_result.stderr,
+                    fallback=f"Forge exited with {owner_result.returncode}",
+                )
+                raise PortalCommandError("owner_command_failed", detail, status_code=409)
+            raise PortalCommandError(
+                "owner_transition_missing",
+                "Forge returned success but no new exact promotion receipt became visible",
+                status_code=502,
+            )
+        receipt_path = _resolve_repo_artifact(self.repo_root, receipt_ref.locator)
+        receipt = _read_json_object(receipt_path, context="new promotion receipt")
+        bindings = receipt.get("bindings")
+        if not isinstance(bindings, Mapping) or bindings.get("previous_receipt_sha256") != previous_receipt_sha256:
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "new promotion receipt does not extend the reviewed authorization boundary",
+                status_code=502,
+            )
+        return current, receipt_ref, receipt
+
     def _run_owner(self, arguments: Sequence[str]) -> OwnerCommandResult:
         result = self.runner(tuple(arguments))
         if result.returncode != 0:
@@ -276,12 +672,43 @@ def _required_task(snapshot: ResearchLabSnapshot, task_id: str) -> ResearchLabIt
     return item
 
 
+def _required_binding(item: ResearchLabItem, kind: str) -> ArtifactRef:
+    matches = [ref for ref in item.bindings if ref.kind == kind]
+    if len(matches) != 1:
+        raise PortalCommandError(
+            "artifact_binding_missing" if not matches else "artifact_binding_ambiguous",
+            f"task must expose exactly one current {kind} binding",
+            status_code=409,
+        )
+    return matches[0]
+
+
+def _binding_sha(item: ResearchLabItem | None, kind: str) -> str | None:
+    if item is None:
+        return None
+    matches = [ref.sha256 for ref in item.bindings if ref.kind == kind]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _required_string(payload: Mapping[str, Any], field: str) -> str:
     value = payload.get(field)
     if not isinstance(value, str) or not value:
         raise PortalCommandError("invalid_request", f"{field} must be a non-empty string", status_code=400)
     if "\x00" in value:
         raise PortalCommandError("invalid_request", f"{field} contains a forbidden NUL byte", status_code=400)
+    return value
+
+
+def _optional_string(payload: Mapping[str, Any], field: str) -> str | None:
+    value = payload.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or "\x00" in value:
+        raise PortalCommandError(
+            "invalid_request",
+            f"{field} must be null or a non-empty string",
+            status_code=400,
+        )
     return value
 
 
@@ -298,6 +725,17 @@ def _required_sha256(payload: Mapping[str, Any], field: str) -> str:
     value = _required_string(payload, field)
     if not re.fullmatch(r"[0-9a-f]{64}", value):
         raise PortalCommandError("invalid_request", f"{field} must be a lowercase SHA-256", status_code=400)
+    return value
+
+
+def _optional_sha256(payload: Mapping[str, Any], field: str) -> str | None:
+    value = _optional_string(payload, field)
+    if value is not None and not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise PortalCommandError(
+            "invalid_request",
+            f"{field} must be null or a lowercase SHA-256",
+            status_code=400,
+        )
     return value
 
 
@@ -332,6 +770,38 @@ def _resolve_repo_artifact(repo_root: Path, locator: str) -> Path:
     if not resolved.is_file():
         raise PortalCommandError("artifact_missing", "command artifact is missing", status_code=409)
     return resolved
+
+
+def _resolve_repo_directory(repo_root: Path, locator: str) -> Path:
+    path = Path(locator).expanduser()
+    resolved = path.resolve() if path.is_absolute() else (repo_root / path).resolve()
+    if not resolved.is_relative_to(repo_root):
+        raise PortalCommandError(
+            "unsafe_run_directory",
+            "Praxist run directory escapes the repository root",
+            status_code=409,
+        )
+    if not resolved.is_dir():
+        raise PortalCommandError("run_directory_missing", "Praxist run directory is missing", status_code=409)
+    return resolved
+
+
+def _read_json_object(path: Path, *, context: str) -> Mapping[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise PortalCommandError(
+            "artifact_unreadable",
+            f"{context} is not readable canonical JSON",
+            status_code=409,
+        ) from exc
+    if not isinstance(value, Mapping):
+        raise PortalCommandError(
+            "artifact_malformed",
+            f"{context} must contain a JSON object",
+            status_code=409,
+        )
+    return value
 
 
 def _sha256_file(path: Path) -> str:
@@ -369,6 +839,7 @@ def _command_response(
     previous: ResearchLabSnapshot,
     current: ResearchLabSnapshot,
     binding: ArtifactRef,
+    input_bindings: Sequence[ArtifactRef] = (),
 ) -> dict[str, Any]:
     return {
         "schema_version": "volvence-research-lab-command-result.v1",
@@ -383,4 +854,12 @@ def _command_response(
             "artifact_id": binding.artifact_id,
             "sha256": binding.sha256,
         },
+        "input_bindings": [
+            {
+                "kind": value.kind,
+                "artifact_id": value.artifact_id,
+                "sha256": value.sha256,
+            }
+            for value in input_bindings
+        ],
     }

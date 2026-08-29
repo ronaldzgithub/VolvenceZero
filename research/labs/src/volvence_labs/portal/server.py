@@ -140,6 +140,10 @@ def _handler_factory(
             commands = {
                 "/api/v1/a0/review": command_service.review_a0,
                 "/api/v1/reconcile": command_service.reconcile,
+                "/api/v1/candidates/import": command_service.import_candidate,
+                "/api/v1/a1/authorize-shadow": command_service.authorize_shadow,
+                "/api/v1/a2/authorize-active": command_service.authorize_active,
+                "/api/v1/rollback": command_service.rollback,
             }
             command = commands.get(path)
             if command is None:

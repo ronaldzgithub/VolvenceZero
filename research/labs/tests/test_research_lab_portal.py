@@ -12,11 +12,13 @@ from urllib.request import Request, urlopen
 import pytest
 
 from volvence_labs.portal import (
+    ArtifactRef,
     LifecycleStage,
     OwnerCommandResult,
     PortalCommandError,
     ResearchLabCollector,
     ResearchLabCommandService,
+    ResearchLabItem,
     create_server,
 )
 
@@ -132,6 +134,177 @@ class FakeForgeRunner:
                 "",
             )
         raise AssertionError(f"unexpected Forge command: {arguments}")
+
+
+class FakePromotionRunner:
+    def __init__(self, repo: Path, *, authorize_outcome: str = "AUTHORIZED") -> None:
+        self.repo = repo
+        self.calls: list[tuple[str, ...]] = []
+        self.receipt_counter = 0
+        self.authorize_outcome = authorize_outcome
+
+    def __call__(self, arguments: object) -> OwnerCommandResult:
+        if not isinstance(arguments, tuple):
+            raise AssertionError("portal must pass one frozen argv tuple")
+        self.calls.append(arguments)
+        if "research-import-praxist" in arguments:
+            command_index = arguments.index("research-import-praxist")
+            handoff = json.loads(Path(arguments[command_index + 2]).read_text(encoding="utf-8"))
+            candidate_id = "research-candidate:" + "e" * 64
+            _write_json(
+                self.repo / "artifacts" / "research_promotion" / TASK_ID / ("e" * 64) / "candidate.json",
+                {
+                    "schema_version": "forge-research-candidate.v1",
+                    "candidate_id": candidate_id,
+                    "task_id": TASK_ID,
+                    "source": {"run_id": handoff["run_id"]},
+                    "created_at": "2026-08-29T15:00:00Z",
+                },
+            )
+            return OwnerCommandResult(0, f"SEALED: {candidate_id}\n", "")
+        if "research-authorize" in arguments:
+            command_index = arguments.index("research-authorize")
+            task_path = Path(arguments[command_index + 1])
+            candidate_path = Path(arguments[command_index + 2])
+            validation_path = Path(arguments[command_index + 3])
+            gate_path = Path(arguments[command_index + 4])
+            to_wiring = arguments[arguments.index("--to-wiring") + 1]
+            previous_path = (
+                Path(arguments[arguments.index("--previous-receipt") + 1])
+                if "--previous-receipt" in arguments
+                else None
+            )
+            receipt = self._write_receipt(
+                candidate_path=candidate_path,
+                action="authorize",
+                from_wiring="disabled" if to_wiring == "shadow" else "shadow",
+                to_wiring=to_wiring,
+                task_sha256=hashlib.sha256(task_path.read_bytes()).hexdigest(),
+                validation_sha256=hashlib.sha256(validation_path.read_bytes()).hexdigest(),
+                gate_sha256=hashlib.sha256(gate_path.read_bytes()).hexdigest(),
+                previous_path=previous_path,
+                outcome=self.authorize_outcome,
+            )
+            returncode = 0 if self.authorize_outcome == "AUTHORIZED" else 2
+            return OwnerCommandResult(returncode, f"{self.authorize_outcome}: {receipt['receipt_id']}\n", "")
+        if "research-rollback" in arguments:
+            command_index = arguments.index("research-rollback")
+            previous_path = Path(arguments[command_index + 1])
+            previous = json.loads(previous_path.read_text(encoding="utf-8"))
+            to_wiring = arguments[arguments.index("--to-wiring") + 1]
+            candidate_path = _candidate_path(self.repo)
+            receipt = self._write_receipt(
+                candidate_path=candidate_path,
+                action="rollback",
+                from_wiring=previous["transition"]["resulting_wiring"],
+                to_wiring=to_wiring,
+                task_sha256=previous["bindings"]["task_manifest_sha256"],
+                validation_sha256=previous["bindings"]["validation_sha256"],
+                gate_sha256=previous["bindings"]["gate_sha256"],
+                previous_path=previous_path,
+                outcome="AUTHORIZED",
+            )
+            return OwnerCommandResult(0, f"AUTHORIZED: {receipt['receipt_id']}\n", "")
+        raise AssertionError(f"unexpected Forge command: {arguments}")
+
+    def _write_receipt(
+        self,
+        *,
+        candidate_path: Path,
+        action: str,
+        from_wiring: str,
+        to_wiring: str,
+        task_sha256: str,
+        validation_sha256: str,
+        gate_sha256: str,
+        previous_path: Path | None,
+        outcome: str,
+    ) -> dict[str, object]:
+        self.receipt_counter += 1
+        candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+        candidate_sha = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+        receipt_id = "research-receipt:" + f"{self.receipt_counter:064x}"
+        payload: dict[str, object] = {
+            "schema_version": "forge-research-promotion-receipt.v1",
+            "receipt_id": receipt_id,
+            "task_id": TASK_ID,
+            "candidate_id": candidate["candidate_id"],
+            "outcome": outcome,
+            "action": action,
+            "transition": {
+                "from_wiring": from_wiring,
+                "requested_wiring": to_wiring,
+                "resulting_wiring": to_wiring if outcome == "AUTHORIZED" else from_wiring,
+            },
+            "bindings": {
+                "task_manifest_sha256": task_sha256,
+                "candidate_sha256": candidate_sha,
+                "validation_sha256": validation_sha256,
+                "gate_sha256": gate_sha256,
+                "previous_receipt_sha256": (
+                    hashlib.sha256(previous_path.read_bytes()).hexdigest() if previous_path is not None else None
+                ),
+            },
+            "blocking_reasons": [] if outcome == "AUTHORIZED" else ["fixture gate block"],
+            "authority": {"target_adapter_apply_required": True},
+            "created_at": f"2026-08-29T15:{self.receipt_counter:02}:00Z",
+        }
+        path = candidate_path.parent / "receipts" / f"{self.receipt_counter:064x}.json"
+        _write_json(path, payload)
+        return payload
+
+
+def _candidate_path(repo: Path) -> Path:
+    return repo / "artifacts" / "research_promotion" / TASK_ID / ("e" * 64) / "candidate.json"
+
+
+def _make_candidate(repo: Path) -> Path:
+    path = _candidate_path(repo)
+    _write_json(
+        path,
+        {
+            "schema_version": "forge-research-candidate.v1",
+            "candidate_id": "research-candidate:" + "e" * 64,
+            "task_id": TASK_ID,
+            "created_at": "2026-08-29T15:00:00Z",
+        },
+    )
+    return path
+
+
+def _make_formal_gate(repo: Path, candidate_path: Path, *, name: str, minute: int) -> tuple[Path, Path]:
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    candidate_sha = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+    validation_path = repo / "artifacts" / "research_validation" / f"{name}.json"
+    validation_sha = _write_json(
+        validation_path,
+        {
+            "schema_version": "forge-research-validation.v1",
+            "task_id": TASK_ID,
+            "candidate_id": candidate["candidate_id"],
+            "candidate_sha256": candidate_sha,
+            "status": "PASS",
+            "created_at": f"2026-08-29T15:{minute:02}:00Z",
+        },
+    )
+    gate_path = repo / "artifacts" / "research_gate" / f"{name}.json"
+    _write_json(
+        gate_path,
+        {
+            "schema_version": "forge-research-gate.v1",
+            "task_id": TASK_ID,
+            "candidate_id": candidate["candidate_id"],
+            "candidate_sha256": candidate_sha,
+            "validation_sha256": validation_sha,
+            "decision": "ALLOW",
+            "created_at": f"2026-08-29T15:{minute + 1:02}:00Z",
+        },
+    )
+    return validation_path, gate_path
+
+
+def _binding(item: ResearchLabItem, kind: str) -> ArtifactRef:
+    return next(ref for ref in item.bindings if ref.kind == kind)
 
 
 def _running_status(repo: Path, *, run_id: str = "run_example", pid: int = 1234) -> dict[str, object]:
@@ -292,7 +465,7 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
             "created_at": "2026-08-29T14:05:00Z",
         },
     )
-    _write_json(
+    gate_sha = _write_json(
         promotion / "gate.json",
         {
             "schema_version": "forge-research-gate.v1",
@@ -318,7 +491,11 @@ def test_shadow_authorization_does_not_masquerade_as_applied_wiring(tmp_path: Pa
                 "requested_wiring": "shadow",
                 "resulting_wiring": "shadow",
             },
-            "bindings": {"candidate_sha256": candidate_sha},
+            "bindings": {
+                "candidate_sha256": candidate_sha,
+                "validation_sha256": validation_sha,
+                "gate_sha256": gate_sha,
+            },
             "authority": {"target_adapter_apply_required": True},
             "created_at": "2026-08-29T14:07:00Z",
         },
@@ -619,6 +796,266 @@ def test_running_task_cannot_reconcile_or_create_a_duplicate_run(tmp_path: Path)
     assert runner.calls == []
 
 
+def test_candidate_import_delegates_exact_completed_run_without_starting_praxist(tmp_path: Path) -> None:
+    task_path = _make_task(tmp_path)
+    _make_request(tmp_path, approved=True)
+    status = _running_status(tmp_path)
+    status["state"] = "completed"
+    run_dir = Path(str(status["run_dir"]))
+    handoff_path = run_dir / "volvence_handoff.json"
+    _write_json(
+        handoff_path,
+        {
+            "schema_version": "forge-praxist-candidate-handoff.v1",
+            "task_id": TASK_ID,
+            "run_id": "run_example",
+            "created_at": "2026-08-29T14:04:00Z",
+        },
+    )
+    collector = _collector(tmp_path, [status])
+    before = collector.collect()
+    item = before.items[0]
+    task_ref = _binding(item, "task")
+    handoff_ref = _binding(item, "praxist handoff")
+    runner = FakePromotionRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    result = service.import_candidate(
+        {
+            "snapshot_revision": before.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": task_ref.artifact_id,
+            "task_sha256": task_ref.sha256,
+            "handoff_sha256": handoff_ref.sha256,
+            "run_id": "run_example",
+            "actor": "Meng Fu",
+            "reason": "Seal the exact completed research boundary",
+        }
+    )
+
+    assert result["outcome"] == "sealed"
+    assert result["binding"]["kind"] == "candidate"
+    assert runner.calls == [
+        (
+            "--repo-root",
+            str(tmp_path),
+            "research-import-praxist",
+            str(task_path),
+            str(handoff_path),
+            "--run-dir",
+            str(run_dir),
+        )
+    ]
+    after = collector.collect().items[0]
+    assert after.lifecycle.stage is LifecycleStage.CANDIDATE_RETAINED
+    assert after.available_actions == ("run_formal_validation",)
+
+
+def test_a1_authorization_and_rollback_delegate_exact_receipt_chain(tmp_path: Path) -> None:
+    task_path = _make_task(tmp_path)
+    candidate_path = _make_candidate(tmp_path)
+    validation_path, gate_path = _make_formal_gate(tmp_path, candidate_path, name="shadow", minute=2)
+    collector = _collector(tmp_path, [])
+    before = collector.collect()
+    item = before.items[0]
+    assert item.available_actions == ("authorize_shadow",)
+    task_ref = _binding(item, "task")
+    candidate_ref = _binding(item, "candidate")
+    validation_ref = _binding(item, "validation")
+    gate_ref = _binding(item, "gate")
+    runner = FakePromotionRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    authorized = service.authorize_shadow(
+        {
+            "snapshot_revision": before.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": task_ref.artifact_id,
+            "task_sha256": task_ref.sha256,
+            "candidate_artifact_id": candidate_ref.artifact_id,
+            "candidate_sha256": candidate_ref.sha256,
+            "validation_sha256": validation_ref.sha256,
+            "gate_sha256": gate_ref.sha256,
+            "previous_receipt_id": None,
+            "previous_receipt_sha256": None,
+            "actor": "A1 Reviewer",
+            "reason": "Authorize exact bounded SHADOW evidence",
+        }
+    )
+
+    assert authorized["outcome"] == "authorized"
+    assert runner.calls[0] == (
+        "--repo-root",
+        str(tmp_path),
+        "research-authorize",
+        str(task_path),
+        str(candidate_path),
+        str(validation_path),
+        str(gate_path),
+        "--to-wiring",
+        "shadow",
+        "--authorized-by",
+        "A1 Reviewer",
+        "--reason",
+        "Authorize exact bounded SHADOW evidence",
+    )
+    shadow = collector.collect()
+    shadow_item = shadow.items[0]
+    assert shadow_item.authority.authorized_wiring == "shadow"
+    assert shadow_item.authority.runtime_wiring == "disabled"
+    assert shadow_item.available_actions == ("rollback",)
+    receipt_ref = _binding(shadow_item, "receipt")
+
+    rolled_back = service.rollback(
+        {
+            "snapshot_revision": shadow.revision,
+            "task_id": TASK_ID,
+            "receipt_id": receipt_ref.artifact_id,
+            "receipt_sha256": receipt_ref.sha256,
+            "actor": "Rollback Operator",
+            "reason": "Exercise the adjacent downgrade boundary",
+        }
+    )
+
+    assert rolled_back["outcome"] == "authorized"
+    assert runner.calls[1] == (
+        "--repo-root",
+        str(tmp_path),
+        "research-rollback",
+        str(tmp_path / receipt_ref.locator),
+        "--to-wiring",
+        "disabled",
+        "--authorized-by",
+        "Rollback Operator",
+        "--reason",
+        "Exercise the adjacent downgrade boundary",
+    )
+    assert collector.collect().items[0].lifecycle.stage is LifecycleStage.ROLLED_BACK
+
+
+def test_a1_rejects_unreviewed_gate_digest_before_owner_call(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    candidate_path = _make_candidate(tmp_path)
+    _make_formal_gate(tmp_path, candidate_path, name="shadow", minute=2)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    item = snapshot.items[0]
+    runner = FakePromotionRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    with pytest.raises(PortalCommandError) as error:
+        service.authorize_shadow(
+            {
+                "snapshot_revision": snapshot.revision,
+                "task_id": TASK_ID,
+                "task_artifact_id": _binding(item, "task").artifact_id,
+                "task_sha256": _binding(item, "task").sha256,
+                "candidate_artifact_id": _binding(item, "candidate").artifact_id,
+                "candidate_sha256": _binding(item, "candidate").sha256,
+                "validation_sha256": _binding(item, "validation").sha256,
+                "gate_sha256": "0" * 64,
+                "previous_receipt_id": None,
+                "previous_receipt_sha256": None,
+                "actor": "A1 Reviewer",
+                "reason": "Reject unreviewed Gate bytes",
+            }
+        )
+
+    assert error.value.code == "artifact_digest_mismatch"
+    assert runner.calls == []
+
+
+def test_a1_preserves_legal_blocked_receipt_as_a_command_result(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    candidate_path = _make_candidate(tmp_path)
+    _make_formal_gate(tmp_path, candidate_path, name="shadow", minute=2)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    item = snapshot.items[0]
+    runner = FakePromotionRunner(tmp_path, authorize_outcome="BLOCKED")
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    result = service.authorize_shadow(
+        {
+            "snapshot_revision": snapshot.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": _binding(item, "task").artifact_id,
+            "task_sha256": _binding(item, "task").sha256,
+            "candidate_artifact_id": _binding(item, "candidate").artifact_id,
+            "candidate_sha256": _binding(item, "candidate").sha256,
+            "validation_sha256": _binding(item, "validation").sha256,
+            "gate_sha256": _binding(item, "gate").sha256,
+            "previous_receipt_id": None,
+            "previous_receipt_sha256": None,
+            "actor": "A1 Reviewer",
+            "reason": "Retain the exact negative admission result",
+        }
+    )
+
+    assert result["outcome"] == "blocked"
+    blocked = collector.collect().items[0]
+    assert blocked.lifecycle.stage is LifecycleStage.BLOCKED
+    assert blocked.lifecycle.blocking_reason == "fixture gate block"
+
+
+def test_a2_requires_fresh_exact_evidence_and_previous_shadow_receipt(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    candidate_path = _make_candidate(tmp_path)
+    _make_formal_gate(tmp_path, candidate_path, name="shadow", minute=2)
+    collector = _collector(tmp_path, [])
+    runner = FakePromotionRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+    first = collector.collect()
+    first_item = first.items[0]
+    service.authorize_shadow(
+        {
+            "snapshot_revision": first.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": _binding(first_item, "task").artifact_id,
+            "task_sha256": _binding(first_item, "task").sha256,
+            "candidate_artifact_id": _binding(first_item, "candidate").artifact_id,
+            "candidate_sha256": _binding(first_item, "candidate").sha256,
+            "validation_sha256": _binding(first_item, "validation").sha256,
+            "gate_sha256": _binding(first_item, "gate").sha256,
+            "previous_receipt_id": None,
+            "previous_receipt_sha256": None,
+            "actor": "A1 Reviewer",
+            "reason": "Authorize SHADOW before fresh active evidence",
+        }
+    )
+    _make_formal_gate(tmp_path, candidate_path, name="active", minute=10)
+    active_ready = collector.collect()
+    item = active_ready.items[0]
+    assert item.lifecycle.stage is LifecycleStage.AWAITING_A2
+    assert item.available_actions == ("authorize_active",)
+    previous_ref = _binding(item, "receipt")
+
+    result = service.authorize_active(
+        {
+            "snapshot_revision": active_ready.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": _binding(item, "task").artifact_id,
+            "task_sha256": _binding(item, "task").sha256,
+            "candidate_artifact_id": _binding(item, "candidate").artifact_id,
+            "candidate_sha256": _binding(item, "candidate").sha256,
+            "validation_sha256": _binding(item, "validation").sha256,
+            "gate_sha256": _binding(item, "gate").sha256,
+            "previous_receipt_id": previous_ref.artifact_id,
+            "previous_receipt_sha256": previous_ref.sha256,
+            "actor": "A2 Reviewer",
+            "reason": "Authorize ACTIVE from fresh exact canary evidence",
+        }
+    )
+
+    assert result["outcome"] == "authorized"
+    assert "--previous-receipt" in runner.calls[-1]
+    assert runner.calls[-1][runner.calls[-1].index("--previous-receipt") + 1] == str(tmp_path / previous_ref.locator)
+    final = collector.collect().items[0]
+    assert final.authority.authorized_wiring == "active"
+    assert final.authority.runtime_wiring == "disabled"
+    assert final.available_actions == ("rollback",)
+
+
 def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) -> None:
     _make_task(tmp_path)
     _make_request(tmp_path, approved=False)
@@ -656,6 +1093,14 @@ def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) ->
             session = json.loads(response.read())
         assert session["mutations_enabled"] is True
         assert session["csrf_token"] == csrf_token
+        assert set(session["supported_actions"]) == {
+            "review_a0",
+            "reconcile",
+            "import_candidate",
+            "authorize_shadow",
+            "authorize_active",
+            "rollback",
+        }
 
         missing_origin = Request(
             endpoint,
@@ -698,6 +1143,65 @@ def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) ->
         with urlopen(approved, timeout=5) as response:
             result = json.loads(response.read())
         assert result["outcome"] == "approved"
+        assert len(runner.calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_promotion_http_route_delegates_exact_a1_command(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    candidate_path = _make_candidate(tmp_path)
+    _make_formal_gate(tmp_path, candidate_path, name="shadow", minute=2)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    item = snapshot.items[0]
+    runner = FakePromotionRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+    csrf_token = "x" * 32
+    ui_origin = "http://localhost:3000"
+    server = create_server(
+        collector,
+        port=0,
+        command_service=service,
+        allowed_origins=(ui_origin,),
+        csrf_token=csrf_token,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    body = json.dumps(
+        {
+            "snapshot_revision": snapshot.revision,
+            "task_id": TASK_ID,
+            "task_artifact_id": _binding(item, "task").artifact_id,
+            "task_sha256": _binding(item, "task").sha256,
+            "candidate_artifact_id": _binding(item, "candidate").artifact_id,
+            "candidate_sha256": _binding(item, "candidate").sha256,
+            "validation_sha256": _binding(item, "validation").sha256,
+            "gate_sha256": _binding(item, "gate").sha256,
+            "previous_receipt_id": None,
+            "previous_receipt_sha256": None,
+            "actor": "A1 Reviewer",
+            "reason": "Exercise the exact local A1 route",
+        }
+    ).encode()
+    request = Request(
+        f"http://{host}:{port}/api/v1/a1/authorize-shadow",
+        method="POST",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Origin": ui_origin,
+            "X-Research-Lab-CSRF": csrf_token,
+        },
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.loads(response.read())
+        assert result["action"] == "authorize_shadow"
+        assert result["outcome"] == "authorized"
         assert len(runner.calls) == 1
     finally:
         server.shutdown()
