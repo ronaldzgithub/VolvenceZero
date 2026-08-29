@@ -65,7 +65,13 @@ from volvence_zero.environment import (
     build_environment_event,
 )
 from volvence_zero.identity_seed import IdentitySeed
-from volvence_zero.memory import MemoryStore
+from volvence_zero.memory import (
+    MemoryEntry,
+    MemoryStore,
+    MemoryWriteRequest,
+    RetrievalQuery,
+    RetrievalResult,
+)
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
@@ -1845,6 +1851,38 @@ class LifeformSession:
         """Return the Memory owner's current artifact-entry count."""
 
         return self._brain_session.memory_entry_count()
+
+    def retrieve_memory(
+        self,
+        query: RetrievalQuery,
+        *,
+        timestamp_ms: int,
+        active_subject_ids: tuple[str, ...] | None = None,
+        record_access: bool = True,
+    ) -> RetrievalResult:
+        """Retrieve immutable artifacts through the Brain/Memory facade."""
+
+        return self._brain_session.retrieve_memory(
+            query,
+            timestamp_ms=timestamp_ms,
+            active_subject_ids=active_subject_ids,
+            record_access=record_access,
+        )
+
+    def write_memory(
+        self,
+        request: MemoryWriteRequest,
+        *,
+        timestamp_ms: int,
+    ) -> MemoryEntry:
+        """Append one artifact through the Brain/Memory facade."""
+
+        return self._brain_session.write_memory(request, timestamp_ms=timestamp_ms)
+
+    def persist_memory(self) -> bool:
+        """Persist the Memory owner checkpoint when configured."""
+
+        return self._brain_session.persist_memory()
 
     def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
         """Forward canonical action evidence to next-turn PE settlement."""

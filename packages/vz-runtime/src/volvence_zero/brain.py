@@ -41,8 +41,11 @@ from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
     MemoryEntry,
+    MemoryWriteRequest,
     MemoryStore,
     MemoryStoreCheckpoint,
+    RetrievalQuery,
+    RetrievalResult,
     build_default_memory_store,
     build_scoped_memory_store,
     delete_entry_for_scope,
@@ -316,6 +319,44 @@ class BrainSession:
         """Return the Memory owner-published artifact-entry count."""
 
         return self._runner.memory_store.entry_count()
+
+    def retrieve_memory(
+        self,
+        query: RetrievalQuery,
+        *,
+        timestamp_ms: int,
+        active_subject_ids: tuple[str, ...] | None = None,
+        record_access: bool = True,
+    ) -> RetrievalResult:
+        """Retrieve artifacts through the Memory owner's public contract.
+
+        Product and vertical adapters use this facade instead of reaching
+        through ``runner.memory_store``. Query scoring, scope suppression,
+        access accounting, and the returned immutable entries remain owned by
+        ``vz-memory``.
+        """
+
+        return self._runner.memory_store.retrieve(
+            query,
+            timestamp_ms=timestamp_ms,
+            active_subject_ids=active_subject_ids,
+            record_access=record_access,
+        )
+
+    def write_memory(
+        self,
+        request: MemoryWriteRequest,
+        *,
+        timestamp_ms: int,
+    ) -> MemoryEntry:
+        """Append one artifact through the Memory owner's public contract."""
+
+        return self._runner.memory_store.write(request, timestamp_ms=timestamp_ms)
+
+    def persist_memory(self) -> bool:
+        """Persist the Memory owner checkpoint when a backend is configured."""
+
+        return self._runner.memory_store.save_to_backend()
 
     def relationship_reflection_snapshot(self) -> ReflectionSnapshot | None:
         """Return the latest typed reflection readout for product consumers."""

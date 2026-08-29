@@ -205,7 +205,7 @@ class CodingLabChainObserver:
         ``coding_lab_arms.recall_for_task`` for the leak rationale.
         """
 
-        result = self._session.runner.memory_store.retrieve(
+        result = self._session.retrieve_memory(
             RetrievalQuery(
                 text=hint,
                 strata=(MemoryStratum.EPISODIC, MemoryStratum.DURABLE),
@@ -220,7 +220,7 @@ class CodingLabChainObserver:
         """Persist memory to the scoped backend (cross-process recovery)."""
 
         self._session.persist_owners()
-        return bool(self._session.runner.memory_store.save_to_backend())
+        return self._session.persist_memory()
 
     async def observe_episode(
         self,
@@ -322,7 +322,7 @@ class CodingLabChainObserver:
         detail_text = ""
         if not passed and failure_details:
             detail_text = " | ci evidence: " + " ; ".join(failure_details[:3])
-        self._session.runner.memory_store.write(
+        self._session.write_memory(
             MemoryWriteRequest(
                 content=(
                     f"[coding-lab experience] task={task_id} category={category} "

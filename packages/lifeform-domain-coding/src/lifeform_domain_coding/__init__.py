@@ -54,6 +54,18 @@ from lifeform_domain_coding.coding_affordances import (
 )
 from lifeform_domain_coding.coding_pack import build_coding_package
 from lifeform_domain_coding.coding_vitals import build_coding_vitals_bootstrap
+from lifeform_domain_coding.coding_brain_contracts import (
+    CodingAdviceSnapshot,
+    CodingContextPackSnapshot,
+    CodingContextRequest,
+    CodingOutcomeKind,
+    CodingOutcomeReceipt,
+    CodingOutcomeReport,
+    CodingOutcomeRoute,
+    CodingOutcomeSource,
+    CodingSettlementState,
+    CodingTaskKind,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +231,16 @@ __all__ = (
     "build_coding_lifeform",
     "build_coding_package",
     "build_coding_vitals_bootstrap",
+    "CodingAdviceSnapshot",
+    "CodingContextPackSnapshot",
+    "CodingContextRequest",
+    "CodingOutcomeKind",
+    "CodingOutcomeReceipt",
+    "CodingOutcomeReport",
+    "CodingOutcomeRoute",
+    "CodingOutcomeSource",
+    "CodingSettlementState",
+    "CodingTaskKind",
     "CODING_AFFORDANCE_DESCRIPTORS",
     "CONSENT_FILESYSTEM_READ",
     "CONSENT_FILESYSTEM_WRITE",

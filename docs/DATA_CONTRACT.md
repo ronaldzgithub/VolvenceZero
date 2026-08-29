@@ -1277,6 +1277,26 @@ P2 confirmatory/shard/progress 为 v7。v11 将 forced-return 冻结为左右均
 
 ---
 
+### 2.20 Coding Brain 产品契约（lifeform-side，不新增 kernel slot）
+
+**所在 wheel**：`lifeform-domain-coding`；HTTP 投影：`lifeform-service`。完整 contract 见
+[`docs/specs/coding-brain.md`](./specs/coding-brain.md)。
+
+| 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
+|---|---|---|---|
+| `CodingContextRequest` | coding host 提交事实；`lifeform-domain-coding` 校验 schema | project/repository/task identity、closed `CodingTaskKind`、target paths | 输入契约；禁止文本推断 task kind |
+| `CodingContextPackSnapshot` | `lifeform-domain-coding.CodingBrainController` | 只读 Memory owner 的 `RetrievalResult` 与同拍 PE public snapshot | `ACTIVE`；content-addressed；只渲染 owner 返回 entries；不包含 SHADOW advice |
+| `CodingAdviceSnapshot` | 同上（只投影 controller owner 已发布 readout） | 同拍 `active_regime` / `active_abstract_action`、Context Pack source entry ids | 固定 `SHADOW` + `applied=false`；v1 无 actuator |
+| `CodingOutcomeReport` / `CodingOutcomeReceipt` | report 事实由 host 提交；receipt 由 coding controller 发布 | Memory facade、semantic task event；仅确定性 test/build/CI 另走 `dialogue_external_outcome` | append-only / idempotent；review/VCS 禁止冒充 `TASK_*`；下一 Context Pack turn 才结算 PE |
+
+该产品面复用既有 `memory`、`execution_result`、`dialogue_external_outcome` 与
+`prediction_error` owner，不注册新的 kernel slot。`BrainSession` / `LifeformSession` 只新增
+`retrieve_memory`、`write_memory`、`persist_memory` 薄 facade；scope、检索、entry id、touch、
+checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / vertical / readonly guard，
+不得持有认知副本或直接访问 owner store。
+
+---
+
 ## 3. 模块快照契约
 
 ### 3.1 稳定基底层 (Substrate)
@@ -2925,6 +2945,9 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `affordance` | AffordanceModule | `lifeform-affordance`（registry、renderers 与 invoker 已落地） | AffordanceSnapshot | ACTIVE（lifeform host 接线；不进入 kernel propagate） | per-call / per-turn | prompt_planner, response_synthesizer, AffordanceInvoker |
 | `thinking_loop` | ThinkingScheduler | `lifeform-thinking`（Phase 1 slice 1/2a/2b 已落地） | ThinkingLoopSnapshot | SHADOW（默认 advisory/report-only）→ ACTIVE（显式 opt-in） | scene 内异步 | temporal advisory ingress、family_report metrics、debug dashboard |
 | `relationship_memory_console` | RelationshipMemoryActionLedger | `lifeform-service` | RelationshipMemoryActionRecord | ACTIVE（closed-alpha MVP） | 用户 console action | relationship-memory API、P5 continuity metrics；只记录 action/idempotency，不复制 kernel relationship state，semantic mutation 经 Brain facade 排入 owner event queue |
+| `coding_context_pack` | CodingBrainController | `lifeform-domain-coding` | CodingContextPackSnapshot | ACTIVE | 每个 coding task 请求 | coding agent host；消费 memory / prediction_error 公共 readout，不进入 kernel propagate |
+| `coding_advice` | CodingBrainController | `lifeform-domain-coding` | CodingAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | evidence / comparison only；不得进入 ACTIVE rendered context 或 actuator |
+| `coding_outcome_receipt` | CodingBrainController | `lifeform-domain-coding` | CodingOutcomeReceipt | ACTIVE（产品回执） | typed outcome 提交 | coding agent host；副作用只经 Brain/Lifeform facade 进入 memory / semantic / external-outcome owners |
 
 **lifeform-side slot 不变量**：
 
