@@ -138,6 +138,7 @@ def _handler_factory(
                 return
             path = urlsplit(self.path).path
             commands = {
+                "/api/v1/topics/bind": command_service.bind_topic,
                 "/api/v1/external/requests": command_service.submit_external,
                 "/api/v1/a0/review": command_service.review_a0,
                 "/api/v1/reconcile": command_service.reconcile,

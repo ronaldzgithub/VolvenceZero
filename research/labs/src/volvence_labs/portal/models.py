@@ -134,6 +134,80 @@ class ResearchLabItem:
 
 
 @dataclass(frozen=True, slots=True)
+class ResearchTopicSource:
+    locator: str
+    sha256: str
+    claim: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchTopicProposalSnapshot:
+    proposal_id: str
+    title: str
+    hypothesis: str
+    mechanism: str
+    demand_relevance: str
+    research_question: str
+    suggested_method: str
+    success_signals: tuple[str, ...]
+    falsification_signals: tuple[str, ...]
+    caveats: tuple[str, ...]
+    source_refs: tuple[ResearchTopicSource, ...]
+    effective_state: str
+    mapping_id: str | None
+    binding_decision: str | None
+    reviewed_by: str | None
+    request_id: str | None
+    request_state: str | None
+    artifact: ArtifactRef
+    binding: ArtifactRef | None
+    request: ArtifactRef | None
+    available_actions: tuple[str, ...]
+    created_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchDemandSnapshot:
+    demand_id: str
+    claim_id: str
+    title: str
+    objective: str
+    owner: str
+    capability_axes: tuple[str, ...]
+    status: str
+    requested_mapping_id: str | None
+    source_roots: tuple[str, ...]
+    max_topics: int
+    artifact: ArtifactRef
+    latest_run: ArtifactRef | None
+    run_backend: str | None
+    run_model: str | None
+    proposals: tuple[ResearchTopicProposalSnapshot, ...]
+    created_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchDiscoverySnapshot:
+    registry: ArtifactRef | None
+    demand_count: int
+    open_demand_count: int
+    proposal_count: int
+    awaiting_binding_count: int
+    awaiting_a0_count: int
+    demands: tuple[ResearchDemandSnapshot, ...]
+
+    def get_proposal(
+        self,
+        proposal_id: str,
+    ) -> tuple[ResearchDemandSnapshot, ResearchTopicProposalSnapshot] | None:
+        for demand in self.demands:
+            for proposal in demand.proposals:
+                if proposal.proposal_id == proposal_id:
+                    return demand, proposal
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchLabSummary:
     registered_tasks: int
     stage_counts: tuple[NamedCount, ...]
@@ -151,6 +225,7 @@ class ResearchLabSnapshot:
     repo_revision: str
     summary: ResearchLabSummary
     source_health: tuple[SourceHealth, ...]
+    discovery: ResearchDiscoverySnapshot
     items: tuple[ResearchLabItem, ...]
     warnings: tuple[PortalWarning, ...]
 

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.research-discovery-response.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["topics"],
+  "properties": {
+    "topics": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "hypothesis",
+          "mechanism",
+          "demand_relevance",
+          "research_question",
+          "suggested_method",
+          "success_signals",
+          "falsification_signals",
+          "source_refs",
+          "caveats"
+        ],
+        "properties": {
+          "title": {"type": "string", "minLength": 1, "maxLength": 240},
+          "hypothesis": {"type": "string", "minLength": 1},
+          "mechanism": {"type": "string", "minLength": 1},
+          "demand_relevance": {"type": "string", "minLength": 1},
+          "research_question": {"type": "string", "minLength": 1},
+          "suggested_method": {"type": "string", "minLength": 1},
+          "success_signals": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "falsification_signals": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "source_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["locator", "sha256", "claim"],
+              "properties": {
+                "locator": {"type": "string", "minLength": 1},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "claim": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "caveats": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

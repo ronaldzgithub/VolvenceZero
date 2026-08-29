@@ -320,8 +320,25 @@ runtime wiring。完整契约见
 
 ### A0 自动研究启动控制面
 
-研究调度不需要仓库根目录的常驻脚本。`forge` 是唯一入口，外部 scheduler 每次调用一次有界
-reconcile；Praxist 自己托管 detached run：
+需求驱动发现与研究调度共用 `forge` owner。人类先把完整 Volvence Demand draft 封存到 inbox；之后每次
+`research-loop --once` 只做有上限、可重放的一次 pass：
+
+```bash
+forge research-demand-seal 'research/demand_drafts/<name>.json' --json
+
+forge research-loop --once \
+  --backend codex_sdk \
+  --model gpt-5.6-luna \
+  --json
+```
+
+第一轮只产生 `UNBOUND` TopicProposal。具名人类通过 `research-bind-topic` 绑定 exact mapping 后，下一轮只提交
+ResearchRequest；另一次 A0 人审批准后，后续 pass 才调用既有 targeted reconcile。未变化的 pass 是零模型调用、
+零新 Request、零新 run；`RUN_COMPLETED` 后不会自动 import Candidate 或上架。
+
+仓库根 `start_research_lab.sh` 在 controlled mode 默认周期唤醒该 bounded loop；它不是新 lifecycle owner，
+`--no-auto-research` 可关闭。也可以不启动 Portal，由任意外部 scheduler 调用同一个 `forge research-loop --once`。
+Praxist 自己托管 detached run。显式控制面入口仍可单独使用：
 
 ```bash
 forge research-submit '<task.json>' \

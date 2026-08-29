@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.6；exact-bound aggregation + multi-view local workbench + external simulation seam implemented
+> Status: v1.7；snapshot v2 + demand discovery inbox + exact topic binding + managed automatic worker implemented
 > Last updated: 2026-08-30
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -23,6 +23,16 @@ typed signal
   → rollback or retained ACTIVE
 ```
 
+需求驱动轨道在 Task 之前增加一个不具执行权限的 discovery inbox：
+
+```text
+Volvence ResearchDemand → read-only Codex DiscoveryRun → UNBOUND TopicProposal
+  → named-human DemandBinding → exact ResearchRequest → A0 → Praxist
+```
+
+这条前置轨道不改变后续 Forge/Praxist/promotion owner；完整协议见
+[`demand-driven-research-loop.md`](./demand-driven-research-loop.md)。
+
 Lab 不成为新的研究、验证、gate 或 wiring owner。它只做两件事：
 
 1. 从各 owner 发布的不可变 artifact 和 Praxist targeted status 生成一个 frozen、可刷新、只读的
@@ -42,6 +52,7 @@ Candidate、ModificationGate、SHADOW、ACTIVE 或 runtime wiring。完整协议
 | 数据/动作 | 唯一 owner | Lab 权限 |
 |---|---|---|
 | FailurePattern / Opportunity / routing | `volvence_forge.research_opportunity` | 只读；可委托一次 bounded scan |
+| ResearchDemand / DiscoveryRun / TopicProposal / DemandBinding | `volvence_forge.research_discovery` | 只读；可委托 exact named-human topic binding |
 | ResearchRequest / Approval / Event | `volvence_forge.research_control` | 只读；可提交 exact A0 review 与 reconcile |
 | Foundry Intent / budget / evidence class / adoption | Foundry | 只读 exact binding；Lab 不重分类、不采纳、不 apply |
 | external descriptor / simulation handoff | `volvence_forge.research_control` | 可委托 submit/handoff；不转入 Volvence promotion |
@@ -56,10 +67,11 @@ Candidate、ModificationGate、SHADOW、ACTIVE 或 runtime wiring。完整协议
 
 ## 3. Canonical snapshot
 
-`ResearchLabSnapshot` 是 frozen dataclass/JSON view，至少包含：
+`ResearchLabSnapshot.v2` 是 frozen dataclass/JSON view，至少包含：
 
 - `schema_version / generated_at / repo_revision / source_health`；
 - `summary`：各 lifecycle stage 数量、active run 数、blocked 数、待人审数；
+- `discovery`：registry ref、Demand、latest run/backend/model、TopicProposal、source claims、Binding/Request effective state；
 - `items[]`：稳定 `item_id/task_id/research_mode/claim_id/owner/capability_axes`；
 - `lifecycle`：当前 stage、允许的下一 stage、blocking reason、last transition；
 - `bindings`：Task、Request、Approval、run、candidate、validation、gate、receipt 的 content refs；
@@ -77,7 +89,7 @@ collector 不遍历 producer 私有结构重建状态。只接受正式 JSON/sch
 validation raw SHA 精确绑定后才进入同一视图。Receipt 作为上一轮 authorization boundary 单独显示，以允许新一轮
 formal/gate evidence 在其后形成 A2 输入。
 
-Web consumer 必须逐层校验 snapshot v1 的 summary、source health、item、`research_mode`、lifecycle、authority、
+Web consumer 必须逐层校验 snapshot v2 的 discovery、summary、source health、item、`research_mode`、lifecycle、authority、
 evidence、binding、run 与 warning shape；不得只检查顶层版本后用缺省值把旧进程或残缺 payload 伪装成兼容状态。
 常驻 API 若仍运行旧代码，client 必须显示 incompatible snapshot 并要求重启控制台，而不是猜测 promotion track。
 
@@ -137,6 +149,7 @@ file hash 二次校验。
 ### 5.2 路由
 
 - `/`：全局 Pipeline Board；
+- `/discovery`：Demand 与 TopicProposal inbox；具名人类可作 exact bind/reject，不能在此批准 A0；
 - `/tasks/:taskId`：一个研究任务的完整 lineage 与 gate history；
 - `/runs`：Praxist + Labs runs，按 owner 分栏；
 - `/approvals`：待 A0/A1/A2 的 exact review inbox；
@@ -170,7 +183,7 @@ v1 API：
 ```text
 GET  /api/v1/snapshot
 GET  /api/v1/tasks/{task_id}
-POST /api/v1/scan
+POST /api/v1/topics/bind
 POST /api/v1/a0/review
 POST /api/v1/reconcile
 POST /api/v1/external/requests
@@ -189,6 +202,7 @@ adapter 仍消费 receipt 并执行自身协议。
 | Endpoint | 状态 | Owner seam |
 |---|---|---|
 | `GET snapshot/task/session` | 已实现；含跨 owner exact promotion graph 与 completed handoff | portal collector/session |
+| `POST topics/bind` | 已实现；fresh Demand/Proposal/registry SHA + mapping + named human | `forge research-bind-topic --json` |
 | `POST a0/review` | 已实现，mutation mode 默认关闭 | `forge research-approve` |
 | `POST reconcile` | 已实现，仅当 fresh snapshot 发布 `reconcile` 动作 | `forge research-reconcile --once --request ...` |
 | `POST external/requests` | 已实现；registered domain root + descriptor id/file SHA + fresh revision | `forge research-submit-external --json` |
@@ -200,8 +214,9 @@ adapter 仍消费 receipt 并执行自身协议。
 | `POST scan` | 后续收敛包；UI 只能展示 scanner readiness | `forge research-scan --once` 尚未接入 portal |
 
 `GET /api/v1/session` 只向同源本地 UI 发布当前进程 CSRF token 和已启用动作。mutation 服务不接受 locator、raw
-argv 或 extra args；客户端只提交 snapshot revision、Task id、artifact id/hash、named actor、reason 与 typed
-decision。服务从 fresh snapshot 反查正式 locator、重算文件 SHA，并在 action 仍可用时构造固定 argv。Forge 自身仍
+argv 或 extra args；客户端只提交 snapshot revision、对应 subject 的 exact id/hash、named actor、reason 与 typed
+decision；topic binding 还必须提交 registry SHA 和 exact mapping id。服务从 fresh snapshot 反查正式 locator、重算文件
+SHA，并在 action 仍可用时构造固定 argv。Forge 自身仍
 二次验证 Request identity、全部 binding bytes、全局 capacity 与 reconcile lock，因此 portal 的预检不替代 owner gate。
 
 唯一 locator 例外是 external submit 的 `descriptor_locator`：它必须是 server 启动时显式注册的
@@ -224,9 +239,11 @@ Lab 控制本机仓库、Praxist registry 和进程，因此 functional control 
 仍只绑定 loopback，并要求显式 loopback UI Origin、进程级 CSRF、16 KiB body 上限和 exact artifact binding。
 
 仓库根入口 `./start_research_lab.sh` 是本机进程编排器，不是研究 lifecycle owner。运行该脚本本身视为显式选择
-controlled local mode；它只启动 API 与 Web、检查端口和依赖、在退出时回收两个子进程。它禁止调用
-`praxist start`、自动生成 Approval、自动 reconcile 或直接修改 wiring。`--read-only` 会关闭全部 POST delegation；端口已被
-占用时 launcher 必须拒绝启动，不能复用或覆盖未知进程。
+controlled local mode；它启动 API、Web 与一个周期调用 `forge research-loop --once` 的 bounded worker，并在退出时回收
+三个子进程。worker 可以发现新/变化 Demand、提交已有 APPROVE Binding、调和已有 A0 APPROVE Request；它禁止生成
+Binding/A0 Approval、直接调用任意 `praxist start`、自动 import Candidate 或修改 wiring。`--no-auto-research` 或
+`RESEARCH_LAB_AUTO_RESEARCH=0` 关闭 worker；`--read-only` 同时关闭 worker 和全部 POST delegation。端口已被占用时
+launcher 必须拒绝启动，不能复用或覆盖未知进程。
 
 launcher 可只读检测 sibling Foundry checkout，并注册 `foundry=<root>` ingress；这不扫描、不提交、不审批 Intent，
 也不写 Foundry。未注册 root 时 external POST fail closed，现有 Volvence UI/CLI 不受影响。
@@ -240,7 +257,8 @@ launcher 可只读检测 sibling Foundry checkout，并注册 `foundry=<root>` i
    本次命令的全部 exact id/hash，合法负 receipt 单独显示 BLOCKED。缺 validator/adapter 时仍只显示 blocker。
 5. **Multi-view operations**：真实任务选择、审批 inbox、run registry、evidence matrix、system health 与 task lineage
    路由；全部复用同一个 snapshot 与 command workbench。**已实现。**
-6. **Remote/read-only mirror**：可选；不扩本地控制权限。
+6. **Demand discovery operations**：snapshot v2、`/discovery`、exact bind/reject 与 managed bounded worker。**已实现。**
+7. **Remote/read-only mirror**：可选；不扩本地控制权限。
 
 根目录 launcher 已实现；第 4 包现已接入 Forge mutation seam 与本地 Web workbench，但不会生成 formal/gate evidence，
 也不会替 target adapter apply wiring。运行中的 Praxist Task 仍只显示 `view_run`，不会暴露第二次 start/reconcile。

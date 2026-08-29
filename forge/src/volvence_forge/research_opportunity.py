@@ -80,7 +80,7 @@ class _PatternRecord:
 
 
 @dataclass(frozen=True)
-class _ResolvedBinding:
+class ResolvedResearchBinding:
     mapping_id: str
     binding_sha256: str
     task_id: str
@@ -309,6 +309,40 @@ def scan_research_opportunities(
         discovered_count=len(opportunities),
         new_request_count=new_requests,
     )
+
+
+def resolve_registered_task_binding(
+    *,
+    config: ForgeConfig,
+    mapping_id: str,
+    identity_key: str,
+    registry_path: Path | None = None,
+) -> tuple[ResolvedResearchBinding, Path]:
+    """Resolve one exact registry mapping for a non-failure typed ingress.
+
+    ``identity_key`` only namespaces the future Praxist run directory.  It does
+    not participate in mapping selection; selection remains an exact
+    ``mapping_id`` lookup under the validated registry.
+    """
+
+    selected = registry_path or config.paths.forge_root / "research_task_registry.yaml"
+    registry, resolved_registry = _load_registry(config, selected)
+    matches = [
+        mapping
+        for mapping in registry["mappings"]
+        if mapping["mapping_id"] == mapping_id
+    ]
+    if len(matches) != 1:
+        raise ResearchOpportunityError(
+            f"unknown or ambiguous research mapping_id: {mapping_id!r}"
+        )
+    binding = _resolve_mapping_record(
+        config=config,
+        registry_path=resolved_registry,
+        mapping=matches[0],
+        run_seed_digest=sha256_text(identity_key),
+    )
+    return binding, resolved_registry
 
 
 def validate_research_opportunity(
@@ -542,7 +576,23 @@ def _resolve_binding(
     registry_path: Path,
     opportunity: Mapping[str, Any],
     mapping: Mapping[str, Any],
-) -> _ResolvedBinding:
+) -> ResolvedResearchBinding:
+    opportunity_digest = str(opportunity["opportunity_id"]).partition(":")[2]
+    return _resolve_mapping_record(
+        config=config,
+        registry_path=registry_path,
+        mapping=mapping,
+        run_seed_digest=opportunity_digest,
+    )
+
+
+def _resolve_mapping_record(
+    *,
+    config: ForgeConfig,
+    registry_path: Path,
+    mapping: Mapping[str, Any],
+    run_seed_digest: str,
+) -> ResolvedResearchBinding:
     base = registry_path.parent
     task_manifest = _resolve_registry_file(base, mapping["task_manifest"], "research task manifest")
     task_project = _resolve_registry_directory(base, mapping["task_project"], "Praxist task project")
@@ -570,10 +620,9 @@ def _resolve_binding(
         "launch": profile,
     }
     binding_sha256 = sha256_text(canonical_json(normalized_binding))
-    opportunity_digest = str(opportunity["opportunity_id"]).partition(":")[2]
-    run_id = f"run_{opportunity_digest[:20]}_{binding_sha256[:12]}"
+    run_id = f"run_{run_seed_digest[:20]}_{binding_sha256[:12]}"
     run_dir = run_root / run_id
-    return _ResolvedBinding(
+    return ResolvedResearchBinding(
         mapping_id=str(mapping["mapping_id"]),
         binding_sha256=binding_sha256,
         task_id=str(task["task_id"]),
@@ -628,7 +677,7 @@ def _find_submitted_request(
     opportunity: Mapping[str, Any],
     opportunity_path: Path,
     opportunity_sha256: str,
-    binding: _ResolvedBinding,
+    binding: ResolvedResearchBinding,
 ) -> tuple[str, Path] | None:
     opportunity_ref = {
         "locator": _portable_locator(config, opportunity_path),
@@ -710,7 +759,7 @@ def _request_matches_binding(
     request: Mapping[str, Any],
     opportunity_ref: dict[str, str],
     pattern_id: str,
-    binding: _ResolvedBinding,
+    binding: ResolvedResearchBinding,
 ) -> bool:
     task_ref = _content_ref(config, binding.task_manifest, context="research task manifest")
     executable_ref = _absolute_content_ref(binding.praxist_executable, context="Praxist executable")
@@ -753,7 +802,7 @@ def _request_matches_binding(
 
 def _submission_reason(
     opportunity: Mapping[str, Any],
-    binding: _ResolvedBinding,
+    binding: ResolvedResearchBinding,
 ) -> str:
     pattern_id = str(opportunity["source"]["record"]["pattern_id"])
     return _submission_reason_from_ids(pattern_id=pattern_id, mapping_id=binding.mapping_id)
@@ -770,7 +819,7 @@ def _seal_routing_receipt(
     opportunity_path: Path,
     opportunity_sha256: str,
     registry_ref: dict[str, str],
-    mapping: _ResolvedBinding | None,
+    mapping: ResolvedResearchBinding | None,
     decision: str,
     blocker_codes: tuple[str, ...],
     request: tuple[str, Path] | None,
@@ -824,7 +873,7 @@ def _seal_routing_receipt(
     return destination
 
 
-def _mapping_ref(mapping: _ResolvedBinding) -> dict[str, Any]:
+def _mapping_ref(mapping: ResolvedResearchBinding) -> dict[str, Any]:
     return {
         "mapping_id": mapping.mapping_id,
         "binding_sha256": mapping.binding_sha256,
@@ -947,7 +996,7 @@ def _status(
     routing_path: Path,
     state: str,
     blocker_codes: tuple[str, ...],
-    binding: _ResolvedBinding | None = None,
+    binding: ResolvedResearchBinding | None = None,
     request: tuple[str, Path] | None = None,
 ) -> ResearchOpportunityStatus:
     return ResearchOpportunityStatus(

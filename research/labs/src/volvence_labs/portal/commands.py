@@ -114,6 +114,7 @@ class ResearchLabCommandService:
     """Validate portal commands against a fresh snapshot, then delegate to Forge."""
 
     supported_actions = (
+        "bind_topic",
         "submit_external",
         "review_a0",
         "reconcile",
@@ -150,6 +151,149 @@ class ResearchLabCommandService:
             self.supported_actions = tuple(
                 action for action in type(self).supported_actions if action != "submit_external"
             )
+
+    def bind_topic(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "demand_id",
+            "demand_sha256",
+            "proposal_id",
+            "proposal_sha256",
+            "registry_sha256",
+            "mapping_id",
+            "actor",
+            "reason",
+            "decision",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        previous = self._require_current_revision(payload)
+        actor = _bounded_text(payload, "actor", _MAX_ACTOR_LENGTH)
+        reason = _bounded_text(payload, "reason", _MAX_REASON_LENGTH)
+        demand_id = _required_string(payload, "demand_id")
+        proposal_id = _required_string(payload, "proposal_id")
+        demand_sha256 = _required_sha256(payload, "demand_sha256")
+        proposal_sha256 = _required_sha256(payload, "proposal_sha256")
+        registry_sha256 = _required_sha256(payload, "registry_sha256")
+        mapping_id = _required_string(payload, "mapping_id")
+        decision = _required_string(payload, "decision").lower()
+        if decision not in {"approve", "reject"}:
+            raise PortalCommandError(
+                "invalid_decision",
+                "decision must be either approve or reject",
+                status_code=400,
+            )
+        selected = previous.discovery.get_proposal(proposal_id)
+        if selected is None:
+            raise PortalCommandError(
+                "topic_not_found",
+                "TopicProposal is not visible in the exact snapshot",
+                status_code=404,
+            )
+        demand, proposal = selected
+        if demand.demand_id != demand_id:
+            raise PortalCommandError(
+                "topic_demand_mismatch",
+                "TopicProposal does not belong to the submitted Demand",
+                status_code=409,
+            )
+        if (
+            demand.artifact.sha256 != demand_sha256
+            or proposal.artifact.sha256 != proposal_sha256
+        ):
+            raise PortalCommandError(
+                "artifact_revision_mismatch",
+                "Demand or TopicProposal bytes changed after the reviewed snapshot",
+                status_code=409,
+            )
+        if "bind_topic" not in proposal.available_actions:
+            raise PortalCommandError(
+                "action_not_available",
+                "TopicProposal is no longer available for an immutable binding decision",
+                status_code=409,
+            )
+        registry_ref = previous.discovery.registry
+        if registry_ref is None or registry_ref.sha256 != registry_sha256:
+            raise PortalCommandError(
+                "registry_revision_mismatch",
+                "research task registry bytes changed after the reviewed snapshot",
+                status_code=409,
+            )
+        demand_path = _resolve_repo_artifact(self.repo_root, demand.artifact.locator)
+        proposal_path = _resolve_repo_artifact(self.repo_root, proposal.artifact.locator)
+        registry_path = _resolve_repo_artifact(self.repo_root, registry_ref.locator)
+        arguments = [
+            "--repo-root",
+            str(self.repo_root),
+            "research-bind-topic",
+            str(demand_path),
+            str(proposal_path),
+            "--mapping-id",
+            mapping_id,
+            "--registry",
+            str(registry_path),
+            "--reviewed-by",
+            actor,
+            "--reason",
+            reason,
+            "--json",
+        ]
+        if decision == "reject":
+            arguments.append("--reject")
+        owner_result = self._run_owner(arguments)
+        owner_payload = _owner_json_object(
+            owner_result.stdout,
+            context="TopicProposal binding",
+        )
+        expected_decision = decision.upper()
+        if (
+            owner_payload.get("decision") != expected_decision
+            or not isinstance(owner_payload.get("binding_id"), str)
+            or not isinstance(owner_payload.get("binding_sha256"), str)
+        ):
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "Forge binding result does not match the reviewed decision",
+                status_code=502,
+            )
+        current = self.collector.collect()
+        current_selected = current.discovery.get_proposal(proposal_id)
+        if current_selected is None:
+            raise PortalCommandError(
+                "owner_transition_missing",
+                "Forge returned success but the exact TopicProposal is no longer visible",
+                status_code=502,
+            )
+        _, current_proposal = current_selected
+        binding_ref = current_proposal.binding
+        if (
+            binding_ref is None
+            or binding_ref.artifact_id != owner_payload["binding_id"]
+            or binding_ref.sha256 != owner_payload["binding_sha256"]
+            or current_proposal.binding_decision != expected_decision
+        ):
+            raise PortalCommandError(
+                "owner_transition_missing",
+                "Forge returned success but the exact DemandBinding is not visible",
+                status_code=502,
+            )
+        return _command_response(
+            action="bind_topic",
+            task_id=mapping_id,
+            outcome=(
+                "bound_for_a0_submission"
+                if expected_decision == "APPROVE"
+                else "topic_rejected"
+            ),
+            message=(
+                "Topic bound to the exact registered task; separate A0 approval remains required"
+                if expected_decision == "APPROVE"
+                else "Topic rejected and sealed as an immutable terminal binding decision"
+            ),
+            previous=previous,
+            current=current,
+            binding=binding_ref,
+            input_bindings=(demand.artifact, proposal.artifact, registry_ref),
+        )
 
     def submit_external(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         allowed_fields = {

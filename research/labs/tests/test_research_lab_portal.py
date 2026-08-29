@@ -34,6 +34,148 @@ def _write_json(path: Path, payload: object) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _canonical_artifact_id(
+    prefix: str,
+    payload: dict[str, object],
+    identity_field: str,
+) -> str:
+    body = {
+        key: value
+        for key, value in payload.items()
+        if key not in {identity_field, "created_at"}
+    }
+    encoded = json.dumps(
+        body,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return f"{prefix}:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _artifact_content_ref(repo: Path, path: Path) -> dict[str, str]:
+    return {
+        "locator": path.relative_to(repo).as_posix(),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def _make_discovery(repo: Path) -> tuple[Path, Path, Path]:
+    registry_path = repo / "forge" / "research_task_registry.yaml"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(
+        "schema_version: forge-research-task-registry.v1\nmappings: []\n",
+        encoding="utf-8",
+    )
+    source_path = repo / "research" / "industry_four_ables" / "readable.md"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        "Publish immutable named state before a bounded action.\n",
+        encoding="utf-8",
+    )
+    source_ref = _artifact_content_ref(repo, source_path)
+    demand: dict[str, object] = {
+        "schema_version": "forge-volvence-research-demand.v1",
+        "claim_id": "claim:example",
+        "title": "Close the named-state transmission gap",
+        "objective": "Find a falsifiable readout-to-action mechanism.",
+        "owner": "vz-memory",
+        "capability_axes": ["readable"],
+        "need": {},
+        "evidence": [],
+        "discovery": {
+            "source_roots": ["research/industry_four_ables"],
+            "max_source_files": 8,
+            "max_source_bytes": 16384,
+            "max_topics": 2,
+        },
+        "routing": {"requested_mapping_id": "example_research_v1"},
+        "status": "OPEN",
+        "authority": {},
+        "created_at": "2026-08-30T00:00:00Z",
+    }
+    demand["demand_id"] = _canonical_artifact_id(
+        "research-demand",
+        demand,
+        "demand_id",
+    )
+    demand_path = repo / "research" / "demands" / "example.json"
+    _write_json(demand_path, demand)
+    demand_ref = {
+        "artifact_id": demand["demand_id"],
+        "artifact": _artifact_content_ref(repo, demand_path),
+    }
+    run_key = "7" * 64
+    run_id = f"research-discovery-run:{run_key}"
+    run_root = (
+        repo
+        / "artifacts"
+        / "research_discovery"
+        / str(demand["demand_id"]).partition(":")[2]
+        / "runs"
+        / run_key
+    )
+    proposal: dict[str, object] = {
+        "schema_version": "forge-research-topic-proposal.v1",
+        "demand": demand_ref,
+        "discovery_run_id": run_id,
+        "corpus_sha256": "8" * 64,
+        "capability_axes": ["readable"],
+        "topic": {
+            "title": "Named residual transmission ablation",
+            "hypothesis": "A named residual changes action only under its intended condition.",
+            "mechanism": "Publish a frozen readout before a separately gated action.",
+            "demand_relevance": "Directly tests the Demand gap.",
+            "research_question": "Does the intended arm beat swapped and random controls?",
+            "suggested_method": "Run matched absent, swapped, random, and intended arms.",
+            "success_signals": ["The intended arm clears the frozen threshold."],
+            "falsification_signals": ["Random controls match the intended effect."],
+            "caveats": ["This is a hypothesis, not production evidence."],
+        },
+        "source_refs": [
+            {
+                **source_ref,
+                "claim": "The source requires immutable named state before action.",
+            }
+        ],
+        "binding_status": "UNBOUND",
+        "authority": {},
+        "created_at": "2026-08-30T00:01:00Z",
+    }
+    proposal["proposal_id"] = _canonical_artifact_id(
+        "research-topic-proposal",
+        proposal,
+        "proposal_id",
+    )
+    proposal_path = (
+        run_root
+        / "topics"
+        / f"{str(proposal['proposal_id']).partition(':')[2]}.json"
+    )
+    _write_json(proposal_path, proposal)
+    run: dict[str, object] = {
+        "schema_version": "forge-research-discovery-run.v1",
+        "run_id": run_id,
+        "run_key": run_key,
+        "demand": demand_ref,
+        "corpus": {"tree_sha256": "8" * 64},
+        "execution": {
+            "backend": "codex_sdk",
+            "model": "gpt-5.6-luna",
+        },
+        "proposals": [
+            {
+                "artifact_id": proposal["proposal_id"],
+                "artifact": _artifact_content_ref(repo, proposal_path),
+            }
+        ],
+        "authority": {},
+        "created_at": "2026-08-30T00:02:00Z",
+    }
+    _write_json(run_root / "run.json", run)
+    return demand_path, proposal_path, registry_path
+
+
 def _make_task(repo: Path) -> Path:
     path = repo / "research" / "tasks" / TASK_ID / "task.json"
     _write_json(
@@ -288,6 +430,70 @@ class FakeForgeRunner:
         raise AssertionError(f"unexpected Forge command: {arguments}")
 
 
+class FakeDiscoveryRunner:
+    def __init__(self, repo: Path) -> None:
+        self.repo = repo
+        self.calls: list[tuple[str, ...]] = []
+
+    def __call__(self, arguments: object) -> OwnerCommandResult:
+        if not isinstance(arguments, tuple):
+            raise AssertionError("portal must pass one frozen argv tuple")
+        self.calls.append(arguments)
+        command_index = arguments.index("research-bind-topic")
+        demand_path = Path(arguments[command_index + 1])
+        proposal_path = Path(arguments[command_index + 2])
+        registry_path = Path(arguments[arguments.index("--registry") + 1])
+        mapping_id = arguments[arguments.index("--mapping-id") + 1]
+        actor = arguments[arguments.index("--reviewed-by") + 1]
+        reason = arguments[arguments.index("--reason") + 1]
+        decision = "REJECT" if "--reject" in arguments else "APPROVE"
+        demand = json.loads(demand_path.read_text(encoding="utf-8"))
+        proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+        binding: dict[str, object] = {
+            "schema_version": "forge-research-demand-binding.v1",
+            "demand": {
+                "artifact_id": demand["demand_id"],
+                "artifact": _artifact_content_ref(self.repo, demand_path),
+            },
+            "proposal": {
+                "artifact_id": proposal["proposal_id"],
+                "artifact": _artifact_content_ref(self.repo, proposal_path),
+            },
+            "registry": _artifact_content_ref(self.repo, registry_path),
+            "mapping": {"mapping_id": mapping_id},
+            "decision": decision,
+            "review": {"reviewed_by": actor, "reason": reason},
+            "authority": {},
+            "created_at": "2026-08-30T00:03:00Z",
+        }
+        binding["binding_id"] = _canonical_artifact_id(
+            "research-demand-binding",
+            binding,
+            "binding_id",
+        )
+        proposal_digest = str(proposal["proposal_id"]).partition(":")[2]
+        binding_path = (
+            proposal_path.parent.parent
+            / "bindings"
+            / proposal_digest
+            / f"{str(binding['binding_id']).partition(':')[2]}.json"
+        )
+        binding_sha = _write_json(binding_path, binding)
+        return OwnerCommandResult(
+            0,
+            json.dumps(
+                {
+                    "schema_version": "forge-research-demand-binding-result.v1",
+                    "binding_id": binding["binding_id"],
+                    "binding": str(binding_path),
+                    "binding_sha256": binding_sha,
+                    "decision": decision,
+                }
+            ),
+            "",
+        )
+
+
 class FakePromotionRunner:
     def __init__(self, repo: Path, *, authorize_outcome: str = "AUTHORIZED") -> None:
         self.repo = repo
@@ -506,7 +712,7 @@ def test_running_snapshot_binds_exact_approval_and_live_praxist_status(tmp_path:
     _make_request(tmp_path, approved=True)
     snapshot = _collector(tmp_path, [_running_status(tmp_path)]).collect()
 
-    assert snapshot.schema_version == "volvence-research-lab-snapshot.v1"
+    assert snapshot.schema_version == "volvence-research-lab-snapshot.v2"
     assert snapshot.summary.registered_tasks == 1
     assert snapshot.summary.active_runs == 1
     assert snapshot.summary.awaiting_human == 0
@@ -558,6 +764,136 @@ def test_request_without_approval_is_awaiting_a0(tmp_path: Path) -> None:
     assert item.authority.a0_research_start_authorized is False
     assert item.available_actions == ("review_a0",)
     assert snapshot.summary.awaiting_human == 1
+
+
+def test_discovery_snapshot_keeps_topic_unbound_and_source_exact(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    demand_path, proposal_path, registry_path = _make_discovery(tmp_path)
+
+    snapshot = _collector(tmp_path, []).collect()
+
+    assert snapshot.discovery.demand_count == 1
+    assert snapshot.discovery.open_demand_count == 1
+    assert snapshot.discovery.proposal_count == 1
+    assert snapshot.discovery.awaiting_binding_count == 1
+    assert snapshot.discovery.registry is not None
+    assert snapshot.discovery.registry.sha256 == hashlib.sha256(
+        registry_path.read_bytes()
+    ).hexdigest()
+    demand = snapshot.discovery.demands[0]
+    proposal = demand.proposals[0]
+    assert demand.artifact.locator == demand_path.relative_to(tmp_path).as_posix()
+    assert demand.run_backend == "codex_sdk"
+    assert demand.run_model == "gpt-5.6-luna"
+    assert proposal.artifact.locator == proposal_path.relative_to(tmp_path).as_posix()
+    assert proposal.effective_state == "UNBOUND"
+    assert proposal.available_actions == ("bind_topic",)
+    assert proposal.source_refs[0].claim.startswith("The source requires")
+    assert proposal.binding is None
+    assert proposal.request is None
+    assert not (tmp_path / "artifacts" / "research_control").exists()
+
+
+def test_topic_binding_uses_exact_revision_and_still_requires_a0(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _, _, _ = _make_discovery(tmp_path)
+    collector = _collector(tmp_path, [])
+    before = collector.collect()
+    demand = before.discovery.demands[0]
+    proposal = demand.proposals[0]
+    registry = before.discovery.registry
+    assert registry is not None
+    runner = FakeDiscoveryRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    result = service.bind_topic(
+        {
+            "snapshot_revision": before.revision,
+            "demand_id": demand.demand_id,
+            "demand_sha256": demand.artifact.sha256,
+            "proposal_id": proposal.proposal_id,
+            "proposal_sha256": proposal.artifact.sha256,
+            "registry_sha256": registry.sha256,
+            "mapping_id": "example_research_v1",
+            "actor": "Meng Fu",
+            "reason": "Bind this exact proposal to the registered Volvence task.",
+            "decision": "approve",
+        }
+    )
+
+    assert result["action"] == "bind_topic"
+    assert result["outcome"] == "bound_for_a0_submission"
+    assert "research-bind-topic" in runner.calls[0]
+    after = collector.collect().discovery.demands[0].proposals[0]
+    assert after.effective_state == "BOUND_FOR_A0"
+    assert after.binding_decision == "APPROVE"
+    assert after.reviewed_by == "Meng Fu"
+    assert after.available_actions == ()
+    assert after.request is None
+    assert not (tmp_path / "artifacts" / "research_control").exists()
+
+
+def test_topic_binding_http_route_preserves_separate_a0_gate(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_discovery(tmp_path)
+    collector = _collector(tmp_path, [])
+    before = collector.collect()
+    demand = before.discovery.demands[0]
+    proposal = demand.proposals[0]
+    registry = before.discovery.registry
+    assert registry is not None
+    runner = FakeDiscoveryRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+    csrf_token = "x" * 32
+    ui_origin = "http://localhost:3000"
+    server = create_server(
+        collector,
+        port=0,
+        command_service=service,
+        allowed_origins=(ui_origin,),
+        csrf_token=csrf_token,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    body = json.dumps(
+        {
+            "snapshot_revision": before.revision,
+            "demand_id": demand.demand_id,
+            "demand_sha256": demand.artifact.sha256,
+            "proposal_id": proposal.proposal_id,
+            "proposal_sha256": proposal.artifact.sha256,
+            "registry_sha256": registry.sha256,
+            "mapping_id": "example_research_v1",
+            "actor": "Meng Fu",
+            "reason": "Bind the exact proposal through the local workbench.",
+            "decision": "approve",
+        }
+    ).encode()
+    request = Request(
+        f"http://{host}:{port}/api/v1/topics/bind",
+        method="POST",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Origin": ui_origin,
+            "X-Research-Lab-CSRF": csrf_token,
+        },
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.loads(response.read())
+        assert result["action"] == "bind_topic"
+        assert result["outcome"] == "bound_for_a0_submission"
+        assert len(runner.calls) == 1
+        after = collector.collect().discovery.demands[0].proposals[0]
+        assert after.effective_state == "BOUND_FOR_A0"
+        assert after.request is None
+        assert not (tmp_path / "artifacts" / "research_control").exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_rejected_a0_review_is_a_visible_terminal_blocker(tmp_path: Path) -> None:
@@ -794,7 +1130,7 @@ def test_loopback_server_exposes_get_and_refuses_post(tmp_path: Path) -> None:
     try:
         with urlopen(f"http://{host}:{port}/api/v1/snapshot", timeout=5) as response:
             payload = json.loads(response.read())
-        assert payload["schema_version"] == "volvence-research-lab-snapshot.v1"
+        assert payload["schema_version"] == "volvence-research-lab-snapshot.v2"
         assert payload["items"][0]["task_id"] == TASK_ID
 
         with urlopen(f"http://{host}:{port}/api/v1/tasks/{TASK_ID}", timeout=5) as response:
@@ -1379,6 +1715,7 @@ def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) ->
         assert session["mutations_enabled"] is True
         assert session["csrf_token"] == csrf_token
         assert set(session["supported_actions"]) == {
+            "bind_topic",
             "review_a0",
             "reconcile",
             "record_external_handoff",

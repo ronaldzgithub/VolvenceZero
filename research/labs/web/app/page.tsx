@@ -12,6 +12,7 @@ import {
   CircleDot,
   Cpu,
   Database,
+  FileSearch,
   FlaskConical,
   GitBranch,
   LayoutDashboard,
@@ -46,6 +47,7 @@ import {
 } from '@/components/ui/table';
 import { PromotionReadiness } from '@/components/promotion-readiness';
 import { ResearchCommandWorkbench } from '@/components/research-command-workbench';
+import { ResearchDiscoveryInbox } from '@/components/research-discovery-inbox';
 import { useResearchLab } from '@/hooks/use-research-lab';
 import type {
   LifecycleStage,
@@ -56,6 +58,7 @@ import type {
 type StageState = 'complete' | 'current' | 'locked' | 'not_applicable';
 export type ResearchLabView =
   | 'pipeline'
+  | 'discovery'
   | 'task'
   | 'approvals'
   | 'runs'
@@ -103,6 +106,12 @@ const viewCopy: Record<
     title: 'Research to production, one gate at a time',
     description:
       'Owner artifacts stay separate. This view joins their lineage without granting new authority.',
+  },
+  discovery: {
+    eyebrow: 'Demand discovery',
+    title: 'Volvence needs become auditable research candidates',
+    description:
+      'Codex reads only the frozen Demand corpus. Every proposal stays unbound until a named human maps it to an exact registered task.',
   },
   task: {
     eyebrow: 'Task lineage',
@@ -204,16 +213,28 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
   const rawTaskId = params?.taskId;
   const taskId = Array.isArray(rawTaskId) ? rawTaskId[0] : rawTaskId;
   const [searchQuery, setSearchQuery] = useState('');
-  const scopedItems = selectItemsForView(snapshot?.items ?? [], view, taskId);
+  const scopedItems =
+    view === 'discovery'
+      ? []
+      : selectItemsForView(snapshot?.items ?? [], view, taskId);
   const visibleItems = filterItems(scopedItems, searchQuery);
   const primaryItem =
-    visibleItems[0] ??
-    (view === 'task' || searchQuery.trim()
+    view === 'discovery'
       ? null
-      : (snapshot?.items[0] ?? null));
+      : (visibleItems[0] ??
+        (view === 'task' || searchQuery.trim()
+          ? null
+          : (snapshot?.items[0] ?? null)));
   const stages = buildStages(primaryItem);
   const navItems = [
     { label: 'Pipeline', icon: LayoutDashboard, href: '/', key: 'pipeline' },
+    {
+      label: 'Discovery',
+      icon: FileSearch,
+      href: '/discovery',
+      key: 'discovery',
+      count: snapshot?.discovery.awaiting_binding_count ?? 0,
+    },
     {
       label: 'Approvals',
       icon: UserRoundCheck,
@@ -231,9 +252,15 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
     { label: 'Evidence', icon: Database, href: '/evidence', key: 'evidence' },
     { label: 'System', icon: Cpu, href: '/system', key: 'system' },
   ] as const;
-  const metrics = buildMetrics(snapshot, primaryItem);
+  const metrics =
+    view === 'discovery'
+      ? buildDiscoveryMetrics(snapshot)
+      : buildMetrics(snapshot, primaryItem);
   const systemChecks = buildSystemChecks(snapshot, session?.mutations_enabled);
-  const inspectorFacts = buildInspectorFacts(primaryItem);
+  const inspectorFacts =
+    view === 'discovery'
+      ? buildDiscoveryInspectorFacts(snapshot)
+      : buildInspectorFacts(primaryItem);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -454,6 +481,7 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
             session={session}
             connection={connection}
             taskId={taskId}
+            onRefresh={refresh}
           />
 
           {(view === 'pipeline' || view === 'task') && (
@@ -507,7 +535,9 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
                 Inspector
               </p>
               <h2 className="mt-1 text-sm font-semibold text-slate-200">
-                {primaryItem?.title ?? 'No selected research task'}
+                {view === 'discovery'
+                  ? 'Discovery authority guard'
+                  : (primaryItem?.title ?? 'No selected research task')}
               </h2>
               {primaryItem && (
                 <div className="mt-2">
@@ -516,13 +546,27 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
               )}
             </div>
             <Badge className={stageBadge(primaryItem?.lifecycle.stage)}>
-              {primaryItem
+              {view === 'discovery'
+                ? `${snapshot?.discovery.awaiting_binding_count ?? 0} unbound`
+                : primaryItem
                 ? stageLabels[primaryItem.lifecycle.stage]
                 : connection}
             </Badge>
           </div>
 
-          <InspectorBanner item={primaryItem} connection={connection} />
+          {view === 'discovery' ? (
+            <div className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
+              <p className="flex items-center gap-2 text-xs text-cyan-100">
+                <FileSearch className="size-4" /> Proposal-only discovery
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                Codex can inspect only the frozen corpus. It cannot choose the
+                task mapping, approve A0, start Praxist, or promote a result.
+              </p>
+            </div>
+          ) : (
+            <InspectorBanner item={primaryItem} connection={connection} />
+          )}
 
           <dl className="mt-5 space-y-4">
             {inspectorFacts.map(([term, value]) => (
@@ -538,33 +582,53 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
             ))}
           </dl>
 
-          <div className="mt-5">
-            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-600">
-              Live profile
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {[
-                ['Peers', String(primaryItem?.run?.peers_total ?? '—')],
-                ['Generation', String(primaryItem?.run?.generation ?? '—')],
-                ['Findings', String(primaryItem?.run?.findings_total ?? '—')],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 text-center"
-                >
-                  <p className="font-mono text-sm text-slate-300">{value}</p>
-                  <p className="mt-1 text-[9px] text-slate-600">{label}</p>
-                </div>
-              ))}
+          {view !== 'discovery' && (
+            <div className="mt-5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-600">
+                Live profile
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[
+                  ['Peers', String(primaryItem?.run?.peers_total ?? '—')],
+                  ['Generation', String(primaryItem?.run?.generation ?? '—')],
+                  ['Findings', String(primaryItem?.run?.findings_total ?? '—')],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 text-center"
+                  >
+                    <p className="font-mono text-sm text-slate-300">{value}</p>
+                    <p className="mt-1 text-[9px] text-slate-600">{label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-5 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
             <p className="flex items-center gap-2 text-xs text-slate-300">
               <ShieldCheck className="size-4 text-cyan-300" /> Authority
               boundary
             </p>
-            {primaryItem?.research_mode === 'external_simulation' ? (
+            {view === 'discovery' ? (
+              <ul className="mt-3 space-y-2 text-[11px] text-slate-500">
+                <AuthorityLine
+                  allowed={Boolean(snapshot?.discovery.open_demand_count)}
+                  text="Volvence Demand published"
+                />
+                <AuthorityLine
+                  allowed={Boolean(snapshot?.discovery.proposal_count)}
+                  text="Read-only Codex proposal sealed"
+                />
+                <AuthorityLine
+                  allowed={false}
+                  text="Named-human topic binding"
+                />
+                <AuthorityLine allowed={false} text="Separate A0 approval" />
+                <NeutralAuthorityLine text="Candidate import: not authorized" />
+                <NeutralAuthorityLine text="SHADOW / ACTIVE: unchanged" />
+              </ul>
+            ) : primaryItem?.research_mode === 'external_simulation' ? (
               <ul className="mt-3 space-y-2 text-[11px] text-slate-500">
                 <AuthorityLine
                   allowed={primaryItem.authority.a0_research_start_authorized}
@@ -626,13 +690,15 @@ export function ResearchLabPage({ view }: { view: ResearchLabView }) {
             )}
           </div>
 
-          <ResearchCommandWorkbench
-            item={primaryItem}
-            snapshot={snapshot}
-            session={session}
-            sessionError={sessionError}
-            onRefresh={refresh}
-          />
+          {view !== 'discovery' && (
+            <ResearchCommandWorkbench
+              item={primaryItem}
+              snapshot={snapshot}
+              session={session}
+              sessionError={sessionError}
+              onRefresh={refresh}
+            />
+          )}
 
           <Button
             className="mt-5 w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
@@ -661,6 +727,7 @@ function PrimaryWorkspace({
   session,
   connection,
   taskId,
+  onRefresh,
 }: {
   view: ResearchLabView;
   items: ResearchLabItem[];
@@ -668,7 +735,16 @@ function PrimaryWorkspace({
   session: ReturnType<typeof useResearchLab>['session'];
   connection: 'loading' | 'live' | 'degraded' | 'offline';
   taskId: string | undefined;
+  onRefresh: () => void;
 }) {
+  if (view === 'discovery')
+    return (
+      <ResearchDiscoveryInbox
+        snapshot={snapshot}
+        session={session}
+        onRefresh={onRefresh}
+      />
+    );
   if (view === 'evidence')
     return <EvidenceMatrix items={items} connection={connection} />;
   if (view === 'system') {
@@ -1263,6 +1339,35 @@ function pipelineProgress(item: ResearchLabItem): number {
   return values[pipelineIndex(item)];
 }
 
+function buildDiscoveryMetrics(snapshot: ResearchLabSnapshot | null) {
+  return [
+    {
+      label: 'Open demands',
+      value: String(snapshot?.discovery.open_demand_count ?? 0),
+      detail: `${snapshot?.discovery.demand_count ?? 0} exact Demand artifacts`,
+      icon: FileSearch,
+    },
+    {
+      label: 'Topic proposals',
+      value: String(snapshot?.discovery.proposal_count ?? 0),
+      detail: 'Read-only Codex output',
+      icon: FlaskConical,
+    },
+    {
+      label: 'Needs binding',
+      value: String(snapshot?.discovery.awaiting_binding_count ?? 0),
+      detail: 'Named human decision',
+      icon: GitBranch,
+    },
+    {
+      label: 'Awaiting A0',
+      value: String(snapshot?.discovery.awaiting_a0_count ?? 0),
+      detail: 'Separate research-start approval',
+      icon: UserRoundCheck,
+    },
+  ];
+}
+
 function buildMetrics(
   snapshot: ResearchLabSnapshot | null,
   item: ResearchLabItem | null,
@@ -1363,6 +1468,23 @@ function buildInspectorFacts(
     ['Model', item?.run?.model ?? '—'],
     ['Authorized', item?.authority.authorized_wiring ?? '—'],
     ['Runtime wiring', item?.authority.runtime_wiring ?? '—'],
+  ];
+}
+
+function buildDiscoveryInspectorFacts(
+  snapshot: ResearchLabSnapshot | null,
+): Array<[string, string]> {
+  const discovery = snapshot?.discovery;
+  const latestModel = discovery?.demands.find(
+    (demand) => demand.run_model,
+  )?.run_model;
+  return [
+    ['Open demands', String(discovery?.open_demand_count ?? 0)],
+    ['Proposals', String(discovery?.proposal_count ?? 0)],
+    ['Unbound', String(discovery?.awaiting_binding_count ?? 0)],
+    ['Awaiting A0', String(discovery?.awaiting_a0_count ?? 0)],
+    ['Registry SHA', shorten(discovery?.registry?.sha256)],
+    ['Discovery model', latestModel ?? 'waiting for first run'],
   ];
 }
 

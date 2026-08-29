@@ -9,16 +9,20 @@ RESEARCH_LAB_API_PORT="${RESEARCH_LAB_API_PORT:-8766}"
 RESEARCH_LAB_WEB_PORT="${RESEARCH_LAB_WEB_PORT:-3000}"
 RESEARCH_LAB_MODE="controlled"
 RESEARCH_LAB_OPEN_BROWSER="0"
+RESEARCH_LAB_AUTO_RESEARCH="${RESEARCH_LAB_AUTO_RESEARCH:-1}"
+RESEARCH_LAB_DISCOVERY_INTERVAL="${RESEARCH_LAB_DISCOVERY_INTERVAL:-300}"
+RESEARCH_LAB_DISCOVERY_MODEL="${RESEARCH_LAB_DISCOVERY_MODEL:-gpt-5.6-luna}"
 
 usage() {
   cat <<'EOF'
 Usage: ./start_research_lab.sh [options]
 
-Starts the loopback Research Lab API and Vinext web workbench in the foreground.
-This launcher never approves a Request and never starts Praxist directly.
+Starts the loopback Research Lab API, Vinext workbench, and bounded automatic
+research worker in the foreground. The worker never approves Binding or A0.
 
 Options:
   --read-only         Disable all POST command delegation.
+  --no-auto-research  Disable periodic Demand discovery and approved reconcile.
   --api-port PORT     API port (default: 8766).
   --web-port PORT     Web port (default: 3000).
   --open              Open the local workbench in the default browser.
@@ -31,6 +35,9 @@ Optional environment:
   RESEARCH_LAB_FOUNDRY_ROOT  Read-only Foundry descriptor root (sibling checkout is auto-detected).
   RESEARCH_LAB_API_PORT   API port override.
   RESEARCH_LAB_WEB_PORT   Web port override.
+  RESEARCH_LAB_AUTO_RESEARCH  1 to run the worker, 0 to disable it (default: 1).
+  RESEARCH_LAB_DISCOVERY_INTERVAL  Seconds between bounded passes (default: 300).
+  RESEARCH_LAB_DISCOVERY_MODEL  Exact Codex model (default: gpt-5.6-luna).
 EOF
 }
 
@@ -38,6 +45,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --read-only)
       RESEARCH_LAB_MODE="read-only"
+      shift
+      ;;
+    --no-auto-research)
+      RESEARCH_LAB_AUTO_RESEARCH="0"
       shift
       ;;
     --api-port)
@@ -82,6 +93,19 @@ if [[ "${RESEARCH_LAB_API_PORT}" == "${RESEARCH_LAB_WEB_PORT}" ]]; then
   echo "API and Web ports must be different." >&2
   exit 2
 fi
+if [[ "${RESEARCH_LAB_AUTO_RESEARCH}" != "0" && "${RESEARCH_LAB_AUTO_RESEARCH}" != "1" ]]; then
+  echo "RESEARCH_LAB_AUTO_RESEARCH must be 0 or 1." >&2
+  exit 2
+fi
+if [[ ! "${RESEARCH_LAB_DISCOVERY_INTERVAL}" =~ ^[0-9]+$ ]] \
+  || (( 10#${RESEARCH_LAB_DISCOVERY_INTERVAL} < 10 )); then
+  echo "RESEARCH_LAB_DISCOVERY_INTERVAL must be an integer of at least 10 seconds." >&2
+  exit 2
+fi
+if [[ -z "${RESEARCH_LAB_DISCOVERY_MODEL}" ]]; then
+  echo "RESEARCH_LAB_DISCOVERY_MODEL must be non-empty." >&2
+  exit 2
+fi
 
 if [[ -n "${RESEARCH_LAB_PYTHON:-}" ]]; then
   RESEARCH_LAB_PYTHON_BIN="${RESEARCH_LAB_PYTHON}"
@@ -100,6 +124,11 @@ if [[ ! -x "${RESEARCH_LAB_PYTHON_BIN}" ]]; then
 fi
 if ! "${RESEARCH_LAB_PYTHON_BIN}" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'; then
   echo "Research Lab requires Python >=3.11: ${RESEARCH_LAB_PYTHON_BIN}" >&2
+  exit 1
+fi
+if [[ "${RESEARCH_LAB_MODE}" == "controlled" && "${RESEARCH_LAB_AUTO_RESEARCH}" == "1" ]] \
+  && ! "${RESEARCH_LAB_PYTHON_BIN}" -c 'import openai_codex'; then
+  echo "Automatic research requires the openai-codex SDK in RESEARCH_LAB_PYTHON." >&2
   exit 1
 fi
 
@@ -205,14 +234,15 @@ assert_port_free "${RESEARCH_LAB_WEB_PORT}" "Web"
 
 RESEARCH_LAB_API_PID=""
 RESEARCH_LAB_WEB_PID=""
+RESEARCH_LAB_WORKER_PID=""
 cleanup() {
   trap - EXIT INT TERM
-  for child_pid in "${RESEARCH_LAB_WEB_PID}" "${RESEARCH_LAB_API_PID}"; do
+  for child_pid in "${RESEARCH_LAB_WORKER_PID}" "${RESEARCH_LAB_WEB_PID}" "${RESEARCH_LAB_API_PID}"; do
     if [[ -n "${child_pid}" ]] && kill -0 "${child_pid}" >/dev/null 2>&1; then
       kill "${child_pid}" >/dev/null 2>&1 || true
     fi
   done
-  for child_pid in "${RESEARCH_LAB_WEB_PID}" "${RESEARCH_LAB_API_PID}"; do
+  for child_pid in "${RESEARCH_LAB_WORKER_PID}" "${RESEARCH_LAB_WEB_PID}" "${RESEARCH_LAB_API_PID}"; do
     if [[ -n "${child_pid}" ]]; then
       wait "${child_pid}" >/dev/null 2>&1 || true
     fi
@@ -289,6 +319,28 @@ wait_for_url() {
 wait_for_url "http://${RESEARCH_LAB_HOST}:${RESEARCH_LAB_API_PORT}/healthz" "Research Lab API" 2 GET
 wait_for_url "http://localhost:${RESEARCH_LAB_WEB_PORT}/" "Research Lab Web" 15 HEAD
 
+if [[ "${RESEARCH_LAB_MODE}" == "controlled" && "${RESEARCH_LAB_AUTO_RESEARCH}" == "1" ]]; then
+  (
+    while true; do
+      echo "[research-lab] automatic research bounded pass"
+      if ! PYTHONPATH="${RESEARCH_LAB_ROOT}/forge/src${PYTHONPATH:+:${PYTHONPATH}}" \
+        "${RESEARCH_LAB_PYTHON_BIN}" -m volvence_forge.cli \
+          --repo-root "${RESEARCH_LAB_ROOT}" \
+          research-loop \
+          --once \
+          --backend codex_sdk \
+          --model "${RESEARCH_LAB_DISCOVERY_MODEL}"; then
+        echo "[research-lab] automatic research pass failed closed; retrying after interval" >&2
+      fi
+      sleep "${RESEARCH_LAB_DISCOVERY_INTERVAL}"
+    done
+  ) &
+  RESEARCH_LAB_WORKER_PID="$!"
+  echo "[research-lab] automatic research enabled: model=${RESEARCH_LAB_DISCOVERY_MODEL} interval=${RESEARCH_LAB_DISCOVERY_INTERVAL}s"
+else
+  echo "[research-lab] automatic research disabled"
+fi
+
 echo "[research-lab] ready: http://localhost:${RESEARCH_LAB_WEB_PORT}/"
 echo "[research-lab] press Ctrl-C to stop both local processes"
 if [[ "${RESEARCH_LAB_OPEN_BROWSER}" == "1" ]]; then
@@ -300,12 +352,17 @@ if [[ "${RESEARCH_LAB_OPEN_BROWSER}" == "1" ]]; then
 fi
 
 while kill -0 "${RESEARCH_LAB_API_PID}" >/dev/null 2>&1 \
-  && kill -0 "${RESEARCH_LAB_WEB_PID}" >/dev/null 2>&1; do
+  && kill -0 "${RESEARCH_LAB_WEB_PID}" >/dev/null 2>&1 \
+  && { [[ -z "${RESEARCH_LAB_WORKER_PID}" ]] || kill -0 "${RESEARCH_LAB_WORKER_PID}" >/dev/null 2>&1; }; do
   sleep 1
 done
 
 RESEARCH_LAB_EXIT_STATUS=1
-if ! kill -0 "${RESEARCH_LAB_API_PID}" >/dev/null 2>&1; then
+if [[ -n "${RESEARCH_LAB_WORKER_PID}" ]] \
+  && ! kill -0 "${RESEARCH_LAB_WORKER_PID}" >/dev/null 2>&1; then
+  wait "${RESEARCH_LAB_WORKER_PID}" || RESEARCH_LAB_EXIT_STATUS="$?"
+  echo "[research-lab] automatic research worker exited unexpectedly with status ${RESEARCH_LAB_EXIT_STATUS}" >&2
+elif ! kill -0 "${RESEARCH_LAB_API_PID}" >/dev/null 2>&1; then
   wait "${RESEARCH_LAB_API_PID}" || RESEARCH_LAB_EXIT_STATUS="$?"
   echo "[research-lab] API exited unexpectedly with status ${RESEARCH_LAB_EXIT_STATUS}" >&2
 else

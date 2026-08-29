@@ -12,6 +12,7 @@ license = { text = "Proprietary" }
 dependencies = [
     "jsonschema>=4.20",
     "numpy>=1.26",
+    "openai-codex==0.147.0",
     "PyYAML>=6.0",
 ]
 
@@ -31,6 +32,9 @@ volvence_forge = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live_network: tests that call live Codex or external services",
+]
 
 [tool.ruff]
 line-length = 120

@@ -44,6 +44,16 @@ from .research_control import (
     submit_research_request,
     validate_external_research_descriptor,
 )
+from .research_discovery import (
+    CodexNativeResearchDiscoveryBackend,
+    ReplayResearchDiscoveryBackend,
+    discover_research_topics,
+    review_research_topic,
+    seal_research_demand,
+    submit_bound_topic_for_a0,
+    validate_research_demand,
+)
+from .research_loop import run_demand_research_loop_once
 from .research_opportunity import (
     ResearchOpportunityStatus,
     scan_research_opportunities,
@@ -236,6 +246,105 @@ def build_parser() -> argparse.ArgumentParser:
         help="Acknowledge that this command performs one bounded scan and exits",
     )
     research_scan.add_argument("--json", action="store_true")
+
+    research_demand_validate = subparsers.add_parser(
+        "research-demand-validate",
+        help="Validate one complete, content-addressed Volvence ResearchDemand",
+    )
+    research_demand_validate.add_argument("demand", type=Path)
+    research_demand_validate.add_argument("--json", action="store_true")
+
+    research_demand_seal = subparsers.add_parser(
+        "research-demand-seal",
+        help="Seal one human-authored Demand draft into the automatic discovery inbox",
+    )
+    research_demand_seal.add_argument("draft", type=Path)
+    research_demand_seal.add_argument("--output", type=Path)
+    research_demand_seal.add_argument("--json", action="store_true")
+
+    research_discover = subparsers.add_parser(
+        "research-discover",
+        help="Run one bounded read-only Codex topic discovery for an exact Demand",
+    )
+    research_discover.add_argument("demand", type=Path)
+    research_discover.add_argument(
+        "--backend",
+        choices=("codex_sdk", "replay"),
+        default="codex_sdk",
+    )
+    research_discover.add_argument(
+        "--model",
+        default=os.environ.get("FORGE_DISCOVERY_MODEL"),
+        help="Exact Codex model; required for --backend codex_sdk",
+    )
+    research_discover.add_argument(
+        "--codex-bin",
+        type=Path,
+        default=(
+            Path(os.environ["FORGE_CODEX_BIN"])
+            if os.environ.get("FORGE_CODEX_BIN")
+            else None
+        ),
+    )
+    research_discover.add_argument("--replay-responses", type=Path)
+    research_discover.add_argument("--json", action="store_true")
+
+    research_bind = subparsers.add_parser(
+        "research-bind-topic",
+        help="Create one named-human exact TopicProposal-to-Task binding",
+    )
+    research_bind.add_argument("demand", type=Path)
+    research_bind.add_argument("proposal", type=Path)
+    research_bind.add_argument("--mapping-id", required=True)
+    research_bind.add_argument("--registry", type=Path)
+    research_bind.add_argument("--reviewed-by", required=True)
+    research_bind.add_argument("--reason", required=True)
+    research_bind.add_argument("--reject", action="store_true")
+    research_bind.add_argument("--json", action="store_true")
+
+    research_submit_binding = subparsers.add_parser(
+        "research-submit-binding",
+        help="Submit one approved DemandBinding to the existing human A0 gate",
+    )
+    research_submit_binding.add_argument("binding", type=Path)
+    research_submit_binding.add_argument("--json", action="store_true")
+
+    research_loop = subparsers.add_parser(
+        "research-loop",
+        help="Run one bounded demand discovery, A0 submission, and approved reconcile pass",
+    )
+    research_loop.add_argument(
+        "--once",
+        action="store_true",
+        required=True,
+        help="Acknowledge that this command performs one bounded pass and exits",
+    )
+    research_loop.add_argument("--demand-root", type=Path)
+    research_loop.add_argument(
+        "--backend",
+        choices=("codex_sdk", "replay"),
+        default="codex_sdk",
+    )
+    research_loop.add_argument(
+        "--model",
+        default=os.environ.get("FORGE_DISCOVERY_MODEL"),
+        help="Exact Codex model; required for --backend codex_sdk",
+    )
+    research_loop.add_argument(
+        "--codex-bin",
+        type=Path,
+        default=(
+            Path(os.environ["FORGE_CODEX_BIN"])
+            if os.environ.get("FORGE_CODEX_BIN")
+            else None
+        ),
+    )
+    research_loop.add_argument("--replay-responses", type=Path)
+    research_loop.add_argument("--max-demands", type=int, default=128)
+    research_loop.add_argument("--max-new-discoveries", type=int, default=1)
+    research_loop.add_argument("--max-new-requests", type=int, default=8)
+    research_loop.add_argument("--max-reconciles", type=int, default=8)
+    research_loop.add_argument("--json", action="store_true")
 
     research_inbox = subparsers.add_parser(
         "research-inbox",
@@ -569,6 +678,151 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_research_scan_result(result, as_json=args.json)
             return 0
+        if args.command == "research-demand-validate":
+            demand = validate_research_demand(
+                config=config,
+                demand_path=args.demand,
+            )
+            payload = {
+                "schema_version": "forge-research-demand-validation-result.v1",
+                "state": "VALID",
+                "demand_id": demand["demand_id"],
+                "status": demand["status"],
+                "owner": demand["owner"],
+                "capability_axes": demand["capability_axes"],
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"VALID: demand={demand['demand_id']}; "
+                    f"status={demand['status']}; owner={demand['owner']}"
+                )
+            return 0
+        if args.command == "research-demand-seal":
+            result = seal_research_demand(
+                config=config,
+                draft_path=args.draft,
+                output_path=args.output,
+            )
+            payload = {
+                "schema_version": "forge-research-demand-seal-result.v1",
+                "demand_id": result.demand_id,
+                "demand": str(result.demand_path),
+                "demand_sha256": sha256_bytes(result.demand_path.read_bytes()),
+                "reused": result.reused,
+                "discovery_authorized": True,
+                "topic_binding_authorized": False,
+                "research_start_authorized": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"SEALED: demand={result.demand_id}; "
+                    f"artifact={result.demand_path}; reused={result.reused}"
+                )
+            return 0
+        if args.command == "research-discover":
+            discovery_backend = _research_discovery_backend(args, parser=parser)
+            result = discover_research_topics(
+                config=config,
+                demand_path=args.demand,
+                backend=discovery_backend,
+            )
+            payload = {
+                "schema_version": "forge-research-discovery-result.v1",
+                "run_id": result.run_id,
+                "run": str(result.run_path),
+                "proposals": [str(path) for path in result.proposal_paths],
+                "proposal_count": len(result.proposal_paths),
+                "reused": result.reused,
+                "research_request_created": False,
+                "praxist_started": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"DISCOVERED: run={result.run_id}; "
+                    f"topics={len(result.proposal_paths)}; reused={result.reused}"
+                )
+            return 0
+        if args.command == "research-bind-topic":
+            result = review_research_topic(
+                config=config,
+                demand_path=args.demand,
+                proposal_path=args.proposal,
+                mapping_id=args.mapping_id,
+                registry_path=args.registry,
+                reviewed_by=args.reviewed_by,
+                reason=args.reason,
+                decision="REJECT" if args.reject else "APPROVE",
+            )
+            payload = {
+                "schema_version": "forge-research-demand-binding-result.v1",
+                "binding_id": result.binding_id,
+                "binding": str(result.binding_path),
+                "binding_sha256": sha256_bytes(result.binding_path.read_bytes()),
+                "decision": result.decision,
+                "research_request_created": False,
+                "praxist_started": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"{result.decision}: binding={result.binding_id}; "
+                    f"artifact={result.binding_path}"
+                )
+            return 0
+        if args.command == "research-submit-binding":
+            result = submit_bound_topic_for_a0(
+                config=config,
+                binding_path=args.binding,
+            )
+            payload = {
+                "schema_version": "forge-research-binding-submit-result.v1",
+                "state": "AWAITING_RESEARCH_APPROVAL",
+                "request_id": result.request_id,
+                "request": str(result.request_path),
+                "request_sha256": sha256_bytes(result.request_path.read_bytes()),
+                "reused": result.reused,
+                "praxist_started": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"AWAITING_RESEARCH_APPROVAL: {result.request_id}; "
+                    f"request={result.request_path}"
+                )
+            return 0
+        if args.command == "research-loop":
+            result = run_demand_research_loop_once(
+                config=config,
+                backend=_research_discovery_backend(args, parser=parser),
+                demand_root=args.demand_root,
+                max_demands=args.max_demands,
+                max_new_discoveries=args.max_new_discoveries,
+                max_new_requests=args.max_new_requests,
+                max_reconciles=args.max_reconciles,
+            )
+            payload = result.to_jsonable()
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                summary = payload["summary"]
+                print(
+                    "BOUNDED_ONCE: "
+                    f"demands={summary['demand_count']}; "
+                    f"new_discoveries={summary['new_discovery_count']}; "
+                    f"new_requests={summary['new_request_count']}; "
+                    f"awaiting_a0={summary['awaiting_a0_count']}; "
+                    f"reconciled={summary['reconciled_count']}; "
+                    f"blocked={summary['blocked_count']}"
+                )
+            return 2 if result.blocked_count else 0
         if args.command == "research-inbox":
             statuses = list_research_inbox(config=config)
             _print_research_statuses(statuses, as_json=args.json)
@@ -758,6 +1012,25 @@ def _embedder(args: argparse.Namespace) -> SentenceTransformerEmbeddingBackend:
         args.embedding_model,
         device=args.embedding_device,
         local_files_only=not args.allow_embedding_download,
+    )
+
+
+def _research_discovery_backend(
+    args: argparse.Namespace,
+    *,
+    parser: argparse.ArgumentParser,
+) -> ReplayResearchDiscoveryBackend | CodexNativeResearchDiscoveryBackend:
+    if args.backend == "replay":
+        if args.replay_responses is None:
+            parser.error(f"{args.command} --backend replay requires --replay-responses")
+        return ReplayResearchDiscoveryBackend.from_path(args.replay_responses)
+    if not args.model:
+        parser.error(
+            f"{args.command} --backend codex_sdk requires --model or FORGE_DISCOVERY_MODEL"
+        )
+    return CodexNativeResearchDiscoveryBackend(
+        model_name=args.model,
+        codex_bin=args.codex_bin,
     )
 
 

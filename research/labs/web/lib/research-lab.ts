@@ -90,8 +90,68 @@ export interface ResearchLabItem {
   updated_at: string | null;
 }
 
+export interface ResearchTopicSource {
+  locator: string;
+  sha256: string;
+  claim: string;
+}
+
+export interface ResearchTopicProposal {
+  proposal_id: string;
+  title: string;
+  hypothesis: string;
+  mechanism: string;
+  demand_relevance: string;
+  research_question: string;
+  suggested_method: string;
+  success_signals: string[];
+  falsification_signals: string[];
+  caveats: string[];
+  source_refs: ResearchTopicSource[];
+  effective_state: string;
+  mapping_id: string | null;
+  binding_decision: string | null;
+  reviewed_by: string | null;
+  request_id: string | null;
+  request_state: string | null;
+  artifact: ArtifactRef;
+  binding: ArtifactRef | null;
+  request: ArtifactRef | null;
+  available_actions: string[];
+  created_at: string | null;
+}
+
+export interface ResearchDemand {
+  demand_id: string;
+  claim_id: string;
+  title: string;
+  objective: string;
+  owner: string;
+  capability_axes: string[];
+  status: string;
+  requested_mapping_id: string | null;
+  source_roots: string[];
+  max_topics: number;
+  artifact: ArtifactRef;
+  latest_run: ArtifactRef | null;
+  run_backend: string | null;
+  run_model: string | null;
+  proposals: ResearchTopicProposal[];
+  created_at: string | null;
+}
+
+export interface ResearchDiscoverySnapshot {
+  registry: ArtifactRef | null;
+  demand_count: number;
+  open_demand_count: number;
+  proposal_count: number;
+  awaiting_binding_count: number;
+  awaiting_a0_count: number;
+  demands: ResearchDemand[];
+}
+
 export interface ResearchLabSnapshot {
-  schema_version: 'volvence-research-lab-snapshot.v1';
+  schema_version: 'volvence-research-lab-snapshot.v2';
   generated_at: string;
   revision: string;
   repo_revision: string;
@@ -109,11 +169,13 @@ export interface ResearchLabSnapshot {
     artifacts_seen: number;
     detail: string;
   }>;
+  discovery: ResearchDiscoverySnapshot;
   items: ResearchLabItem[];
   warnings: PortalWarning[];
 }
 
 export type SupportedCommandAction =
+  | 'bind_topic'
   | 'submit_external'
   | 'review_a0'
   | 'reconcile'
@@ -145,6 +207,19 @@ export interface SubmitExternalCommandPayload {
   descriptor_sha256: string;
   actor: string;
   reason: string;
+}
+
+export interface BindTopicCommandPayload {
+  snapshot_revision: string;
+  demand_id: string;
+  demand_sha256: string;
+  proposal_id: string;
+  proposal_sha256: string;
+  registry_sha256: string;
+  mapping_id: string;
+  actor: string;
+  reason: string;
+  decision: 'approve' | 'reject';
 }
 
 export interface A0CommandPayload extends BaseCommandPayload {
@@ -182,6 +257,7 @@ export interface RollbackCommandPayload extends BaseCommandPayload {
 }
 
 export interface ResearchLabCommandPayloadByAction {
+  bind_topic: BindTopicCommandPayload;
   submit_external: SubmitExternalCommandPayload;
   review_a0: A0CommandPayload;
   reconcile: ReconcileCommandPayload;
@@ -262,6 +338,7 @@ export async function submitResearchLabCommand<
     throw new Error(`${action} is not enabled by the local API session`);
   }
   const endpoints: Record<SupportedCommandAction, string> = {
+    bind_topic: '/api/v1/topics/bind',
     submit_external: '/api/v1/external/requests',
     review_a0: '/api/v1/a0/review',
     reconcile: '/api/v1/reconcile',
@@ -301,13 +378,14 @@ export function isResearchLabSnapshot(
 ): value is ResearchLabSnapshot {
   if (!isRecord(value)) return false;
   return (
-    value.schema_version === 'volvence-research-lab-snapshot.v1' &&
+    value.schema_version === 'volvence-research-lab-snapshot.v2' &&
     typeof value.generated_at === 'string' &&
     typeof value.revision === 'string' &&
     typeof value.repo_revision === 'string' &&
     isSnapshotSummary(value.summary) &&
     Array.isArray(value.source_health) &&
     value.source_health.every(isSourceHealth) &&
+    isResearchDiscoverySnapshot(value.discovery) &&
     Array.isArray(value.items) &&
     value.items.every(isResearchLabItem) &&
     Array.isArray(value.warnings) &&
@@ -325,6 +403,81 @@ function isSnapshotSummary(value: unknown): boolean {
     isNumber(value.blocked) &&
     isNumber(value.awaiting_human) &&
     isNumber(value.production_active)
+  );
+}
+
+function isResearchDiscoverySnapshot(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.registry === null || isArtifactRef(value.registry)) &&
+    isNumber(value.demand_count) &&
+    isNumber(value.open_demand_count) &&
+    isNumber(value.proposal_count) &&
+    isNumber(value.awaiting_binding_count) &&
+    isNumber(value.awaiting_a0_count) &&
+    Array.isArray(value.demands) &&
+    value.demands.every(isResearchDemand)
+  );
+}
+
+function isResearchDemand(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.demand_id === 'string' &&
+    typeof value.claim_id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.objective === 'string' &&
+    typeof value.owner === 'string' &&
+    isStringArray(value.capability_axes) &&
+    typeof value.status === 'string' &&
+    isNullableString(value.requested_mapping_id) &&
+    isStringArray(value.source_roots) &&
+    isNumber(value.max_topics) &&
+    isArtifactRef(value.artifact) &&
+    (value.latest_run === null || isArtifactRef(value.latest_run)) &&
+    isNullableString(value.run_backend) &&
+    isNullableString(value.run_model) &&
+    Array.isArray(value.proposals) &&
+    value.proposals.every(isResearchTopicProposal) &&
+    isNullableString(value.created_at)
+  );
+}
+
+function isResearchTopicProposal(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.proposal_id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.hypothesis === 'string' &&
+    typeof value.mechanism === 'string' &&
+    typeof value.demand_relevance === 'string' &&
+    typeof value.research_question === 'string' &&
+    typeof value.suggested_method === 'string' &&
+    isStringArray(value.success_signals) &&
+    isStringArray(value.falsification_signals) &&
+    isStringArray(value.caveats) &&
+    Array.isArray(value.source_refs) &&
+    value.source_refs.every(isResearchTopicSource) &&
+    typeof value.effective_state === 'string' &&
+    isNullableString(value.mapping_id) &&
+    isNullableString(value.binding_decision) &&
+    isNullableString(value.reviewed_by) &&
+    isNullableString(value.request_id) &&
+    isNullableString(value.request_state) &&
+    isArtifactRef(value.artifact) &&
+    (value.binding === null || isArtifactRef(value.binding)) &&
+    (value.request === null || isArtifactRef(value.request)) &&
+    isStringArray(value.available_actions) &&
+    isNullableString(value.created_at)
+  );
+}
+
+function isResearchTopicSource(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.locator === 'string' &&
+    typeof value.sha256 === 'string' &&
+    typeof value.claim === 'string'
   );
 }
 
@@ -525,6 +678,7 @@ function isSupportedCommandAction(
   value: unknown,
 ): value is SupportedCommandAction {
   return (
+    value === 'bind_topic' ||
     value === 'submit_external' ||
     value === 'review_a0' ||
     value === 'reconcile' ||

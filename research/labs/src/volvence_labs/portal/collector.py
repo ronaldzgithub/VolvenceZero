@@ -22,9 +22,13 @@ from .models import (
     NamedCount,
     PortalWarning,
     PraxistRunSnapshot,
+    ResearchDemandSnapshot,
+    ResearchDiscoverySnapshot,
     ResearchLabItem,
     ResearchLabSnapshot,
     ResearchLabSummary,
+    ResearchTopicProposalSnapshot,
+    ResearchTopicSource,
     SourceHealth,
     WarningSeverity,
 )
@@ -71,6 +75,10 @@ _EXPECTED_IDS = {
     "forge-external-research-handoff.v1": "handoff_id",
     "forge-research-candidate.v1": "candidate_id",
     "forge-research-promotion-receipt.v1": "receipt_id",
+    "forge-volvence-research-demand.v1": "demand_id",
+    "forge-research-discovery-run.v1": "run_id",
+    "forge-research-topic-proposal.v1": "proposal_id",
+    "forge-research-demand-binding.v1": "binding_id",
 }
 
 _PROMOTION_SOURCES = (
@@ -141,6 +149,7 @@ class ResearchLabCollector:
             "control": 0,
             "praxist": 0,
             "promotion": 0,
+            "discovery": 0,
         }
 
         repo_revision = self._load_revision(warnings)
@@ -196,6 +205,7 @@ class ResearchLabCollector:
             warnings.extend(item_warnings[inherited_warning_count:])
 
         items.sort(key=lambda item: (item.lifecycle.stage.value, item.task_id))
+        discovery = self._load_discovery(items, warnings, source_counts)
         source_health = self._source_health(source_counts, warnings)
         summary = _summary(items)
         generated_at = _timestamp(self.clock())
@@ -206,18 +216,20 @@ class ResearchLabCollector:
                 for health in source_health
             ],
             "items": [_item_revision_view(item) for item in items],
+            "discovery": _discovery_revision_view(discovery),
             "warnings": [
                 {"code": warning.code, "source": warning.source, "task_id": warning.task_id} for warning in warnings
             ],
         }
         revision = hashlib.sha256(_canonical_json(revision_payload)).hexdigest()
         return ResearchLabSnapshot(
-            schema_version="volvence-research-lab-snapshot.v1",
+            schema_version="volvence-research-lab-snapshot.v2",
             generated_at=generated_at,
             revision=revision,
             repo_revision=repo_revision,
             summary=summary,
             source_health=tuple(source_health),
+            discovery=discovery,
             items=tuple(items),
             warnings=tuple(warnings),
         )
@@ -305,6 +317,531 @@ class ResearchLabCollector:
                 routes[task_id] = artifact
         counts["opportunities"] = len(opportunities) + len(routes)
         return opportunities, routes
+
+    def _load_discovery(
+        self,
+        items: Sequence[ResearchLabItem],
+        warnings: list[PortalWarning],
+        counts: dict[str, int],
+    ) -> ResearchDiscoverySnapshot:
+        registry_path = self.repo_root / "forge" / "research_task_registry.yaml"
+        registry_ref: ArtifactRef | None = None
+        if registry_path.is_file() and not registry_path.is_symlink():
+            registry_ref = ArtifactRef(
+                kind="research task registry",
+                locator=_portable(registry_path, self.repo_root),
+                sha256=_sha256_file(registry_path),
+                artifact_id=None,
+            )
+
+        demands = self._load_exact_discovery_artifacts(
+            paths=sorted((self.repo_root / "research" / "demands").glob("**/*.json")),
+            expected_version="forge-volvence-research-demand.v1",
+            identity_field="demand_id",
+            identity_prefix="research-demand",
+            kind="research demand",
+            warnings=warnings,
+        )
+        discovery_root = self.repo_root / "artifacts" / "research_discovery"
+        runs = self._load_exact_discovery_artifacts(
+            paths=sorted(discovery_root.glob("*/runs/*/run.json")),
+            expected_version="forge-research-discovery-run.v1",
+            identity_field="run_id",
+            identity_prefix="research-discovery-run",
+            kind="research discovery run",
+            warnings=warnings,
+            run_identity=True,
+        )
+        proposals = self._load_exact_discovery_artifacts(
+            paths=sorted(discovery_root.glob("*/runs/*/topics/*.json")),
+            expected_version="forge-research-topic-proposal.v1",
+            identity_field="proposal_id",
+            identity_prefix="research-topic-proposal",
+            kind="research topic proposal",
+            warnings=warnings,
+        )
+        bindings = self._load_exact_discovery_artifacts(
+            paths=sorted(discovery_root.glob("*/runs/*/bindings/**/*.json")),
+            expected_version="forge-research-demand-binding.v1",
+            identity_field="binding_id",
+            identity_prefix="research-demand-binding",
+            kind="research demand binding",
+            warnings=warnings,
+        )
+        counts["discovery"] = len(demands) + len(runs) + len(proposals) + len(bindings)
+
+        demand_by_id = {str(item.ref.artifact_id): item for item in demands}
+        valid_runs: list[_LoadedArtifact] = []
+        for run in runs:
+            demand_ref = run.payload.get("demand")
+            if not isinstance(demand_ref, Mapping):
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_RUN_BINDING_MALFORMED",
+                    f"DiscoveryRun lacks an exact Demand ref: {run.ref.locator}",
+                )
+                continue
+            demand = demand_by_id.get(str(demand_ref.get("artifact_id")))
+            if demand is None or not _identified_ref_matches(demand_ref, demand):
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_RUN_BINDING_MISMATCH",
+                    f"DiscoveryRun does not bind a visible exact Demand: {run.ref.locator}",
+                )
+                continue
+            valid_runs.append(run)
+
+        run_by_id = {str(item.ref.artifact_id): item for item in valid_runs}
+        proposal_stale: set[str] = set()
+        valid_proposals: list[_LoadedArtifact] = []
+        for proposal in proposals:
+            proposal_id = str(proposal.ref.artifact_id)
+            demand_ref = proposal.payload.get("demand")
+            run_id = proposal.payload.get("discovery_run_id")
+            demand = (
+                demand_by_id.get(str(demand_ref.get("artifact_id")))
+                if isinstance(demand_ref, Mapping)
+                else None
+            )
+            run = run_by_id.get(str(run_id))
+            if (
+                demand is None
+                or run is None
+                or not isinstance(demand_ref, Mapping)
+                or not _identified_ref_matches(demand_ref, demand)
+                or proposal.payload.get("corpus_sha256")
+                != _nested_value(run.payload, "corpus", "tree_sha256")
+                or not _run_registers_proposal(run, proposal)
+            ):
+                self._append_discovery_warning(
+                    warnings,
+                    "TOPIC_PROPOSAL_BINDING_MISMATCH",
+                    f"TopicProposal does not preserve its exact Demand/Run lineage: {proposal.ref.locator}",
+                )
+                continue
+            raw_sources = proposal.payload.get("source_refs")
+            if not isinstance(raw_sources, list) or not raw_sources:
+                self._append_discovery_warning(
+                    warnings,
+                    "TOPIC_PROPOSAL_SOURCE_MALFORMED",
+                    f"TopicProposal has no frozen source refs: {proposal.ref.locator}",
+                )
+                continue
+            if any(not self._source_ref_is_current(value) for value in raw_sources):
+                proposal_stale.add(proposal_id)
+                self._append_discovery_warning(
+                    warnings,
+                    "TOPIC_PROPOSAL_SOURCE_DRIFT",
+                    f"TopicProposal source bytes changed after discovery: {proposal.ref.locator}",
+                )
+            valid_proposals.append(proposal)
+
+        proposal_by_id = {
+            str(item.ref.artifact_id): item for item in valid_proposals
+        }
+        bindings_by_proposal: dict[str, list[_LoadedArtifact]] = {}
+        for binding in bindings:
+            demand_ref = binding.payload.get("demand")
+            proposal_ref = binding.payload.get("proposal")
+            registry = binding.payload.get("registry")
+            proposal = (
+                proposal_by_id.get(str(proposal_ref.get("artifact_id")))
+                if isinstance(proposal_ref, Mapping)
+                else None
+            )
+            demand = (
+                demand_by_id.get(str(demand_ref.get("artifact_id")))
+                if isinstance(demand_ref, Mapping)
+                else None
+            )
+            if (
+                proposal is None
+                or demand is None
+                or not isinstance(proposal_ref, Mapping)
+                or not isinstance(demand_ref, Mapping)
+                or not _identified_ref_matches(proposal_ref, proposal)
+                or not _identified_ref_matches(demand_ref, demand)
+                or proposal.payload.get("demand") != demand_ref
+                or registry_ref is None
+                or not _content_ref_matches(registry, registry_ref)
+            ):
+                self._append_discovery_warning(
+                    warnings,
+                    "DEMAND_BINDING_LINEAGE_MISMATCH",
+                    f"DemandBinding does not preserve Proposal, Demand, or registry bytes: {binding.ref.locator}",
+                )
+                continue
+            bindings_by_proposal.setdefault(str(proposal.ref.artifact_id), []).append(binding)
+
+        requests_by_binding = self._discovery_requests_by_binding(
+            bindings=bindings,
+            items=items,
+            warnings=warnings,
+        )
+        run_by_demand: dict[str, list[_LoadedArtifact]] = {}
+        for run in valid_runs:
+            demand_ref = run.payload["demand"]
+            run_by_demand.setdefault(str(demand_ref["artifact_id"]), []).append(run)
+
+        demand_snapshots: list[ResearchDemandSnapshot] = []
+        for demand in demands:
+            demand_id = str(demand.ref.artifact_id)
+            demand_runs = run_by_demand.get(demand_id, [])
+            latest_run = (
+                max(demand_runs, key=lambda item: _created_at(item.payload))
+                if demand_runs
+                else None
+            )
+            proposal_snapshots: list[ResearchTopicProposalSnapshot] = []
+            if latest_run is not None:
+                for raw_ref in latest_run.payload.get("proposals", []):
+                    if not isinstance(raw_ref, Mapping):
+                        continue
+                    proposal = proposal_by_id.get(str(raw_ref.get("artifact_id")))
+                    if proposal is None or not _identified_ref_matches(raw_ref, proposal):
+                        continue
+                    proposal_snapshots.append(
+                        self._topic_snapshot(
+                            demand=demand,
+                            proposal=proposal,
+                            bindings=bindings_by_proposal.get(
+                                str(proposal.ref.artifact_id), []
+                            ),
+                            requests=requests_by_binding,
+                            stale=str(proposal.ref.artifact_id) in proposal_stale,
+                            registry_available=registry_ref is not None,
+                            warnings=warnings,
+                        )
+                    )
+            discovery = demand.payload.get("discovery")
+            routing = demand.payload.get("routing")
+            execution = latest_run.payload.get("execution") if latest_run else None
+            demand_snapshots.append(
+                ResearchDemandSnapshot(
+                    demand_id=demand_id,
+                    claim_id=str(demand.payload.get("claim_id", "")),
+                    title=str(demand.payload.get("title", demand_id)),
+                    objective=str(demand.payload.get("objective", "")),
+                    owner=str(demand.payload.get("owner", "")),
+                    capability_axes=_string_tuple(demand.payload.get("capability_axes")),
+                    status=str(demand.payload.get("status", "UNKNOWN")),
+                    requested_mapping_id=(
+                        str(routing.get("requested_mapping_id"))
+                        if isinstance(routing, Mapping)
+                        and isinstance(routing.get("requested_mapping_id"), str)
+                        else None
+                    ),
+                    source_roots=(
+                        _string_tuple(discovery.get("source_roots"))
+                        if isinstance(discovery, Mapping)
+                        else ()
+                    ),
+                    max_topics=(
+                        int(discovery["max_topics"])
+                        if isinstance(discovery, Mapping)
+                        and isinstance(discovery.get("max_topics"), int)
+                        and not isinstance(discovery.get("max_topics"), bool)
+                        else 0
+                    ),
+                    artifact=demand.ref,
+                    latest_run=latest_run.ref if latest_run else None,
+                    run_backend=(
+                        str(execution.get("backend"))
+                        if isinstance(execution, Mapping)
+                        and isinstance(execution.get("backend"), str)
+                        else None
+                    ),
+                    run_model=(
+                        str(execution.get("model"))
+                        if isinstance(execution, Mapping)
+                        and isinstance(execution.get("model"), str)
+                        else None
+                    ),
+                    proposals=tuple(proposal_snapshots),
+                    created_at=_optional_timestamp(demand.payload),
+                )
+            )
+
+        demand_snapshots.sort(key=lambda item: (item.status != "OPEN", item.title, item.demand_id))
+        all_proposals = [
+            proposal
+            for demand in demand_snapshots
+            for proposal in demand.proposals
+        ]
+        return ResearchDiscoverySnapshot(
+            registry=registry_ref,
+            demand_count=len(demand_snapshots),
+            open_demand_count=sum(item.status == "OPEN" for item in demand_snapshots),
+            proposal_count=len(all_proposals),
+            awaiting_binding_count=sum(
+                item.effective_state == "UNBOUND" for item in all_proposals
+            ),
+            awaiting_a0_count=sum(
+                item.effective_state == "AWAITING_A0" for item in all_proposals
+            ),
+            demands=tuple(demand_snapshots),
+        )
+
+    def _load_exact_discovery_artifacts(
+        self,
+        *,
+        paths: Sequence[Path],
+        expected_version: str,
+        identity_field: str,
+        identity_prefix: str,
+        kind: str,
+        warnings: list[PortalWarning],
+        run_identity: bool = False,
+    ) -> tuple[_LoadedArtifact, ...]:
+        loaded: list[_LoadedArtifact] = []
+        identities: set[str] = set()
+        for path in paths:
+            if path.is_symlink() or not path.is_file():
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_ARTIFACT_NOT_REGULAR",
+                    f"{kind} must be a regular non-symlink file: {_portable(path, self.repo_root)}",
+                )
+                continue
+            artifact = self._load_artifact(
+                path,
+                expected_version,
+                kind,
+                warnings,
+            )
+            if artifact is None:
+                continue
+            identity = artifact.payload.get(identity_field)
+            body = {
+                key: value
+                for key, value in artifact.payload.items()
+                if key not in {identity_field, "created_at"}
+            }
+            expected = (
+                f"{identity_prefix}:{artifact.payload.get('run_key')}"
+                if run_identity
+                else f"{identity_prefix}:{hashlib.sha256(_canonical_json(body)).hexdigest()}"
+            )
+            if identity != expected:
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_ARTIFACT_IDENTITY_MISMATCH",
+                    f"{kind} identity does not match canonical bytes: {artifact.ref.locator}",
+                )
+                continue
+            if str(identity) in identities:
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_ARTIFACT_DUPLICATE_IDENTITY",
+                    f"duplicate {kind} identity: {identity}",
+                )
+                continue
+            identities.add(str(identity))
+            loaded.append(artifact)
+        return tuple(loaded)
+
+    def _source_ref_is_current(self, value: object) -> bool:
+        if not isinstance(value, Mapping):
+            return False
+        locator = value.get("locator")
+        declared = value.get("sha256")
+        if not isinstance(locator, str) or not isinstance(declared, str):
+            return False
+        raw = Path(locator).expanduser()
+        path = raw if raw.is_absolute() else self.repo_root / raw
+        try:
+            if path.is_symlink():
+                return False
+            resolved = path.resolve(strict=True)
+            if not resolved.is_file() or not resolved.is_relative_to(self.repo_root):
+                return False
+            return _sha256_file(resolved) == declared
+        except OSError:
+            return False
+
+    def _discovery_requests_by_binding(
+        self,
+        *,
+        bindings: Sequence[_LoadedArtifact],
+        items: Sequence[ResearchLabItem],
+        warnings: list[PortalWarning],
+    ) -> dict[tuple[str, str], list[tuple[ArtifactRef, str | None]]]:
+        binding_keys = {
+            (binding.ref.locator, binding.ref.sha256) for binding in bindings
+        }
+        item_states: dict[str, str] = {}
+        for item in items:
+            for ref in item.bindings:
+                if ref.kind == "research request" and ref.artifact_id is not None:
+                    item_states[ref.artifact_id] = item.lifecycle.stage.value
+        indexed: dict[tuple[str, str], list[tuple[ArtifactRef, str | None]]] = {}
+        for path in sorted(
+            (self.repo_root / "artifacts" / "research_control").glob("*/*/request.json")
+        ):
+            payload = self._load_json_object(
+                path,
+                "research request",
+                warnings,
+            )
+            if payload is None or payload.get("schema_version") != "forge-research-request.v1":
+                continue
+            trigger = payload.get("trigger")
+            if (
+                not isinstance(trigger, Mapping)
+                or trigger.get("kind") != "typed_signal"
+                or trigger.get("submitted_by") != "forge:demand-discovery-loop.v1"
+            ):
+                continue
+            evidence = trigger.get("evidence")
+            if not isinstance(evidence, list):
+                continue
+            matches = {
+                (str(ref.get("locator")), str(ref.get("sha256")))
+                for ref in evidence
+                if isinstance(ref, Mapping)
+            } & binding_keys
+            if len(matches) != 1:
+                self._append_discovery_warning(
+                    warnings,
+                    "DISCOVERY_REQUEST_BINDING_MISMATCH",
+                    f"discovery-owned Request does not bind one exact DemandBinding: {_portable(path, self.repo_root)}",
+                )
+                continue
+            ref = _artifact_ref(path, payload, "research request", self.repo_root)
+            indexed.setdefault(next(iter(matches)), []).append(
+                (ref, item_states.get(str(ref.artifact_id)))
+            )
+        return indexed
+
+    def _topic_snapshot(
+        self,
+        *,
+        demand: _LoadedArtifact,
+        proposal: _LoadedArtifact,
+        bindings: Sequence[_LoadedArtifact],
+        requests: Mapping[tuple[str, str], list[tuple[ArtifactRef, str | None]]],
+        stale: bool,
+        registry_available: bool,
+        warnings: list[PortalWarning],
+    ) -> ResearchTopicProposalSnapshot:
+        proposal_id = str(proposal.ref.artifact_id)
+        binding: _LoadedArtifact | None = None
+        if len(bindings) == 1:
+            binding = bindings[0]
+        elif len(bindings) > 1:
+            self._append_discovery_warning(
+                warnings,
+                "TOPIC_BINDING_AMBIGUOUS",
+                f"TopicProposal has multiple immutable binding decisions: {proposal_id}",
+            )
+        request_ref: ArtifactRef | None = None
+        request_state: str | None = None
+        request_rows: list[tuple[ArtifactRef, str | None]] = []
+        if binding is not None:
+            request_rows = requests.get((binding.ref.locator, binding.ref.sha256), [])
+        if len(request_rows) == 1:
+            request_ref, request_state = request_rows[0]
+        elif len(request_rows) > 1:
+            binding_label = binding.ref.artifact_id if binding else proposal_id
+            self._append_discovery_warning(
+                warnings,
+                "TOPIC_REQUEST_AMBIGUOUS",
+                f"DemandBinding maps to multiple ResearchRequests: {binding_label}",
+            )
+
+        decision = (
+            str(binding.payload.get("decision")) if binding is not None else None
+        )
+        if stale:
+            effective_state = "STALE_SOURCE"
+        elif len(bindings) > 1:
+            effective_state = "BINDING_AMBIGUOUS"
+        elif binding is None:
+            effective_state = "UNBOUND"
+        elif decision == "REJECT":
+            effective_state = "REJECTED"
+        elif len(request_rows) > 1:
+            effective_state = "REQUEST_AMBIGUOUS"
+        elif request_ref is None:
+            effective_state = "BOUND_FOR_A0"
+        elif request_state is None:
+            effective_state = "REQUEST_RECORDED"
+        else:
+            effective_state = request_state
+        mapping = binding.payload.get("mapping") if binding is not None else None
+        review = binding.payload.get("review") if binding is not None else None
+        topic = proposal.payload.get("topic")
+        if not isinstance(topic, Mapping):
+            topic = {}
+        sources: list[ResearchTopicSource] = []
+        raw_sources = proposal.payload.get("source_refs")
+        if isinstance(raw_sources, list):
+            for value in raw_sources:
+                if not isinstance(value, Mapping):
+                    continue
+                sources.append(
+                    ResearchTopicSource(
+                        locator=str(value.get("locator", "")),
+                        sha256=str(value.get("sha256", "")),
+                        claim=str(value.get("claim", "")),
+                    )
+                )
+        available_actions = (
+            ("bind_topic",)
+            if effective_state == "UNBOUND"
+            and demand.payload.get("status") == "OPEN"
+            and registry_available
+            else ()
+        )
+        return ResearchTopicProposalSnapshot(
+            proposal_id=proposal_id,
+            title=str(topic.get("title", proposal_id)),
+            hypothesis=str(topic.get("hypothesis", "")),
+            mechanism=str(topic.get("mechanism", "")),
+            demand_relevance=str(topic.get("demand_relevance", "")),
+            research_question=str(topic.get("research_question", "")),
+            suggested_method=str(topic.get("suggested_method", "")),
+            success_signals=_string_tuple(topic.get("success_signals")),
+            falsification_signals=_string_tuple(topic.get("falsification_signals")),
+            caveats=_string_tuple(topic.get("caveats")),
+            source_refs=tuple(sources),
+            effective_state=effective_state,
+            mapping_id=(
+                str(mapping.get("mapping_id"))
+                if isinstance(mapping, Mapping)
+                and isinstance(mapping.get("mapping_id"), str)
+                else None
+            ),
+            binding_decision=decision,
+            reviewed_by=(
+                str(review.get("reviewed_by"))
+                if isinstance(review, Mapping)
+                and isinstance(review.get("reviewed_by"), str)
+                else None
+            ),
+            request_id=request_ref.artifact_id if request_ref else None,
+            request_state=request_state,
+            artifact=proposal.ref,
+            binding=binding.ref if binding else None,
+            request=request_ref,
+            available_actions=available_actions,
+            created_at=_optional_timestamp(proposal.payload),
+        )
+
+    @staticmethod
+    def _append_discovery_warning(
+        warnings: list[PortalWarning],
+        code: str,
+        message: str,
+    ) -> None:
+        warnings.append(
+            PortalWarning(
+                code=code,
+                message=message,
+                source="discovery",
+                severity=WarningSeverity.ERROR,
+            )
+        )
 
     def _load_control(
         self,
@@ -1088,7 +1625,14 @@ class ResearchLabCollector:
         warnings: Sequence[PortalWarning],
     ) -> list[SourceHealth]:
         result: list[SourceHealth] = []
-        for source in ("tasks", "opportunities", "control", "praxist", "promotion"):
+        for source in (
+            "tasks",
+            "opportunities",
+            "discovery",
+            "control",
+            "praxist",
+            "promotion",
+        ):
             related = [warning for warning in warnings if warning.source == source]
             errors = [warning for warning in related if warning.severity is WarningSeverity.ERROR]
             if source == "praxist" and any(
@@ -1593,6 +2137,77 @@ def _item_revision_view(item: ResearchLabItem) -> dict[str, Any]:
     }
 
 
+def _discovery_revision_view(
+    discovery: ResearchDiscoverySnapshot,
+) -> dict[str, Any]:
+    return {
+        "registry": discovery.registry.sha256 if discovery.registry else None,
+        "demands": [
+            {
+                "demand_id": demand.demand_id,
+                "sha256": demand.artifact.sha256,
+                "run": demand.latest_run.sha256 if demand.latest_run else None,
+                "proposals": [
+                    {
+                        "proposal_id": proposal.proposal_id,
+                        "sha256": proposal.artifact.sha256,
+                        "state": proposal.effective_state,
+                        "binding": proposal.binding.sha256 if proposal.binding else None,
+                        "request": proposal.request.sha256 if proposal.request else None,
+                    }
+                    for proposal in demand.proposals
+                ],
+            }
+            for demand in discovery.demands
+        ],
+    }
+
+
+def _identified_ref_matches(
+    value: Mapping[str, Any],
+    artifact: _LoadedArtifact,
+) -> bool:
+    return (
+        value.get("artifact_id") == artifact.ref.artifact_id
+        and _content_ref_matches(value.get("artifact"), artifact.ref)
+    )
+
+
+def _content_ref_matches(value: object, artifact: ArtifactRef) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and value.get("locator") == artifact.locator
+        and value.get("sha256") == artifact.sha256
+    )
+
+
+def _run_registers_proposal(
+    run: _LoadedArtifact,
+    proposal: _LoadedArtifact,
+) -> bool:
+    refs = run.payload.get("proposals")
+    return isinstance(refs, list) and any(
+        isinstance(value, Mapping) and _identified_ref_matches(value, proposal)
+        for value in refs
+    )
+
+
+def _nested_value(payload: Mapping[str, Any], parent: str, child: str) -> object:
+    value = payload.get(parent)
+    return value.get(child) if isinstance(value, Mapping) else None
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(item) for item in value if isinstance(item, str))
+
+
+def _optional_timestamp(payload: Mapping[str, Any]) -> str | None:
+    value = payload.get("created_at")
+    return value if isinstance(value, str) else None
+
+
 def _artifact_ref(
     path: Path,
     payload: Mapping[str, Any],
@@ -1827,6 +2442,12 @@ def _malformed_warning(path: Path, exc: Exception, *, source: str) -> PortalWarn
 
 
 def _source_for_version(version: str) -> str:
+    if (
+        "research-demand" in version
+        or "research-discovery" in version
+        or "research-topic-proposal" in version
+    ):
+        return "discovery"
     if "opportunity" in version:
         return "opportunities"
     if (
@@ -1843,6 +2464,13 @@ def _source_for_version(version: str) -> str:
 
 def _source_for_kind(kind: str) -> str:
     lowered = kind.lower()
+    if (
+        "discovery" in lowered
+        or "topic proposal" in lowered
+        or "research demand" in lowered
+        or "demand binding" in lowered
+    ):
+        return "discovery"
     if "praxist" in lowered:
         return "praxist"
     if "opportunity" in lowered:
