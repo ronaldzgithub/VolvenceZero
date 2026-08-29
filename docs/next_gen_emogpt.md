@@ -1,7 +1,7 @@
 # Next-Generation EmoGPT — System Design
 
 > Status: v2 draft
-> Last updated: 2026-04-21
+> Last updated: 2026-08-30
 > Scope: system-level thesis and invariants (not implementation spec)
 > Sources: Nested Learning (NL, arXiv:2512.24695), Emergent Temporal Abstractions (ETA, arXiv:2512.20605)
 > Downstream: `docs/specs/*.md`, `docs/DATA_CONTRACT.md`, `.cursor/rules/`
@@ -361,6 +361,31 @@ flowchart TD
 
 5. **CMS implements NL's frequency ordering; metacontroller implements ETA's temporal abstraction.** These are complementary, not redundant. CMS provides multi-timescale knowledge persistence. The metacontroller provides temporal segmentation and latent control. CMS can enhance the metacontroller's memory (R3); the metacontroller's prediction errors can drive CMS updates (R1).
 
+6. **Domain Brains are product projections, not parallel cognitive owners.** A product host may need a stateful Context Pack and a typed delayed-outcome ingress without becoming a kernel consumer. The lifeform-side Domain Brain pattern projects owner-published Memory/PE state through strict contracts, keeps advice SHADOW until separately promoted, and returns qualified outcomes to the existing PE/credit chain. It must not create another memory, policy, evidence, or action owner.
+
+### Product-host projection: Domain Brain
+
+```mermaid
+flowchart LR
+    H["External host typed facts"] --> D["Domain Brain contract/controller"]
+    D --> L["LifeformSession facade"]
+    L --> O["Memory / PE / semantic owner snapshots"]
+    O --> P["Context Pack ACTIVE"]
+    D --> A["Advice SHADOW / not applied"]
+    P --> H
+    A -. "comparison only" .-> H
+    H --> X["Host-owned decision and action"]
+    X --> R["Typed OutcomeReport"]
+    R --> D
+    D --> M["Memory + execution_result"]
+    D --> E["Eligible environment outcome"]
+    E --> N["Next-turn PE settlement"]
+```
+
+The current product instances are Coding Brain and Venture Brain. Coding Brain leaves repository mutation, shell, test execution, review, VCS/PR, and deployment with the coding host; only deterministic typed test/build/CI outcomes can enter its PE lane. Venture Brain leaves source verification, evidence class, portfolio/budget, Accounting, ledger, approval, final state, and all external action with Foundry; only a Foundry-qualified multi-objective field experiment outcome can enter its PE lane. Their detailed schemas remain downstream specs: [coding-brain.md](./specs/coding-brain.md) and [venture-brain.md](./specs/venture-brain.md).
+
+This product projection instantiates R8/R15: Context Pack may be ACTIVE, advice remains `SHADOW` and `applied=false`, controllers own only bounded live-session idempotency/lineage, and service layers remain thin projections. Evaluation, LLM judges, advice adoption, build success, local deployment health, or gross revenue cannot bypass typed outcome qualification and become reward.
+
 ---
 
 ## Part 6. Acceptance Questions
@@ -394,6 +419,7 @@ This section records the current implementation delta without relaxing the targe
 - The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review. Offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
 - The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
 - The lifeform layer (`lifeform-core.vitals`) now ships an always-on drive layer producing slow-scale PE between turns. This closes the "turn-driven assistant" gap: idle ticks accumulate drive deviation and can surface proactive follow-ups when crossing a configured threshold, without violating the snapshot-first contract (R8) or the frozen-substrate doctrine (R2). See `docs/specs/lifeform-vitals.md`.
+- Two host-facing Domain Brain projections have landed without adding kernel owners: Coding Brain publishes memory-first coding Context Packs and accepts typed test/review/VCS outcomes; Venture Brain publishes Foundry Context Packs and accepts strictly separated simulation/review/machine/field commercial outcomes. Both keep advice SHADOW and settle only qualified environment evidence through the next-turn PE chain.
 
 ### Partially landed or still gated
 
@@ -430,6 +456,7 @@ This system does not require:
 - replacing all symbolic or structured state with latent-only representations
 - assuming human-level AGI emerges from scaling alone
 - treating relationship behavior as merely prompt style
+- treating a product-specific Domain Brain as a second kernel, owner store, evidence authority, or actuator
 - collapsing ETA's temporal abstraction into token-level RL
 - implementing every NL paper construction literally (Hope, M3, etc. are design patterns, not mandatory)
 

@@ -1,8 +1,8 @@
 # VolvenceZero 系统全景指南
 
 > **副标题**：一份给初学者的旅行图，给研究者的参考册
-> **Status**: v1.2
-> **Last updated**: 2026-08-01
+> **Status**: v1.3
+> **Last updated**: 2026-08-30
 > **位置**：`docs/SYSTEM_GUIDE.md`
 > **与其他文档的关系**：
 > - 想知道**为什么这样设计**（设计源头）：读 `docs/next_gen_emogpt.md`
@@ -33,6 +33,7 @@
 | 我是研究者 / 论文复现者 | 重点读第 5（七大机制）+ 第 8、9（端到端走一遍）+ 附录 |
 | 我做平台 / 多租户接入（DLaaS） | 重点读 §6.6 + §11.5；spec：`docs/specs/dlaas-platform.md` |
 | 我做新 vertical（character / figure / growth-advisor 类） | 重点读 §6.4 + §6.5 + §11.6 |
+| 我给 coding agent 或 Foundry 接有状态认知侧车 | 重点读 §6.4.1；spec：[Coding Brain](./specs/coding-brain.md) / [Venture Brain](./specs/venture-brain.md) |
 | 我做对外 benchmark / arena | 重点读 §6.7 + §11.7；RFC：`docs/external/companion-bench-rfc-v0.md` |
 
 **读完后你应该能用一段话回答**："VolvenceZero 是一个怎样的系统？它和 ChatGPT / Agent / RAG 有什么本质区别？"
@@ -253,8 +254,8 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 4 — 数字生命体层（Lifeform Layer, lifeform-*）              │
-│  Tick / Scene / Followup / Vitals(代谢)                           │
-│  这一层让系统"活着"——它有代谢、有沉默、有主动行为                    │
+│  Tick / Scene / Followup / Vitals / Vertical / Domain Brain       │
+│  这一层让系统"活着"，并为受约束产品 host 发布认知侧车协议              │
 └─────────────────────────────────────────────────────────────────┘
                               ▲
                               │  通过 Brain / BrainSession 接入
@@ -791,12 +792,13 @@ DriveSpec(
 - **衰减只在 SYSTEM tick**：ENERGY / CONTEXT tick 只推进 tick_index，不消耗
 - **Cooldown 由 owner 强制**：避免主动 followup 洪泛
 
-**七个 vertical 的实例**：
+**八个 vertical 的实例**：
 
 | Vertical | Archetype | Drive set / 特殊机制 |
 |---|---|---|
 | `lifeform-domain-emogpt` | 关系陪伴 | `bond_warmth` / `user_engagement` / `conversation_continuity` |
 | `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`（探索时**负向充能**） |
+| `lifeform-domain-venture` | Foundry 商业认知侧车 | reviewed evidence discipline / falsification / multi-objective outcome priors；不拥有 Foundry ledger 或商业动作 |
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`（每个角色档案自定义） |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；多源一手语料 → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯 |
 | `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven） |
@@ -805,7 +807,7 @@ DriveSpec(
 
 `direction_certainty` 在 `guided_exploration` regime 下用**负向 recharge**——这证明了 drive 层可以编码"探索期间确定性应该被消耗"这种非单调激励。
 
-七个 vertical 在同一 Python 进程内共存；service registry 自动发现，import-boundary tests 强制 vertical 不反向污染内核。这是 SPLIT.md 触发条件 ② 的现场证据。
+八个 vertical 在同一 Python 进程内共存；service registry 自动发现，import-boundary tests 强制 vertical 不反向污染内核。这是 SPLIT.md 触发条件 ② 的现场证据。
 
 #### 🧬 代码与论文锚点
 
@@ -853,9 +855,10 @@ DriveSpec(
 > - **DomainExperiencePackage**：冷启动的领域经验
 > - **scenarios**：用于训练和评估的场景包
 >
-> 当前共存 7 个 vertical：
+> 当前共存 8 个 vertical：
 > - `lifeform-domain-emogpt`：关系陪伴 archetype
 > - `lifeform-domain-coding`：工程结对 archetype（pair-programmer）
+> - `lifeform-domain-venture`：Foundry 商业认知侧车 archetype
 > - `lifeform-domain-character`：虚构角色 archetype
 > - `lifeform-domain-figure`：真实人物 archetype（一手资料数字复生）
 > - `lifeform-domain-growth-advisor`：私域 LTV 顾问 archetype
@@ -868,8 +871,38 @@ DriveSpec(
 
 1. Vertical 不是新的 owner——它是**对现有 owner 的配置**
 2. 内核（`vz-*`）不能反向 import vertical（`lifeform-*`）；CI 强制
-3. 7 个 `lifeform-domain-*` vertical 不建立横向 owner 依赖
+3. 8 个 `lifeform-domain-*` vertical 不建立横向 owner 依赖
 4. 不能用人口学关键词（"用户说了 X 就触发 Y"）硬编码行为
+
+---
+
+#### 6.4.1 Domain Brain：外部 host 的有状态认知侧车
+
+Vertical 回答“这只生命体有什么领域经验和边界”，Domain Brain 回答“外部产品 host 如何在不接管
+owner 的前提下，复用它的跨周期记忆与 PE 闭环”。它不是另一个 `vz-runtime.Brain`，也不是 actuator。
+
+```text
+host typed facts
+  -> ContextRequest
+  -> LifeformSession + immutable owner snapshots
+  -> ContextPack [ACTIVE] + Advice [SHADOW, applied=false]
+  -> host 自己规划 / 审批 / 执行
+  -> typed OutcomeReport
+  -> memory + execution_result + eligible next-turn PE
+  -> content-addressed Receipt
+```
+
+| Domain Brain | 服务谁 | Host 仍独占 | 允许进入 PE 的 outcome |
+|---|---|---|---|
+| Coding Brain | coding agent host | repo、文件、shell、测试执行、review、VCS/PR、部署 | 只有 typed test/build/CI 的确定性 verified/regressed oracle |
+| Venture Brain | Foundry | 来源核验、资格门、组合/预算、Accounting、ledger、审批、最终状态与外部动作 | 只有 Foundry-qualified `field_experiment_result` 多目标 verdict |
+
+两者都使用 strict/versioned/frozen request、pack、advice、report、receipt；Context Pack 可以 ACTIVE，
+Advice 在 v1 永久 SHADOW 且不能出现在 ACTIVE `rendered_context`。Controller 只保存有界 live-session
+幂等/lineage；跨 session 经 identity-scoped Memory owner 恢复。evaluation、LLM judge、建议采纳、构建
+成功、本机部署健康或毛收入都不能绕过 typed outcome 成为 reward。
+
+📍 Specs：[Coding Brain](./specs/coding-brain.md) / [Venture Brain](./specs/venture-brain.md)
 
 ---
 
@@ -1055,18 +1088,18 @@ DriveSpec(
 
 ## 7. 实现细节地图
 
-### 7.1 仓库结构（39 个 wheel）
+### 7.1 仓库结构（40 个 wheel）
 
 ```
 VolvenceZero/packages/
 ├── vz-* (8)
 │   ├── contracts / substrate / temporal / memory
 │   └── cognition / application / runtime / embodiment-ant
-├── lifeform-* (19)
+├── lifeform-* (20)
 │   ├── core / affordance / thinking / ingestion / expression / service
 │   ├── evolution / cultivation / protocol-runtime / mcp-bridge
 │   ├── openai-compat / synthetic-data
-│   └── domain-{emogpt,coding,character,figure,growth-advisor,repair30,digital-employee}
+│   └── domain-{emogpt,coding,venture,character,figure,growth-advisor,repair30,digital-employee}
 ├── dlaas-platform-* (6)
 │   └── contracts / registry / launcher / api / ops / eval
 └── companion-* (6)
@@ -1093,6 +1126,8 @@ VolvenceZero/packages/
 | `reflection` | vz-cognition | 慢反思产物 |
 | `vitals` | lifeform-core | drive levels、above_proactive_threshold |
 | `case_memory` / `strategy_playbook` / ... | vz-application | 应用层 4 阶段 |
+| `coding_context_pack` / `coding_advice` / `coding_outcome_receipt` | lifeform-domain-coding | host-facing 产品投影；ACTIVE pack、SHADOW advice、typed receipt，不新增 kernel slot |
+| `venture_context_pack` / `venture_advice` / `venture_outcome_receipt` | lifeform-domain-venture | Foundry-facing 产品投影；ACTIVE pack、SHADOW advice、typed receipt，不新增 kernel slot |
 
 完整 schema 见 `docs/DATA_CONTRACT.md`。
 
@@ -1112,8 +1147,10 @@ VolvenceZero/packages/
 | 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
 | 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
 | 编译私域顾问 vertical | `build_growth_advisor_lifeform(profile)` | `lifeform-domain-growth-advisor` |
+| 给 coding host 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/coding/context-packs` / `POST /v1/sessions/{session_id}/coding/outcomes` | `lifeform-domain-coding` + `lifeform-service` |
+| 给 Foundry 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/venture/context-packs` / `POST /v1/sessions/{session_id}/venture/outcomes` | `lifeform-domain-venture` + `lifeform-service` |
 
-### 7.4 当前默认路径（2026-08-01）
+### 7.4 当前默认路径（2026-08-30）
 
 - 基础 Memory / PredictionError / Temporal owner、session-post loop、experience
   consolidation、owner hydration 与 protocol runtime 在 final rollout 中 ACTIVE；
@@ -1405,7 +1442,7 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 - **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `companion-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `companion-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
 - **多速演进**：内核稳定（半年级别）、生命体中速（月级别）、平台治理快速（周级别）、外发 benchmark 独立时间线——一个仓库做不到这种节奏分层
 
-截至 2026-08-01 共 39 wheel：`vz-*` 8 + `lifeform-*` 19 +
+截至 2026-08-30 共 40 wheel：`vz-*` 8 + `lifeform-*` 20 +
 `dlaas-platform-*` 6 + `companion-*` 6。
 
 ### Q10: "你们怎么保证不退化？"
@@ -1484,11 +1521,16 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 3. 选最贴近的 archetype 模板：
    - 关系陪伴 / IM 形态 → 看 `lifeform-domain-emogpt`
    - pair-programmer / IDE 形态 → 看 `lifeform-domain-coding`
+   - Foundry 商业认知侧车 → 看 `lifeform-domain-venture`
    - 虚构 IP / 小说角色 → 看 `lifeform-domain-character` + `docs/specs/character-soul-bootstrap.md`
    - 真实人物（已逝 / 在世授权） → 看 `lifeform-domain-figure` + `docs/specs/figure-vertical.md`
    - 私域 LTV 漂移 playbook → 看 `lifeform-domain-growth-advisor`
 4. 编译产物落到 `DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` + `scenarios/*.json`
 5. 用 `lifeform-super-loop --vertical <name>` 训练预训练 bootstraps
+
+如果目标不是新增 archetype，而是让已有外部 host 获得跨任务/跨周期 Context Pack 和 typed outcome
+闭环，应先读 [Coding Brain](./specs/coding-brain.md) 与 [Venture Brain](./specs/venture-brain.md)，复用
+Domain Brain 侧车协议，不在 host、service 或 vertical 内新建 Memory/PE/credit owner。
 
 ### 11.7 我做"用第三方 benchmark 评我们"或"提交我们的对外基准"
 
@@ -1523,6 +1565,7 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 | **Vitals** | 数字生命体的代谢层，drive 漂出 band 即慢 PE | R-PE / R1 |
 | **Drive** | Vitals 中的一个指针（如 bond_warmth） | R14 |
 | **Vertical** | VitalsBootstrap + DomainExperiencePackage + scenarios | — |
+| **Domain Brain** | 把 owner 状态以 ACTIVE Context Pack、SHADOW Advice 和 typed outcome/receipt 投影给外部 host 的 lifeform-side 侧车；不是第二套内核或 actuator | R5 / R8 / R9 / R15 |
 | **Tick** | 时间推进的最小单位（SYSTEM / ENERGY / CONTEXT） | — |
 | **Wave** | 一轮内可能有多个 wave 协调多个模块 | — |
 | **Online-Fast** | 每 turn / 每 wave 的最快尺度 | R1 |

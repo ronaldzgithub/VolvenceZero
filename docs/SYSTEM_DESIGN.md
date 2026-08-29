@@ -1,7 +1,7 @@
 # Volvence 系统设计
 
 > Status: current architecture overview
-> Last updated: 2026-08-05
+> Last updated: 2026-08-30
 > 细粒度契约以 [DATA_CONTRACT.md](./DATA_CONTRACT.md) 和 [specs/00_INDEX.md](./specs/00_INDEX.md) 为准。
 > **能力轴总览**（Appendable / Readable / Learnable / Steerable）见
 > [appendable-readable-learnable-steerable.md](./appendable-readable-learnable-steerable.md)。
@@ -42,6 +42,10 @@ evaluation 不回灌）、**Steerable**（在冻结基底上做有界条件化�
 ```mermaid
 flowchart TB
     ENV["Environment / user / tools"] --> LF["lifeform-* adapters"]
+    HOST["Product hosts: coding agent / Foundry"] --> DB["Domain Brain sidecars"]
+    DB --> LF
+    LF --> DB
+    DB --> HOST
     LF --> RT["vz-runtime: Brain / BrainSession"]
     RT --> SUB["vz-substrate: frozen model + bounded carriers"]
     RT --> TMP["vz-temporal: beta_t / z_t / Internal RL"]
@@ -89,16 +93,19 @@ flowchart TB
 
 - `lifeform-*` 将 kernel 适配成持续生命体：vitals、affordance、thinking、ingestion、
   expression、service、protocol/MCP、evolution、synthetic data 与 vertical。
+- 部分 vertical 还发布 **Domain Brain 产品侧车**：它把 host 的结构化事实投影为 ACTIVE
+  Context Pack，把建议隔离在 SHADOW，并把 host 事后提交的 typed outcome 接回既有
+  Memory / semantic / PE owner；它不是第二套 kernel Brain，也不拥有外部动作。
 - `dlaas-platform-*` 拥有租户、实例、API、ops 和 eval governance，不拥有 cognition。
 - `companion-*` 拥有公开标准、benchmark、reference harness、CAMEL baseline、
   trajectory generation 与 encoder scaffold；benchmark readout 不回灌 kernel。
 
-## 4. 39-wheel 现状
+## 4. 40-wheel 现状
 
 | Family | Count | Wheels |
 |---|---:|---|
 | `vz-*` | 8 | contracts, substrate, temporal, memory, cognition, application, runtime, embodiment-ant |
-| `lifeform-*` | 19 | core, affordance, thinking, ingestion, expression, service, evolution, cultivation, protocol-runtime, mcp-bridge, openai-compat, synthetic-data, domain-emogpt, domain-coding, domain-character, domain-figure, domain-growth-advisor, domain-repair30, domain-digital-employee |
+| `lifeform-*` | 20 | core, affordance, thinking, ingestion, expression, service, evolution, cultivation, protocol-runtime, mcp-bridge, openai-compat, synthetic-data, domain-emogpt, domain-coding, domain-venture, domain-character, domain-figure, domain-growth-advisor, domain-repair30, domain-digital-employee |
 | `dlaas-platform-*` | 6 | contracts, registry, launcher, api, ops, eval |
 | `companion-*` | 6 | standard, bench, ref-harness, camel-baseline, trajgen, encoder |
 
@@ -106,12 +113,13 @@ flowchart TB
 `vz-pe-credit`、`vz-self-model`、`vz-evaluation` 不是当前 wheel；相应实现位于
 `vz-cognition` 子包。
 
-## 5. 七个产品 vertical
+## 5. 八个产品 vertical
 
 | Vertical | Wheel | 冷启动/产品职责 |
 |---|---|---|
 | Relationship companion | `lifeform-domain-emogpt` | 关系连续性、修复、长期陪伴 |
 | Coding | `lifeform-domain-coding` | 结对开发与工具协作 |
+| Venture | `lifeform-domain-venture` | Foundry 商业认知侧车、跨周期经验与 typed 商业结果 |
 | Character | `lifeform-domain-character` | reviewed fictional character package、Prefix-KV/LoRA evidence |
 | Figure | `lifeform-domain-figure` | primary-source corpus、verification 与 historical figure artifact |
 | Growth advisor | `lifeform-domain-growth-advisor` | 长期成长顾问的 domain package / boundary / report |
@@ -120,6 +128,34 @@ flowchart TB
 
 Vertical 只能经 Brain facade、contracts、application owners 与 ModificationGate 进入
 脑核。禁止 `vz-*` 反向 import `lifeform-*`。
+
+### 5.1 Domain Brain：host-facing 产品认知侧车
+
+Domain Brain 是 select vertical 暴露给外部产品 host 的有状态认知协议，不是把
+`vz-runtime.Brain` 复制成多个领域内核。当前正式实例只有两个：
+
+| 产品面 | Host 保留的权威 | Context / Advice | Outcome 与学习边界 | 详细契约 |
+|---|---|---|---|---|
+| Coding Brain | coding agent 拥有规划、文件修改、shell、测试执行、review、VCS/PR 与部署 | memory-first `CodingContextPackSnapshot` 可 ACTIVE；`CodingAdviceSnapshot` 固定 SHADOW、`applied=false` | 所有 typed outcome 进入 memory/execution；只有确定性 test/build/CI oracle 可在下一 Context Pack turn 进入 PE | [coding-brain.md](./specs/coding-brain.md) |
+| Venture Brain | Foundry 拥有来源核验、资格门、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作 | `VentureContextPackSnapshot` 可 ACTIVE；结构化候选 `VentureAdviceSnapshot` 固定 SHADOW、`applied=false` | 所有 typed outcome 进入 memory/execution；只有 Foundry-qualified `field_experiment_result` 的多目标 verdict 可在下一 Context Pack turn 进入 PE | [venture-brain.md](./specs/venture-brain.md) |
+
+两者共享同一条产品闭环：
+
+```text
+host 已确认的结构化事实
+  -> versioned ContextRequest
+  -> LifeformSession facade + owner-published Memory / PE snapshots
+  -> content-addressed ContextPack [ACTIVE] + Advice [SHADOW]
+  -> host 自己决策和执行
+  -> typed OutcomeReport
+  -> Memory + execution_result；仅合格环境事实进入下一拍 PE
+  -> immutable Receipt / settlement lineage
+```
+
+Domain Brain controller 只拥有有界的 live-session 幂等与 lineage。认知记忆仍属于
+`vz-memory`，Prediction Error / credit / semantic state 仍属于 `vz-cognition`，策略状态仍属于
+`vz-temporal`，service 只做 HTTP projection。禁止侧车读取 owner store、从自由文本猜 route/evidence
+class、把 evaluation/judge 当 reward、将 SHADOW advice 注入 ACTIVE context，或替 host 执行动作。
 
 ## 6. 单 turn 数据流
 
@@ -416,6 +452,10 @@ SHADOW，而 production final wiring 已是 ACTIVE。两层差异必须写入契
 protocol runtime 等已 ACTIVE。`evaluation_mid`、decision workspace 与多类 learner 仍
 SHADOW；Temporal SSL/runtime、Internal RL、CMS Torch 与 cross-generation evaluation
 仍 DISABLED 或零 modulation。
+
+Coding Brain 与 Venture Brain 的 strict contract、service route、identity-scoped recall、
+content-addressed receipt 和下一拍 settlement 已落地。这里成立的是产品侧车接线与边界，不是
+advisor ACTIVE、coding/商业 uplift 或整体 thesis 的 production 证明。
 
 2026-07-31 #92 总 EXIT 为 `thesis-rejected`。Gate 2/8/11 有局部支持，但不授权整体
 learned takeover。relationship-conditioned Gate 2 longitudinal seed1301 stop-loss 与

@@ -1,7 +1,7 @@
 # Appendable · Readable · Learnable · Steerable
 
 > Status: architecture capability charter（能力轴架构说明）
-> Last updated: 2026-08-12
+> Last updated: 2026-08-30
 > 细粒度契约以 [DATA_CONTRACT.md](./DATA_CONTRACT.md)、[specs/00_INDEX.md](./specs/00_INDEX.md)、
 > [steering-runtime.md](./specs/steering-runtime.md) 为准。
 > 证据台账与晋升路线见 [evaluation.md](./evaluation.md)、
@@ -294,6 +294,23 @@ sequenceDiagram
 Brain facade 与 typed submit API 进入脑核，episode 终局复用 `dialogue_external_outcome` 唯一合法通道，
 不新建 owner（[specs/coding-lab.md](./specs/coding-lab.md)）。
 
+### 7.1 Domain Brain 产品投影
+
+Coding Brain 与 Venture Brain 是四能力轴在外部产品 host 上的两种正式投影，不是新增第五条能力轴，
+也不是第二套内核：
+
+| 能力轴 | Domain Brain 统一实现 | Coding Brain | Venture Brain |
+|---|---|---|---|
+| Appendable | typed outcome 经 `LifeformSession` facade 追加 identity-scoped memory；controller 不建第二 store | test/review/VCS experience | simulation/review/machine/field commercial experience，保留多目标结果 |
+| Readable | 只读 owner 发布的 immutable Memory / PE 状态，生成 content-addressed ACTIVE Context Pack | memory-first coding context + settlement refs | 跨周期商业经历、当前不确定性、source/evidence lineage |
+| Learnable | 只有合格 typed environment outcome 可在下一 Context Pack turn 进入 PE；evaluation/judge 不回灌 | 仅确定性 test/build/CI verified/regressed oracle | 仅 Foundry-qualified `field_experiment_result` 多目标 verdict |
+| Steerable | Context Pack 可 ACTIVE；Advice v1 固定 SHADOW、`applied=false` 且不进入 ACTIVE rendered context | regime/action readout 只作比较 | opportunity/comparison/experiment/stop candidate 只作比较 |
+
+Host 权威不随 Context Pack 转移：coding host 继续拥有 repo、工具、review、VCS/部署；Foundry 继续拥有
+来源核验、evidence class、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作。
+controller 只拥有有界 live-session 幂等/lineage，service 只做 HTTP projection。完整边界见
+[Coding Brain](./specs/coding-brain.md) 与 [Venture Brain](./specs/venture-brain.md)。
+
 ---
 
 ## 8. 证据状态（诚实边界，2026-08-12）
@@ -342,6 +359,8 @@ A1 判词收窄后，编程域 [coding-lab lane](./specs/coding-lab.md) 升格�
 | Slot / 快照 / wiring | [DATA_CONTRACT.md](./DATA_CONTRACT.md) |
 | Steering 三件套契约 | [specs/steering-runtime.md](./specs/steering-runtime.md) |
 | 编程域持续学习证据 lane | [specs/coding-lab.md](./specs/coding-lab.md) |
+| Coding Brain 产品侧车 | [specs/coding-brain.md](./specs/coding-brain.md) |
+| Venture Brain 产品侧车 | [specs/venture-brain.md](./specs/venture-brain.md) |
 | 人类验证锚（非学习源） | [specs/steering-human-anchor.md](./specs/steering-human-anchor.md) |
 | R1–R15 设计源头 | [next_gen_emogpt.md](./next_gen_emogpt.md) |
 | 证据与晋升路线 | [evaluation.md](./evaluation.md)、[主线提升方案](./moving%20forward/主线提升方案_2026-08.md) |
