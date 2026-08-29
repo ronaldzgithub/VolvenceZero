@@ -24,7 +24,20 @@ python -m volvence_labs.cli run --probe pe-baseline-v0 --profile dev
 
 # R15 回滚演练（从 snapshot 重建 run 产物）
 python -m volvence_labs.cli rollback --run <run_id>
+
+# 输出 Forge / Praxist / promotion 的只读统一快照
+python -m volvence_labs.cli lab-snapshot \
+  --repo-root ../.. \
+  --praxist-executable /absolute/path/to/praxist
+
+# 启动 loopback-only GET API（不包含审批、启动或 wiring mutation）
+python -m volvence_labs.cli lab-server \
+  --repo-root ../.. \
+  --praxist-executable /absolute/path/to/praxist
 ```
+
+只读 API 提供 `GET /api/v1/snapshot`、`GET /api/v1/tasks/{task_id}` 与
+`GET /healthz`；所有 `POST` 在本里程碑均返回 `405 read_only`。
 
 ## 设计底线
 

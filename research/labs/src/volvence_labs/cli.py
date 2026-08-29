@@ -16,6 +16,7 @@ import argparse
 import json
 import shutil
 import sys
+from pathlib import Path
 from typing import Optional
 
 # Importing probes triggers registration.
@@ -53,6 +54,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     if args.cursor:
         from .framework.parallel import CursorRunner
+
         runner = CursorRunner(root=args.root)
         report = runner.run(args.probe, profile)
     else:
@@ -74,10 +76,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     for u in payload["units"]:
         status = "OK " if u["ok"] else "ERR"
         metrics = ", ".join(f"{k}={v:.4f}" for k, v in u["metrics"].items())
-        print(
-            f"  {status} {u['cell']:>16} seed={u['seed']} wiring={u['wiring']}  "
-            f"{metrics}  run_id={u['run_id']}"
-        )
+        print(f"  {status} {u['cell']:>16} seed={u['seed']} wiring={u['wiring']}  {metrics}  run_id={u['run_id']}")
         if not u["ok"] and u["error"]:
             print(f"      error: {u['error'].splitlines()[-1]}")
     gate = payload.get("gate")
@@ -90,6 +89,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 def _cmd_run_unit(args: argparse.Namespace) -> int:
     """Run a single (probe, cell, seed) unit. Output JSON to stdout."""
     from .framework.scheduler.runner import _run_unit
+
     result = _run_unit(
         args.probe,
         args.cell,
@@ -154,14 +154,10 @@ def _cmd_rollback(args: argparse.Namespace) -> int:
     readouts = store.get_obj(record.readouts_sha)
 
     exp_dir.mkdir(parents=True, exist_ok=True)
-    (exp_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (exp_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     ro_dir = exp_dir / "readouts"
     ro_dir.mkdir(exist_ok=True)
-    (ro_dir / "readouts.json").write_text(
-        json.dumps(readouts, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (ro_dir / "readouts.json").write_text(json.dumps(readouts, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"rebuilt {exp_dir} from CAS (manifest={record.manifest_sha[:12]})")
     log.close()
     store.close()
@@ -201,6 +197,7 @@ def _cmd_probes(args: argparse.Namespace) -> int:
 
 def _cmd_dashboard(args: argparse.Namespace) -> int:
     from .framework.readout import generate_dashboard
+
     out = args.out or "docs/dash/index.html"
     html_content = generate_dashboard(out_path=out, root=args.root)
     print(f"dashboard written to {out} ({len(html_content)} bytes)")
@@ -264,14 +261,17 @@ def _cmd_promote(args: argparse.Namespace) -> int:
         print(f"  capacity: VC={decision.capacity.vc_dim_estimate:.1f} (threshold={decision.capacity.threshold})")
     if decision.margin:
         print(f"  margin: {decision.margin.margin:.4f} (delta={decision.margin.delta:.4f})")
-    print(f"  sgm e-value: {decision.sgm_summary.get('e_value', 0):.4f} (threshold={decision.sgm_summary.get('threshold', 0):.1f})")
+    print(
+        f"  sgm e-value: {decision.sgm_summary.get('e_value', 0):.4f} "
+        f"(threshold={decision.sgm_summary.get('threshold', 0):.1f})"
+    )
 
     if args.dry_run:
         print("[dry-run] no promotion recorded")
         return 0
 
     if decision.decision != GateDecision.APPROVE:
-        print(f"[skip] gate did not approve — no promotion recorded")
+        print("[skip] gate did not approve — no promotion recorded")
         return 0
 
     mgr = PromotionManager(args.root)
@@ -307,9 +307,54 @@ def _cmd_demote(args: argparse.Namespace) -> int:
 
 def _cmd_metrics_server(args: argparse.Namespace) -> int:
     from .framework.readout.metrics_exporter import start_metrics_server
+
     print(f"[metrics] starting Prometheus exporter on {args.host}:{args.port}")
     start_metrics_server(host=args.host, port=args.port, root=args.root)
     return 0
+
+
+def _cmd_lab_snapshot(args: argparse.Namespace) -> int:
+    from .portal import ResearchLabCollector, command_status_loader
+
+    repo_root = _resolve_repo_root(args.repo_root)
+    status_loader = command_status_loader(args.praxist_executable) if args.praxist_executable is not None else None
+    snapshot = ResearchLabCollector(repo_root, status_loader=status_loader).collect()
+    print(json.dumps(snapshot.to_jsonable(), ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_lab_server(args: argparse.Namespace) -> int:
+    from .portal import ResearchLabCollector, command_status_loader, create_server
+
+    repo_root = _resolve_repo_root(args.repo_root)
+    status_loader = command_status_loader(args.praxist_executable) if args.praxist_executable is not None else None
+    collector = ResearchLabCollector(repo_root, status_loader=status_loader)
+    server = create_server(collector, host=args.host, port=args.port)
+    bound_host, bound_port = server.server_address[:2]
+    print(f"[research-lab] read-only API on http://{bound_host}:{bound_port}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[research-lab] stopped")
+    finally:
+        server.server_close()
+    return 0
+
+
+def _resolve_repo_root(value: str | None) -> Path:
+    if value is not None:
+        root = Path(value).expanduser().resolve()
+        if not (root / "research" / "tasks").is_dir():
+            raise ValueError(f"repo root does not contain research/tasks: {root}")
+        return root
+
+    starts = (Path.cwd().resolve(), Path(__file__).resolve())
+    for start in starts:
+        current = start if start.is_dir() else start.parent
+        for candidate in (current, *current.parents):
+            if (candidate / "research" / "tasks").is_dir() and (candidate / "docs" / "specs" / "00_INDEX.md").is_file():
+                return candidate
+    raise ValueError("cannot discover Volvence repo root; pass --repo-root")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -332,8 +377,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--cell", default=None, help="ablation cell (for --unit mode)")
     p_run.add_argument("--seed", default=None, help="seed (for --unit mode)")
     p_run.add_argument("--wiring", default=None, help="wiring level (for --unit mode)")
-    p_run.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
-                       help="override probe knobs (repeatable, e.g. --knob use_real_model=True --knob model_id=TinyLlama/TinyLlama-1.1B-Chat-v1.0)")
+    p_run.add_argument(
+        "--knob",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "override probe knobs (repeatable, e.g. --knob use_real_model=True "
+            "--knob model_id=TinyLlama/TinyLlama-1.1B-Chat-v1.0)"
+        ),
+    )
     p_run.set_defaults(func=_cmd_run)
 
     p_ls = sub.add_parser("ls", help="list runs")
@@ -362,9 +415,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_promote.add_argument("--probe", required=True, help="probe ID to promote")
     p_promote.add_argument("--from", default="shadow", dest="from_level")
     p_promote.add_argument("--to", default="active", dest="to_level")
-    p_promote.add_argument("--evidence", nargs="*", default=None, help="run_ids as evidence (optional, auto-discovers if omitted)")
+    p_promote.add_argument(
+        "--evidence", nargs="*", default=None, help="run_ids as evidence (optional, auto-discovers if omitted)"
+    )
     p_promote.add_argument("--metric", default="accuracy", help="metric for gate evaluation")
-    p_promote.add_argument("--mode", default="relative", choices=["relative", "absolute"], help="relative (probe_on vs baseline) or absolute (vs threshold)")
+    p_promote.add_argument(
+        "--mode",
+        default="relative",
+        choices=["relative", "absolute"],
+        help="relative (probe_on vs baseline) or absolute (vs threshold)",
+    )
     p_promote.add_argument("--threshold", type=float, default=0.8, help="for absolute mode: minimum acceptable value")
     p_promote.add_argument("--n-params", type=int, default=0, help="trainable parameters (0 for read-only)")
     p_promote.add_argument("--dry-run", action="store_true", help="evaluate gate without recording promotion")
@@ -379,6 +439,32 @@ def _build_parser() -> argparse.ArgumentParser:
     p_metrics.add_argument("--port", type=int, default=9090, help="HTTP port (default: 9090)")
     p_metrics.add_argument("--host", default="0.0.0.0", help="bind address")
     p_metrics.set_defaults(func=_cmd_metrics_server)
+
+    p_lab_snapshot = sub.add_parser(
+        "lab-snapshot",
+        help="print the immutable Research Lab aggregate snapshot",
+    )
+    p_lab_snapshot.add_argument("--repo-root", default=None, help="Volvence repository root")
+    p_lab_snapshot.add_argument(
+        "--praxist-executable",
+        default=None,
+        help="explicit Praxist executable used only for fixed `status --json`",
+    )
+    p_lab_snapshot.set_defaults(func=_cmd_lab_snapshot)
+
+    p_lab_server = sub.add_parser(
+        "lab-server",
+        help="serve the read-only Research Lab API on loopback",
+    )
+    p_lab_server.add_argument("--repo-root", default=None, help="Volvence repository root")
+    p_lab_server.add_argument("--host", default="127.0.0.1", help="loopback bind host")
+    p_lab_server.add_argument("--port", type=int, default=8765, help="HTTP port")
+    p_lab_server.add_argument(
+        "--praxist-executable",
+        default=None,
+        help="explicit Praxist executable used only for fixed `status --json`",
+    )
+    p_lab_server.set_defaults(func=_cmd_lab_server)
 
     return parser
 
