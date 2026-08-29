@@ -8,10 +8,10 @@ always an :class:`InstanceManager` and the handlers gated on
 satisfy this :class:`LauncherProtocol`; the handlers check the Protocol
 instead of a concrete class.
 
-``forward_interaction`` is the multi-process discriminator: when present
-and not ``None`` the api forwards the whole interaction envelope to the
-owning pod over RPC instead of resolving a local ``SessionManager``
-(remote pods hold their own sessions).
+``forward_interaction`` is the primary multi-process discriminator. Optional
+``forward_session_create`` and ``forward_operations_request`` methods extend
+the same pod affinity to explicit session and Operations Brain traffic; remote
+pods retain ownership of their sessions and product-lineage controllers.
 """
 
 from __future__ import annotations
@@ -34,4 +34,42 @@ class LauncherProtocol(Protocol):
     async def sleep(self, *, ai_id: str, **kwargs: Any) -> Any: ...
 
 
-__all__ = ["LauncherProtocol"]
+@runtime_checkable
+class InteractionForwardingLauncherProtocol(Protocol):
+    """Capability contract for launchers that own remote interaction routing."""
+
+    async def forward_interaction(self, *, ai_id: str, envelope: Any) -> Any: ...
+
+
+@runtime_checkable
+class ExplicitSessionForwardingLauncherProtocol(Protocol):
+    """Capability contract for explicit session creation on an owning pod."""
+
+    async def forward_session_create(
+        self,
+        *,
+        ai_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+@runtime_checkable
+class OperationsForwardingLauncherProtocol(Protocol):
+    """Capability contract for sticky Operations Brain request forwarding."""
+
+    async def forward_operations_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+__all__ = [
+    "ExplicitSessionForwardingLauncherProtocol",
+    "InteractionForwardingLauncherProtocol",
+    "LauncherProtocol",
+    "OperationsForwardingLauncherProtocol",
+]

@@ -70,6 +70,23 @@ deployment health, advice adoption, and gross revenue never do. Full request,
 outcome, cost, evidence, idempotency, and adapter contracts are specified in
 [`docs/specs/venture-brain.md`](../../docs/specs/venture-brain.md).
 
+## Operations Brain API
+
+Sessions created with `vertical="operations"` expose:
+
+```text
+POST /v1/sessions/{session_id}/operations/context-packs
+POST /v1/sessions/{session_id}/operations/outcomes
+```
+
+The Context Pack is ACTIVE and memory-first; its nested Advice is permanently
+SHADOW and constrained to AutoCompany-provided division/action-catalog ids,
+cost, risk, reversibility, prerequisite, and approval bounds. Outcomes require
+typed work-order lineage. Only a qualified `field_operation_result` can enter
+the next-turn PE lane; progress, cost, incident, human-load, simulation,
+internal-review, and machine-check records remain memory/execution evidence.
+See [`docs/specs/operations-brain.md`](../../docs/specs/operations-brain.md).
+
 ## One Qwen, many tenants — substrate sharing
 
 When you deploy on a single GPU server, every session must share **one** in-memory copy of the open-weight model. The service supports this directly:

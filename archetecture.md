@@ -34,7 +34,7 @@
 |---|---|
 | Core product | `lifeform-core`, `lifeform-affordance`, `lifeform-thinking`, `lifeform-ingestion`, `lifeform-expression`, `lifeform-service` |
 | Evolution / intake | `lifeform-evolution`, `lifeform-cultivation`, `lifeform-protocol-runtime`, `lifeform-mcp-bridge`, `lifeform-openai-compat`, `lifeform-synthetic-data` |
-| Verticals | `lifeform-domain-emogpt`, `lifeform-domain-coding`, `lifeform-domain-venture`, `lifeform-domain-character`, `lifeform-domain-figure`, `lifeform-domain-growth-advisor`, `lifeform-domain-repair30`, `lifeform-domain-digital-employee` |
+| Verticals | `lifeform-domain-emogpt`, `lifeform-domain-coding`, `lifeform-domain-venture`, `lifeform-domain-operations`, `lifeform-domain-character`, `lifeform-domain-figure`, `lifeform-domain-growth-advisor`, `lifeform-domain-repair30`, `lifeform-domain-digital-employee` |
 
 `lifeform-*` 只能经 Brain facade、contracts 与 ModificationGate 进入 brain core；禁止
 `vz-*` 反向 import `lifeform-*`。Vertical content 编译进既有 application/cognition

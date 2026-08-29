@@ -80,10 +80,13 @@ from dlaas_platform_contracts import (
     WebhookSubscription,
 )
 from dlaas_platform_launcher import (
+    ExplicitSessionForwardingLauncherProtocol,
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
     InstanceNotFound,
+    InteractionForwardingLauncherProtocol,
     LauncherProtocol,
+    OperationsForwardingLauncherProtocol,
 )
 from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
@@ -110,6 +113,12 @@ from dlaas_platform_registry import (
     TenantStore,
 )
 from lifeform_service.app import create_app as create_lifeform_app
+from lifeform_service.operations_brain_routes import (
+    OperationsRouteError,
+    operations_brain_controller,
+    publish_operations_context_payload,
+    publish_operations_outcome_payload,
+)
 from lifeform_service.session_manager import (
     InvalidTemporalForkError,
     ScopeNotAuthorizedError,
@@ -223,6 +232,7 @@ def attach_dlaas_routes(
         _handle_interaction,
     )
     attach_tool_task_routes(app)
+    _add_operations_brain_routes(app)
     _add_lifecycle_routes(app)
     return app
 
@@ -287,6 +297,7 @@ def attach_dlaas_full_stack(
         _handle_interaction,
     )
     attach_tool_task_routes(app)
+    _add_operations_brain_routes(app)
     _add_lifecycle_routes(app)
     attach_control_plane_routes(app, registry=registry)
     attach_plugin_preview_routes(app)
@@ -331,6 +342,30 @@ def _maybe_wire_training_executor(
 
     app.on_startup.append(_on_startup)
     app.on_cleanup.append(_on_cleanup)
+
+
+def _add_operations_brain_routes(app: web.Application) -> None:
+    """Attach explicit ai/session Operations Brain routes and aliases."""
+
+    for prefix in ("/dlaas", "/dlaas/v1"):
+        app.router.add_post(
+            f"{prefix}/instances/{{ai_id}}/sessions",
+            _handle_instance_session_create,
+        )
+        app.router.add_post(
+            (
+                f"{prefix}/instances/{{ai_id}}/sessions/{{session_id}}/"
+                "operations/context-packs"
+            ),
+            _handle_operations_context_pack,
+        )
+        app.router.add_post(
+            (
+                f"{prefix}/instances/{{ai_id}}/sessions/{{session_id}}/"
+                "operations/outcomes"
+            ),
+            _handle_operations_outcome,
+        )
 
 
 def _add_lifecycle_routes(app: web.Application) -> None:
@@ -3019,6 +3054,243 @@ async def _handle_interaction(request: web.Request) -> web.StreamResponse:
         )
 
     return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+def _validate_session_create_payload(payload: dict[str, Any]) -> tuple[str, str]:
+    allowed = {"session_id", "end_user_ref"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise ValueError(f"unknown fields: {', '.join(sorted(unknown))}")
+    if "session_id" not in payload:
+        raise ValueError("missing fields: session_id")
+    session_id = payload["session_id"]
+    end_user_ref = payload.get("end_user_ref", "")
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise ValueError("session_id must be a non-empty string")
+    if len(session_id) > 256 or any(ord(character) < 32 for character in session_id):
+        raise ValueError("session_id must be at most 256 printable characters")
+    if not isinstance(end_user_ref, str):
+        raise ValueError("end_user_ref must be a string")
+    if len(end_user_ref) > 512 or any(ord(character) < 32 for character in end_user_ref):
+        raise ValueError("end_user_ref must be at most 512 printable characters")
+    return session_id, end_user_ref
+
+
+async def _handle_instance_session_create(request: web.Request) -> web.Response:
+    """Create a session explicitly without manufacturing a chat interaction."""
+
+    try:
+        payload = await _read_json_object(request)
+        session_id, end_user_ref = _validate_session_create_payload(payload)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_session_request", detail=str(exc))
+    ai_id = request.match_info.get("ai_id", "")
+    if not ai_id:
+        return _json_error(status=400, error="invalid_ai_id", detail="ai_id is required")
+
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, ExplicitSessionForwardingLauncherProtocol):
+        try:
+            status, body = await launcher.forward_session_create(
+                ai_id=ai_id,
+                payload=payload,
+            )
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(status=502, error="pod_forward_failed", detail=str(exc))
+        if status < 400:
+            _record_audit(
+                request,
+                event_type=(
+                    "instance_session_created"
+                    if status == 201
+                    else "instance_session_reused"
+                ),
+                ai_id=ai_id,
+                session_id=session_id,
+                payload={"routing": "multi_pod_forward"},
+            )
+        return web.json_response(body, status=status)
+    if isinstance(launcher, InteractionForwardingLauncherProtocol):
+        return _json_error(
+            status=501,
+            error="pod_session_forwarding_unavailable",
+            detail="the multi-pod launcher does not expose explicit session forwarding",
+        )
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        try:
+            await manager.get_session(session_id)
+            created = False
+        except SessionNotFoundError:
+            created = True
+        await _get_or_create_session(
+            manager,
+            session_id,
+            user_id=end_user_ref or None,
+        )
+        vertical = manager.vertical_name_for(session_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except _SessionEndUserMismatch as exc:
+        return _json_error(status=409, error="session_end_user_mismatch", detail=str(exc))
+    except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
+        return _json_error(status=409, error="session_already_exists", detail=str(exc))
+
+    body = {
+        "status": "created" if created else "existing",
+        "ai_id": ai_id,
+        "session_id": session_id,
+        "end_user_ref": end_user_ref,
+        "vertical": vertical,
+        "created": created,
+    }
+    _record_audit(
+        request,
+        event_type="instance_session_created" if created else "instance_session_reused",
+        ai_id=ai_id,
+        session_id=session_id,
+        payload={"vertical": vertical},
+    )
+    return web.json_response(body, status=201 if created else 200)
+
+
+async def _handle_operations_context_pack(request: web.Request) -> web.Response:
+    return await _handle_operations_request(request, operation="context-packs")
+
+
+async def _handle_operations_outcome(request: web.Request) -> web.Response:
+    return await _handle_operations_request(request, operation="outcomes")
+
+
+async def _handle_operations_request(
+    request: web.Request,
+    *,
+    operation: str,
+) -> web.Response:
+    try:
+        payload = await _read_json_object(request)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_json_body", detail=str(exc))
+    ai_id = request.match_info.get("ai_id", "")
+    session_id = request.match_info.get("session_id", "")
+    if not ai_id:
+        return _json_error(status=400, error="invalid_ai_id", detail="ai_id is required")
+    if not session_id:
+        return _json_error(
+            status=400,
+            error="invalid_session_id",
+            detail="session_id is required",
+        )
+
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, OperationsForwardingLauncherProtocol):
+        try:
+            status, body = await launcher.forward_operations_request(
+                ai_id=ai_id,
+                session_id=session_id,
+                operation=operation,
+                payload=payload,
+            )
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(status=502, error="pod_forward_failed", detail=str(exc))
+        if status < 400:
+            _record_audit(
+                request,
+                event_type=f"operations_{operation.replace('-', '_')}",
+                ai_id=ai_id,
+                session_id=session_id,
+                payload={"routing": "multi_pod_forward"},
+            )
+            _record_usage(
+                request,
+                ai_id=ai_id,
+                metric=f"operations.{operation}",
+                quantity=1,
+            )
+        return web.json_response(body, status=status)
+    if isinstance(launcher, InteractionForwardingLauncherProtocol):
+        return _json_error(
+            status=501,
+            error="pod_operations_forwarding_unavailable",
+            detail="the multi-pod launcher does not expose Operations Brain forwarding",
+        )
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        session = await manager.get_session(session_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except SessionNotFoundError as exc:
+        return _json_error(status=404, error="session_not_found", detail=str(exc))
+    if manager.vertical_name_for(session_id) != "operations":
+        return _json_error(
+            status=409,
+            error="operations_vertical_required",
+            detail=f"session {session_id!r} is not an operations vertical session",
+        )
+    if manager.is_historical_readonly(session_id):
+        return _json_error(
+            status=409,
+            error="historical_session_readonly",
+            detail="Operations Brain writes are disabled for historical read-only sessions",
+        )
+    try:
+        controller = operations_brain_controller(request.app)
+    except KeyError:
+        return _json_error(
+            status=501,
+            error="operations_brain_unavailable",
+            detail="the lifeform service did not register an Operations Brain controller",
+        )
+    try:
+        if operation == "context-packs":
+            body, created = await publish_operations_context_payload(
+                controller=controller,
+                session=session,
+                payload=payload,
+            )
+        elif operation == "outcomes":
+            body, created = await publish_operations_outcome_payload(
+                controller=controller,
+                session=session,
+                payload=payload,
+            )
+        else:  # pragma: no cover - route registration is closed
+            return _json_error(
+                status=500,
+                error="operations_route_bug",
+                detail=f"unsupported Operations Brain operation: {operation}",
+            )
+    except OperationsRouteError as exc:
+        return _json_error(status=exc.status, error=exc.code, detail=exc.detail)
+
+    _record_audit(
+        request,
+        event_type=f"operations_{operation.replace('-', '_')}",
+        ai_id=ai_id,
+        session_id=session_id,
+        payload={"routing": "local", "created": created},
+    )
+    _record_usage(
+        request,
+        ai_id=ai_id,
+        metric=f"operations.{operation}",
+        quantity=1,
+    )
+    return web.json_response(body, status=201 if created else 200)
 
 
 async def _dispatch_envelope_to_instance(

@@ -896,6 +896,36 @@ def _try_venture() -> VerticalSpec | None:
     )
 
 
+def _try_operations() -> VerticalSpec | None:
+    """AutoCompany-facing stateful operational cognition sidecar vertical."""
+
+    try:
+        from lifeform_domain_operations import build_operations_lifeform
+    except ImportError:
+        return None
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        return build_operations_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+        )
+
+    return VerticalSpec(
+        name="operations",
+        factory=lambda runtime: build_operations_lifeform(substrate_runtime=runtime),
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
 def _try_growth_advisor() -> VerticalSpec | None:
     """Long-term private-domain growth-advisor vertical (LTV path).
 
@@ -1929,6 +1959,7 @@ _BUILDERS = (
     _try_uncalibrated_companion,
     _try_coding,
     _try_venture,
+    _try_operations,
     _try_zhang_wuji,
     _try_novel_worlds_character,
     _try_einstein,

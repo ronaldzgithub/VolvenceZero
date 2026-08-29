@@ -1315,6 +1315,24 @@ checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / ve
 
 ---
 
+### 2.22 Operations Brain 产品契约（lifeform-side，不新增 kernel slot）
+
+**所在 wheel**：`lifeform-domain-operations`；HTTP 投影：`lifeform-service`。完整 contract 见
+[`docs/specs/operations-brain.md`](./specs/operations-brain.md)。
+
+| 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
+|---|---|---|---|
+| `OperationsContextRequest` | AutoCompany 提交已确认事实；`lifeform-domain-operations` 校验 schema | company/cycle/workstream/decision identity、division/action catalog allowlist、closed decision point、typed evidence、约束、成本/人力/时间窗、不确定性 | 输入契约；禁止从自由文本推断 evidence class、route、division 或 action |
+| `OperationsContextPackSnapshot` | `lifeform-domain-operations.OperationsBrainController` | 只读 Memory owner 的 operations-tagged `RetrievalResult` 与同拍 PE public snapshot | `ACTIVE`；content-addressed；显式发布 opaque live-session/source entry/evidence/settlement lineage；不包含已应用建议 |
+| `OperationsAdviceSnapshot` | 同上；候选可由注入的严格结构化 advisor 提供 | 同拍 owner readout、pack source lineage、AutoCompany typed request | v1 固定 `SHADOW` + `applied=false`；target division/action catalog/cost/risk/approval fail closed；无 actuator |
+| `OperationsOutcomeReport` / `OperationsOutcomeReceipt` | report 事实、work-order evidence 与 field aggregate verdict 由 AutoCompany 提交；receipt 由 operations controller 发布 | Memory facade、semantic task event；仅 `field_operation_result` 可额外走 typed `EnvironmentOutcome -> prediction_error` | append-only / idempotent；simulation/internal_review/machine_check 与单项 progress/cost/incident/human-load 不得成为 PE reward；work-order locator 必须匹配 `work_order_ref` |
+
+该产品面复用既有 `memory`、`execution_result`、`environment outcome`、`prediction_error` 与 credit owner，
+不注册新 kernel slot。Operations controller 仅持有有界 live-session idempotency/lineage；不拥有或访问
+AutoCompany 的 OKR、预算、审批、工作单 SSOT、division dispatch 或治理 ledger。
+
+---
+
 ## 3. 模块快照契约
 
 ### 3.1 稳定基底层 (Substrate)
@@ -2969,6 +2987,9 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `venture_context_pack` | VentureBrainController | `lifeform-domain-venture` | VentureContextPackSnapshot | ACTIVE | 每个 Foundry decision request | Foundry adapter；消费 venture-tagged memory / prediction_error 公共 readout，不进入 kernel propagate |
 | `venture_advice` | VentureBrainController | `lifeform-domain-venture` | VentureAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | evidence / comparison only；不得进入 ACTIVE rendered context、Foundry gate 或 actuator |
 | `venture_outcome_receipt` | VentureBrainController | `lifeform-domain-venture` | VentureOutcomeReceipt | ACTIVE（产品回执） | Foundry typed outcome 提交 | Foundry adapter；副作用只经 Brain/Lifeform facade 进入 memory / semantic / eligible environment-outcome owners |
+| `operations_context_pack` | OperationsBrainController | `lifeform-domain-operations` | OperationsContextPackSnapshot | ACTIVE | 每个 AutoCompany operating decision request | AutoCompany adapter；消费 operations-tagged memory / prediction_error 公共 readout，不进入 kernel propagate |
+| `operations_advice` | OperationsBrainController | `lifeform-domain-operations` | OperationsAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | catalog-bounded evidence/comparison only；不得进入 ACTIVE rendered context、AutoCompany approval/dispatch 或 actuator |
+| `operations_outcome_receipt` | OperationsBrainController | `lifeform-domain-operations` | OperationsOutcomeReceipt | ACTIVE（产品回执） | AutoCompany typed work-order outcome 提交 | AutoCompany adapter；副作用只经 Brain/Lifeform facade 进入 memory / semantic / eligible environment-outcome owners |
 
 **lifeform-side slot 不变量**：
 

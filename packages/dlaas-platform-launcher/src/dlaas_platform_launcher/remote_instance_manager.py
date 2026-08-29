@@ -15,6 +15,7 @@ unit-testable without a live socket; the default transport uses
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
+from urllib.parse import quote
 
 from dlaas_platform_launcher.instance_manager import InstanceNotFound
 
@@ -86,6 +87,51 @@ class RemoteInstanceManager:
                 f"pod interaction forward failed for ai_id={ai_id!r}: {body}"
             )
         return body
+
+    async def forward_session_create(
+        self,
+        *,
+        ai_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward explicit session creation without fabricating an interaction."""
+
+        status, body = await self._transport(
+            "POST",
+            f"{self._base_url}/dlaas/v1/instances/{quote(ai_id, safe='')}/sessions",
+            payload,
+        )
+        if status >= 500:
+            raise RuntimeError(
+                f"pod session create failed for ai_id={ai_id!r}: {body}"
+            )
+        return status, body
+
+    async def forward_operations_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward one closed Operations Brain operation to its owning pod."""
+
+        if operation not in {"context-packs", "outcomes"}:
+            raise ValueError(f"unsupported Operations Brain operation: {operation!r}")
+        status, body = await self._transport(
+            "POST",
+            (
+                f"{self._base_url}/dlaas/v1/instances/{quote(ai_id, safe='')}/sessions/"
+                f"{quote(session_id, safe='')}/operations/{operation}"
+            ),
+            payload,
+        )
+        if status >= 500:
+            raise RuntimeError(
+                f"pod Operations Brain forward failed for ai_id={ai_id!r}: {body}"
+            )
+        return status, body
 
     async def wake(self, *, ai_id: str, **kwargs: Any) -> dict:
         status, body = await self._transport(

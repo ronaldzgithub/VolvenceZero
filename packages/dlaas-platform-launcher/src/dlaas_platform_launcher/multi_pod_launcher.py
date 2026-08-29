@@ -18,6 +18,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from dlaas_platform_launcher.launcher_protocol import (
+    ExplicitSessionForwardingLauncherProtocol,
+    OperationsForwardingLauncherProtocol,
+)
 from dlaas_platform_contracts import InstanceLifecycleState, InstanceStatus
 
 from dlaas_platform_launcher.instance_manager import InstanceNotFound
@@ -134,6 +138,45 @@ class MultiPodLauncher:
             )
         self._router.record_interaction(ai_id)
         return await forward(ai_id=ai_id, envelope=envelope)
+
+    async def forward_session_create(
+        self,
+        *,
+        ai_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward explicit session creation to the pod owning ``ai_id``."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, ExplicitSessionForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support session forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await manager.forward_session_create(ai_id=ai_id, payload=payload)
+
+    async def forward_operations_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward a closed Operations Brain operation to the owning pod."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, OperationsForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support Operations Brain forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await manager.forward_operations_request(
+            ai_id=ai_id,
+            session_id=session_id,
+            operation=operation,
+            payload=payload,
+        )
 
     async def wake(
         self,

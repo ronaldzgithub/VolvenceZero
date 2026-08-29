@@ -20,7 +20,12 @@ from dlaas_platform_launcher.instance_manager import (
     InstanceManager,
     InstanceNotFound,
 )
-from dlaas_platform_launcher.launcher_protocol import LauncherProtocol
+from dlaas_platform_launcher.launcher_protocol import (
+    ExplicitSessionForwardingLauncherProtocol,
+    InteractionForwardingLauncherProtocol,
+    LauncherProtocol,
+    OperationsForwardingLauncherProtocol,
+)
 from dlaas_platform_launcher.multi_pod_launcher import MultiPodLauncher
 from dlaas_platform_launcher.remote_instance_manager import (
     RemoteInstanceManager,
@@ -38,7 +43,10 @@ __all__ = (
     "INSTANCE_MANAGER_APP_KEY",
     "InstanceManager",
     "InstanceNotFound",
+    "ExplicitSessionForwardingLauncherProtocol",
+    "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",
+    "OperationsForwardingLauncherProtocol",
     "MultiPodLauncher",
     "RemoteInstanceManager",
     "AiIdPlacementRouter",

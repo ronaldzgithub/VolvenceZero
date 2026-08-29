@@ -59,7 +59,7 @@ brain = Brain(
 应用通常只直接依赖 `vz-runtime`；需要共享 schema 时依赖 `vz-contracts`。不要让产品
 代码拼装 `final_wiring` 内部模块。
 
-## 3. `lifeform-*`：产品与生命体层（20）
+## 3. `lifeform-*`：产品与生命体层（21）
 
 | Wheel | 职责 |
 |---|---|
@@ -78,6 +78,7 @@ brain = Brain(
 | `lifeform-domain-emogpt` | relationship companion vertical |
 | `lifeform-domain-coding` | coding/pair-programmer vertical |
 | `lifeform-domain-venture` | Foundry-facing stateful commercial cognition sidecar vertical |
+| `lifeform-domain-operations` | AutoCompany-facing stateful operational cognition sidecar vertical |
 | `lifeform-domain-character` | fictional character profile/package/manifest |
 | `lifeform-domain-figure` | historical figure corpus/verification/artifact vertical |
 | `lifeform-domain-growth-advisor` | long-term growth advisor vertical |
