@@ -1,3 +1,20 @@
+## 新增重要研究：NVIDIA AVO / Agentic Variation Operators 专项 2026-08
+
+- [`nvidia-avo-2026-08/`](nvidia-avo-2026-08/) — 对 NVIDIA Chen et al.《AVO: Agentic
+  Variation Operators for Autonomous Evolutionary Search》（arXiv `2603.24517v1`）与 2026-08-21
+  ARC-AGI-3 官方扩展的分层核查。**核心裁决**：AVO 不是新基础模型或 Volvence 意义上的 runtime
+  continual learner，而是把 `Sample + Generate + inner evaluate/repair` 提升为一个长程、自主、工具增强的
+  coding-agent variation operator；其最强落点是 Forge / Praxist development sandbox，不是 PE→credit、CMS
+  或 residual steering 主链。论文在 B200 上给出 7 天、500+ 内部方向、40 committed kernels 的真实工程证据，
+  但实验仍是 single-lineage，agent/model/prompt/失败轨迹/supervisor 未公开，也没有 memory/supervisor matched
+  ablation。8 月 `100.00 RHAE` 只覆盖 ARC-AGI-3 public set，NVIDIA 明确说与 VISTA 的 12% action 差异不是
+  受控归因。对 Volvence 可借的是 agentic variation、`lineage + K + f + tools` 可移植接口、typed stall
+  supervisor 与长时成本指标；必须保留 A0、sealed loop-external validation、`ModificationGate`、
+  `DISABLED→SHADOW→ACTIVE`，且不能把 evaluator 回灌 runtime learning。包内给出基于现有
+  `coding_memory_inheritance` 的单-owner matched A/B/C pilot、指标、kill conditions 与 link-only 来源审计。
+
+---
+
 ## 新增重要研究：LLM 内部控制与持续深度学习四轴缺口 2026-08
 
 - [`continual-deep-learning-2026-08/`](continual-deep-learning-2026-08/) — 以
