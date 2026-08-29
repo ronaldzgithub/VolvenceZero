@@ -3,6 +3,8 @@
 Cognitive AGI 统一实验框架。支持 **AB ablation × SHADOW / ACTIVE wiring × 多 seed 并行**，严格遵守 VZ R 不变量（R8 / R10 / R12 / R15）。
 
 - 完整设计：[`DESIGN.md`](DESIGN.md)
+- 统一研究控制台规范：[`../../docs/specs/research-lab.md`](../../docs/specs/research-lab.md)
+- Research Lab Web：[`web/`](web/)（local-first；当前里程碑为只读界面壳）
 - 调研源头：[`../volvence-research/probe/`](../volvence-research/probe/)（7 primitives + 5 frontier 的出处）
 
 ## 阶段 0 快速入口
@@ -40,7 +42,11 @@ src/volvence_labs/
 tests/           单测（stdlib unittest）
 experiments/     运行产物（gitignore）
 .labs/           CAS + SQLite index（gitignore）
+web/             Forge → Praxist → SHADOW → ACTIVE 统一操作面
 ```
+
+`web/` 不改变本包既有 Probe、CAS 或实验 promotion 的权限边界。它只聚合正式 owner artifact；
+生产 A0/A1/A2、ModificationGate 与 target wiring 仍由各自契约和 owner 执行。
 
 ## 阶段 0 完成状态
 

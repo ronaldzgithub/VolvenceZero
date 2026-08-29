@@ -4,6 +4,11 @@
 >
 > 设计日期：2026-05-13。
 
+> 2026-08 扩展说明：阶段 0 的“不做 dashboard / UI”仍是当时的冻结边界。现在新增的
+> Research Lab 是独立收敛包，仅提供跨 owner artifact 的只读聚合与 typed command delegation，
+> 不把本框架的实验 `PromotionManager` 提升为 production authority。规范见
+> [`../../docs/specs/research-lab.md`](../../docs/specs/research-lab.md)。
+
 ---
 
 ## 0. 底线（先说清）
