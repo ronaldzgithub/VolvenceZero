@@ -4,6 +4,7 @@ from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
+from lifeform_domain_operations.operations_brain_contracts import stable_content_sha256
 from lifeform_domain_operations import (
     OperationsAdviceCandidate,
     OperationsAdviceKind,
@@ -20,6 +21,19 @@ from volvence_zero.runtime import WiringLevel
 
 
 _WORK_ORDER_REF = "autocompany://work-orders/work-order-1"
+
+
+def test_canonical_digest_has_a_cross_runtime_fixed_vector() -> None:
+    assert stable_content_sha256(
+        {
+            "z": [None, True, False, 1, 1.5, -0.0, "中文"],
+            "a": {"b": "x", "a": 2},
+        }
+    ) == "b663952e1fbde628165aca891402b850f12ae1c54305609cb134c0e1a3683370"
+    with pytest.raises(ValueError, match="safe range"):
+        stable_content_sha256({"unsafe": float(1 << 53)})
+    with pytest.raises(ValueError, match="Unicode scalar"):
+        stable_content_sha256({"unsafe": "\ud800"})
 
 
 def _evidence(

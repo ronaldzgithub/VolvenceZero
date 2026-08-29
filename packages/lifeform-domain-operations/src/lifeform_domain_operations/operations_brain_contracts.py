@@ -345,6 +345,15 @@ def _canonical_length(value: int) -> bytes:
     return value.to_bytes(4, byteorder="big", signed=False)
 
 
+def _canonical_utf8(value: str) -> bytes:
+    try:
+        return value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            "canonical strings must contain valid Unicode scalar values"
+        ) from exc
+
+
 def _canonical_value_bytes(value: object) -> bytes:
     """Encode JSON-shaped values without runtime-specific number spelling.
 
@@ -360,14 +369,14 @@ def _canonical_value_bytes(value: object) -> bytes:
     if isinstance(value, bool):
         return b"t" if value else b"f"
     if isinstance(value, str):
-        encoded = value.encode("utf-8")
+        encoded = _canonical_utf8(value)
         return b"s" + _canonical_length(len(encoded)) + encoded
     if isinstance(value, (int, float)):
-        if isinstance(value, int) and abs(value) > _MAX_SAFE_INTEGER:
-            raise ValueError("canonical integer exceeds IEEE-754 safe range")
         numeric = float(value)
         if not math.isfinite(numeric):
             raise ValueError("canonical numbers must be finite")
+        if numeric.is_integer() and abs(numeric) > _MAX_SAFE_INTEGER:
+            raise ValueError("canonical integer exceeds IEEE-754 safe range")
         return b"d" + struct.pack(">d", numeric)
     if isinstance(value, (list, tuple)):
         return b"a" + _canonical_length(len(value)) + b"".join(
@@ -378,7 +387,7 @@ def _canonical_value_bytes(value: object) -> bytes:
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError("canonical object keys must be strings")
-            items.append((key.encode("utf-8"), key, item))
+            items.append((_canonical_utf8(key), key, item))
         items.sort(key=lambda entry: entry[0])
         return b"o" + _canonical_length(len(items)) + b"".join(
             _canonical_value_bytes(key) + _canonical_value_bytes(item)

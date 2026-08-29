@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dlaas_platform_launcher import INSTANCE_MANAGER_APP_KEY, InstanceManager
 from lifeform_service.app import create_app as create_lifeform_app
+from lifeform_service.session_manager import SessionAlreadyExistsError
 from lifeform_service.verticals import _try_operations
 
+from dlaas_platform_api import app as dlaas_app_module
 from dlaas_platform_api.app import attach_dlaas_routes
 
 
@@ -201,6 +203,45 @@ async def test_dlaas_operations_requires_explicit_session(
     )
     assert missing.status == 404
     assert (await missing.json())["error"] == "session_not_found"
+
+
+async def test_explicit_session_create_is_idempotent_across_create_race(
+    aiohttp_client,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VZ_ATTACH_DEFAULT_MCP_BUNDLE", "0")
+    vertical = _try_operations()
+    assert vertical is not None
+    app = attach_dlaas_routes(create_lifeform_app(vertical=vertical))
+    manager = app["session_manager"]
+    real_get_or_create = dlaas_app_module._get_or_create_session
+    raced = False
+
+    async def race_once(manager_arg, session_id, *, user_id=None):
+        nonlocal raced
+        if not raced:
+            raced = True
+            await manager_arg.create_session(session_id=session_id, user_id=user_id)
+            raise SessionAlreadyExistsError(session_id)
+        return await real_get_or_create(
+            manager_arg,
+            session_id,
+            user_id=user_id,
+        )
+
+    monkeypatch.setattr(dlaas_app_module, "_get_or_create_session", race_once)
+    client = await aiohttp_client(app)
+
+    response = await client.post(
+        "/dlaas/v1/instances/ai-operations/sessions",
+        json={"session_id": "session-race", "end_user_ref": "autocompany-1"},
+    )
+
+    assert response.status == 200
+    body = await response.json()
+    assert body["created"] is False
+    assert body["session_id"] == "session-race"
+    assert manager.session_end_user("session-race") == "autocompany-1"
 
 
 async def test_same_external_session_id_is_isolated_across_ai_ids(

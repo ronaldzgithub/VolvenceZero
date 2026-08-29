@@ -3130,17 +3130,28 @@ async def _handle_instance_session_create(request: web.Request) -> web.Response:
             created = False
         except SessionNotFoundError:
             created = True
-        await _get_or_create_session(
-            manager,
-            session_id,
-            user_id=end_user_ref or None,
-        )
+        try:
+            await _get_or_create_session(
+                manager,
+                session_id,
+                user_id=end_user_ref or None,
+            )
+        except SessionAlreadyExistsError:
+            # Another caller may have created this exact explicit session
+            # after the read above. Re-read through the same end-user guard so
+            # create remains idempotent without accepting a cross-user race.
+            await _get_or_create_session(
+                manager,
+                session_id,
+                user_id=end_user_ref or None,
+            )
+            created = False
         vertical = manager.vertical_name_for(session_id)
     except _AiIdNotFoundError as exc:
         return _json_error(status=404, error=exc.code, detail=exc.detail)
     except _SessionEndUserMismatch as exc:
         return _json_error(status=409, error="session_end_user_mismatch", detail=str(exc))
-    except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
+    except SessionAlreadyExistsError as exc:  # pragma: no cover - repeated churn
         return _json_error(status=409, error="session_already_exists", detail=str(exc))
 
     body = {

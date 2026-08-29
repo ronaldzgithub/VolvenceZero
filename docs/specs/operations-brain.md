@@ -62,6 +62,13 @@ units；文本只承载已确认上下文，不承担 action、evidence、route 
 | `OperationsOutcomeReport` | `operations-outcome-report.v1` | AutoCompany typed decision、work-order lineage、evidence lane、field aggregate verdict 和多目标运营结果 |
 | `OperationsOutcomeReceipt` | `operations-outcome-receipt.v1` | content-addressed live-session/memory/event/environment lineage、work-order ref、学习 route 与下一拍结算状态 |
 
+Pack 与 receipt 的 `content_sha256` 不是语言运行时自己的 JSON 字符串哈希。v1 使用
+`operations-canonical-value.v1` domain-separated typed encoding：null/bool 有独立 tag，字符串为
+UTF-8 + uint32 长度，数组为有序 length-prefixed sequence，对象按 key 的 UTF-8 bytes 排序，所有数字统一
+编码为 big-endian IEEE-754 binary64，且拒绝非有限值与超出 JavaScript safe-integer 范围的整数。
+字符串与对象 key 必须是有效 Unicode scalar sequence；孤立 UTF-16 surrogate 必须 fail closed。
+`context_pack_id / receipt_id` 必须等于对应前缀加该 digest；consumer 必须重算 digest，不能只比较 id 后缀。
+
 ### 3.1 Context Request
 
 必填：
@@ -204,6 +211,8 @@ sticky owning pod；parent 不创建 kernel session 或 domain controller 副本
 2. adapter 持久化 pack/advice/source lineage。只有 `rendered_context` 可作为 ACTIVE COO/规划上下文；Advice
    仅存储、展示或离线比较；
 3. AutoCompany 自己作决定，审批后创建 durable typed work order，再经已有 division intake 派发；
+   adapter 必须在该 work order/outcome 关闭前保持其 pack 为 latest，除非新 pack 专用于结算已持久化的
+   PE environment outcome；pack allocation 与 work-order dispatch 必须共享 per-session coordination boundary；
 4. division 返回 typed outcome；AutoCompany 核验并构造 report，`work_order` evidence locator 必须等于
    durable `work_order_ref`；
 5. progress/cost/incident/human-load 可单独提交用于 recall；只有完整、已资格化的
