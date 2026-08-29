@@ -66,6 +66,13 @@ from lifeform_domain_coding.coding_brain_contracts import (
     CodingSettlementState,
     CodingTaskKind,
 )
+from lifeform_domain_coding.coding_brain import (
+    CodingBrainConflictError,
+    CodingBrainController,
+    CodingBrainError,
+    CodingBrainLineageError,
+    CodingBrainReadOnlyError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +175,7 @@ def build_coding_lifeform(
     use_temporal_bootstrap: bool = True,
     use_regime_bootstrap: bool = True,
     substrate_runtime: Any = None,
+    identity_provider: Any = None,
 ) -> Any:
     """Build a Lifeform with the pair-programmer vertical fully wired in.
 
@@ -220,6 +228,7 @@ def build_coding_lifeform(
         substrate_runtime=substrate_runtime,
         temporal_bootstrap=temporal_bootstrap,
         regime_bootstrap=regime_bootstrap,
+        identity_provider=identity_provider,
     )
 
 
@@ -232,6 +241,11 @@ __all__ = (
     "build_coding_package",
     "build_coding_vitals_bootstrap",
     "CodingAdviceSnapshot",
+    "CodingBrainConflictError",
+    "CodingBrainController",
+    "CodingBrainError",
+    "CodingBrainLineageError",
+    "CodingBrainReadOnlyError",
     "CodingContextPackSnapshot",
     "CodingContextRequest",
     "CodingOutcomeKind",

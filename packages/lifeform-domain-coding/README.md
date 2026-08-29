@@ -30,8 +30,70 @@ from lifeform_domain_coding import (
     build_coding_affordance_backends,   # name -> async backend dict (low-level)
     resolve_sandbox_path,               # path safety helper (exported for reuse)
     SandboxPathError,                   # raised on sandbox escape / missing / non-file
+    # Coding Brain product surface
+    CodingBrainController,              # memory-first Context Pack + typed outcomes
+    CodingContextRequest,               # strict frozen task input
+    CodingOutcomeReport,                # strict frozen test/review/merge input
 )
 ```
+
+## Coding Brain product loop
+
+`CodingBrainController` turns this vertical into a stateful cognitive sidecar
+for an existing coding agent. It does not edit files or run tools. The host asks
+for an ACTIVE Context Pack before a task, performs the coding work itself, then
+submits a typed outcome:
+
+```python
+from lifeform_domain_coding import (
+    CodingBrainController,
+    CodingContextRequest,
+    CodingOutcomeKind,
+    CodingOutcomeReport,
+    CodingOutcomeSource,
+    CodingTaskKind,
+    build_coding_lifeform,
+)
+
+session = build_coding_lifeform().create_session(session_id="coding-1")
+brain = CodingBrainController()
+
+context = await brain.build_context_pack(
+    session=session,
+    request=CodingContextRequest(
+        request_id="req-1",
+        project_id="project-1",
+        repository_id="repo-1",
+        task_id="task-1",
+        task_kind=CodingTaskKind.BUGFIX,
+        task_summary="Fix checkpoint restoration",
+        target_paths=("src/state.py",),
+    ),
+)
+
+receipt = await brain.record_outcome(
+    session=session,
+    report=CodingOutcomeReport(
+        outcome_id="outcome-1",
+        context_pack_id=context.context_pack_id,
+        kind=CodingOutcomeKind.TASK_REGRESSED,
+        source=CodingOutcomeSource.CI,
+        summary="CI regression",
+        detail="test_restore failed after process restart",
+        observed_at_ms=1_788_000_000_000,
+        evidence_ref="ci:run-42",
+    ),
+)
+```
+
+Context Pack is `WiringLevel.ACTIVE`; its attached advisor is permanently
+`SHADOW`/`applied=false` in v1 and never enters `rendered_context`. Test/build/CI
+outcomes settle through Prediction Error on the next Context Pack turn.
+Code-review and VCS outcomes remain typed `execution_result` evidence and never
+masquerade as deterministic task oracles. Configure `BrainConfig.memory_scope_root_dir`
+plus an identity provider with `persist` permission for cross-session recall.
+
+Full contract: [`docs/specs/coding-brain.md`](../../docs/specs/coding-brain.md).
 
 ## Affordances
 

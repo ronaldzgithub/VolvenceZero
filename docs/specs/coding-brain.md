@@ -1,6 +1,6 @@
 # Coding Brain 产品契约 Spec
 
-> Status: implementation-ready v1
+> Status: implemented v1
 > Last updated: 2026-08-29
 > Owner: `lifeform-domain-coding`
 > Service projection: `lifeform-service`
@@ -157,6 +157,8 @@ POST /v1/sessions/{session_id}/coding/outcomes
   pack fail loudly；
 - service restart 后认知 memory 由 identity-scoped Memory owner 恢复，但 v1 request ledger
   不恢复；host 必须重新请求 Context Pack 后再提交 outcome。
+- controller ledger 默认每 session 最多 512 个 context/outcome key、最多 1024 个 live/dead
+  session ledger；显式关闭 session 立即释放。该 ledger 只做产品幂等，不是认知记忆。
 
 ## 6. 四能力轴审计
 
