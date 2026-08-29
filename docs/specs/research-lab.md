@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.5；exact-bound aggregation + local promotion workbench + external simulation seam implemented
+> Status: v1.6；exact-bound aggregation + multi-view local workbench + external simulation seam implemented
 > Last updated: 2026-08-30
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -142,6 +142,13 @@ file hash 二次校验。
 空状态、source drift、invalid artifact、run stale、审批冲突和成功 transition 都必须有独立状态，不得以空表
 或 toast 代替。
 
+上述路由均已作为同一 `ResearchLabSnapshot` 的只读投影实现：侧栏和窄屏导航使用真实 URL，任务表行进入
+`/tasks/:taskId`，全局搜索只过滤当前 frozen snapshot，不创建平行索引或新 owner。`/approvals` 仅显示当前
+`available_actions` 或 lifecycle 明确要求 A0/A1/A2 人审的任务；`/runs` 只显示带 owner-published run binding 的任务；
+`/evidence` 保持 development/formal/shadow/canary 四列；`/system` 原样显示各 source health 与 typed warning。
+external simulation 在 rail 和 authority inspector 中把 Formal/Gate/SHADOW/ACTIVE 标为 not applicable，不能显示成
+尚待解锁的 Volvence promotion gate。
+
 ## 6. Command API
 
 本地服务默认只绑定 `127.0.0.1`。GET 可无 token；所有 mutation 必须同时满足：
@@ -227,7 +234,9 @@ launcher 可只读检测 sibling Foundry checkout，并注册 `foundry=<root>` i
 3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。**已实现。**
 4. **Promotion operations**：candidate import 与 A1/A2/rollback backend/Web consumer 已实现；每个 dialog 展示
    本次命令的全部 exact id/hash，合法负 receipt 单独显示 BLOCKED。缺 validator/adapter 时仍只显示 blocker。
-5. **Remote/read-only mirror**：可选；不扩本地控制权限。
+5. **Multi-view operations**：真实任务选择、审批 inbox、run registry、evidence matrix、system health 与 task lineage
+   路由；全部复用同一个 snapshot 与 command workbench。**已实现。**
+6. **Remote/read-only mirror**：可选；不扩本地控制权限。
 
 根目录 launcher 已实现；第 4 包现已接入 Forge mutation seam 与本地 Web workbench，但不会生成 formal/gate evidence，
 也不会替 target adapter apply wiring。运行中的 Praxist Task 仍只显示 `view_run`，不会暴露第二次 start/reconcile。

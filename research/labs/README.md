@@ -4,7 +4,7 @@ Cognitive AGI 统一实验框架。支持 **AB ablation × SHADOW / ACTIVE wirin
 
 - 完整设计：[`DESIGN.md`](DESIGN.md)
 - 统一研究控制台规范：[`../../docs/specs/research-lab.md`](../../docs/specs/research-lab.md)
-- Research Lab Web：[`web/`](web/)（local-first；read-only snapshot + opt-in exact A0 operations）
+- Research Lab Web：[`web/`](web/)（local-first；Pipeline、任务 lineage、审批、runs、evidence、system 多视图 + opt-in exact owner operations）
 - 调研源头：[`../volvence-research/probe/`](../volvence-research/probe/)（7 primitives + 5 frontier 的出处）
 
 ## 阶段 0 快速入口
