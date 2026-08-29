@@ -1,6 +1,6 @@
 # Research Opportunity Discovery：类型化研究机会提名与 A0 提交
 
-> Status: v1 mechanism landed；已登记一个 exact pilot；真实 Praxist run 仍受 A0 gate 约束
+> Status: v1 mechanism landed；首个 exact pilot 已生成 A0 Request 并等待人审；无有效 Praxist run
 > Last updated: 2026-08-29
 > Owner: `volvence_forge`（development-plane opportunity artifacts only）
 > Downstream contract: [`research-control-plane.md`](./research-control-plane.md)
@@ -206,7 +206,11 @@ v1 限制：
 - registry 只登记一个 `coding_memory_inheritance` pilot，不提供通用自动 task design；
 - 没有自动 task design/repair；缺任务只发布 `NEEDS_TASK_DESIGN`；
 - 只做每轮新 Request 上限，不做 GPU/resource portfolio、租约或跨 host 调度；
-- 首个真实 Praxist run 仍必须由 exact Request 的 named-human A0 approval 启动；注册本身没有授权。
+- 首个 Request
+  `research-request:8f44be1d4cdeab1b9a3c34ea4f3f84b292521fac390dc3d79fb6a6dd88ae6be9`
+  已处于 `AWAITING_RESEARCH_APPROVAL`；named-human A0 前没有启动权；
+- 一条绕过 Forge 的 direct-CLI run 已被停止并排除，说明 v1 能判定 out-of-band identity 无效，但不提供
+  OS-level Praxist execution denial。
 
-下一收敛包应在 exact A0 后运行该 `coding_memory_inheritance` pilot，验证
+下一收敛包应只在用户审阅并批准 exact A0 后运行该 `coding_memory_inheritance` pilot，验证
 Opportunity → A0 → real Praxist → committed handoff；不得同时扩第二个 owner，也不得跳过 A1/A2。

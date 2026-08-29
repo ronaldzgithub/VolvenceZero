@@ -314,6 +314,10 @@ model/profile 与人工维护的 `binding_revision`。scanner 只提交 Request�
 runtime wiring。完整契约见
 [`research-opportunity-discovery.md`](../docs/specs/research-opportunity-discovery.md)。
 
+当前 pilot 已生成一个 `AWAITING_RESEARCH_APPROVAL` Request；它不是批准。拥有主机 shell 权限的其他
+终端仍可绕过 Forge 直接调用 Praxist，此类 run 因 id/dir/Approval 不匹配而必须停止并排除，不能冒充
+控制面启动的研究。
+
 ### A0 自动研究启动控制面
 
 研究调度不需要仓库根目录的常驻脚本。`forge` 是唯一入口，外部 scheduler 每次调用一次有界

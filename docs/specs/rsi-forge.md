@@ -286,8 +286,9 @@ owner validator、frozen suite、rollback drill 和 OFFLINE gate 满足；因为
 - live mine/propose 仍依赖显式 `FORGE_LLM_API_KEY`/`FORGE_LLM_MODEL`；无凭据时只运行 replay
   契约演练，不把它宣称为真实模型晋级证据。产品 typed outcome source 已打通，但当前工作区尚无
   实际 opt-in closed-alpha outcome artifact，不能据此宣称 live prediction check 已完成。
-- ResearchOpportunity scanner 已落地，但默认 task registry 为空、尚未启动真实 Praxist run；v1 只接
-  Forge failure pattern，不自动创建/修复 task project，也不承担 GPU/resource portfolio scheduling。
+- ResearchOpportunity scanner 已落地，并为唯一 `coding_memory_inheritance` mapping 生成待审 A0
+  Request；尚无有效 approved Praxist run。v1 只接 Forge failure pattern，不自动创建/修复其他 task
+  project，也不承担 GPU/resource portfolio scheduling。绕过 Forge 的 direct-CLI run 不进入有效证据链。
 
 ## 参考
 

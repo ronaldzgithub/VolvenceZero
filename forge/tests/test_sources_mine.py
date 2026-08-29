@@ -676,14 +676,28 @@ def test_v2_production_surface_opens_only_companion_overlay() -> None:
     )
     assert config.schema_version == "forge-editable-surface.v2"
     gated = tuple(entry for entry in config.editable if entry.requires_offline_gate)
-    assert tuple(entry.component for entry in gated) == (
+    production_gated = tuple(
+        entry
+        for entry in gated
+        if any(glob.startswith("packages/") for glob in entry.globs)
+    )
+    assert tuple(entry.component for entry in production_gated) == (
         "companion_runtime_playbook_overlay",
+    )
+    research_candidate = next(
+        entry
+        for entry in gated
+        if entry.component == "coding_memory_inheritance_policy"
+    )
+    assert research_candidate.globs == (
+        "research/candidate_surfaces/coding_memory_inheritance/policy.json",
     )
     overlay = (
         "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
         "runtime_assets/companion_playbook_overlay.json"
     )
-    assert config.editable_entry_for(overlay) is gated[0]
+    assert config.editable_entry_for(overlay) is production_gated[0]
+    assert config.is_read_only("research/praxist_tasks/coding_memory_inheritance/task.yaml")
     scenario_root = (
         "packages/lifeform-domain-character/src/lifeform_domain_character/"
         "scenario_packages/zhang_wuji_character_migration_v1"

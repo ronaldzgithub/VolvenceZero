@@ -319,8 +319,9 @@ forge research-rollback <previous-receipt.json> --to-wiring disabled|shadow
 rollback 命令只读取 previous receipt，不重新读取可能已经归档、损坏或离线的 Task、candidate、
 Praxist run 与收益证据；降低权限不能被研究输入的当前可用性阻断。
 
-组件专用 gate adapter 和 deployment consumer 继续位于循环外。把第一个
-`coding_memory_inheritance` task 接入后，才能验证完整 task-specific evaluator 与 target apply seam。
+组件专用 gate adapter 和 deployment consumer 继续位于循环外。首个
+`coding_memory_inheritance` task 与 development evaluator 已接入并通过 task/lane regression；sealed
+exporter、loop-external validator 与 target apply seam 仍未实现。
 
 ## 10. Failure semantics 与安全检查
 
@@ -349,24 +350,26 @@ Praxist run 与收益证据；降低权限不能被研究输入的当前可用�
 ## 12. 已知限制与下一包
 
 - v1 importer 依赖 task-local exporter 提供规范化 Handoff；不会猜测任意 task 的 variant 语义；
-- companion Research Control Plane 已提供 Request/Approval/Event registry 和 host-wide 单 active-run
-  调和，但它尚未接 automatic opportunity detector，也不会从 run completion 自动生成 Handoff；
+- companion Research Control Plane 已由 typed opportunity scanner 生成首个待审 A0 Request，但尚无
+  approved run，也不会从 run completion 自动生成 Handoff；
 - generic authorization 不证明 target adapter 已执行，实际部署仍需 owner-specific receipt；
 - v1 不替代组件特有统计、消融、安全、延迟和人类 anchor；required check 只统一命名与绑定；
 - 尚未建立跨 Task deployment portfolio/dependency registry；Research Control inbox 只仲裁 host 上的
   Praxist 启动，不拥有同 owner 的候选组合或部署并发；
 - v1 receipt 形成可验证 hash chain，但尚无全局 latest-pointer/单写者 registry；target adapter 必须核对
   自己的当前 deployment receipt，不能把一条旧分支自动当成现态；
-- 尚未接入第一个真实 Praxist run，因此本包只证明机制与拒绝面，不构成任何研究或产品效果证据。
+- 尚未产生第一个有效的 approved Praxist run；一条 direct-CLI bypass run 已停止且以零 finding 排除，
+  因此仍不构成研究或产品效果证据。
 
-下一收敛包应只接一个 pilot：`coding_memory_inheritance`。它负责 task project、开发 evaluator、
-sealed heldout exporter、loop-external validator 和 memory-owner target adapter；不得同时接 steering/CMS
-第二个 owner。
+下一收敛包应只在 exact A0 后运行已冻结的 `coding_memory_inheritance` pilot 并生成 committed Handoff；
+sealed heldout exporter、loop-external validator 和 memory-owner target adapter 后置，且不得同时接
+steering/CMS 第二个 owner。
 
 ## 13. 参考
 
 - [`rsi-forge.md`](./rsi-forge.md)
 - [`research-control-plane.md`](./research-control-plane.md)
+- [`coding-memory-inheritance-praxist-pilot.md`](./coding-memory-inheritance-praxist-pilot.md)
 - [`evidence_program.md`](./evidence_program.md)
 - [`credit-and-self-modification.md`](./credit-and-self-modification.md)
 - [`evaluation-cascade.md`](./evaluation-cascade.md)

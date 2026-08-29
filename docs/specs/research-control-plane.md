@@ -1,6 +1,6 @@
 # Research Control Plane：Praxist 自动研究启动与可恢复调和
 
-> Status: v1 mechanism landed；单 pilot task/registry 已接入；真实运行仍需 exact A0，formal validator 与部署 adapter 尚未落地
+> Status: v1 mechanism landed；单 pilot A0 Request 正等待人审；无有效 research run，formal validator 与部署 adapter 尚未落地
 > Last updated: 2026-08-29
 > Owner: `volvence_forge`（development-plane control artifacts only）
 > Companion contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -265,7 +265,10 @@ promotion receipt 的相邻降级。
 - task project 外部的已安装 plugin/dependency 与 manifest 排除的数据资产依赖 task-owned metadata；对
   高价值 run 应把 lockfile、dataset manifest 和 simulator image digest 作为 Request evidence；
 - 首个真实 run 仍必须精确批准 A0 Request；注册和扫描都不授予启动权限；
+- Forge 不提供 OS-level execution denial；另一个 shell 直接调用 `praxist start` 的 out-of-band run 只能按
+  exact identity 检出、停止并排除，不能写进 Request event chain；
 - run completion 后仍需 pilot exporter、formal validator、Gate adapter 和 target-owned deployment seam。
 
-下一包只接一个 `coding_memory_inheritance` pilot，验证 Request → real Praxist run → committed handoff；
+下一包只在用户明确批准当前 `coding_memory_inheritance` Request 后，验证
+Request → real Praxist run → committed handoff；
 不得同时上线第二个 owner，也不得在 pilot 中跳过 A1/A2。
