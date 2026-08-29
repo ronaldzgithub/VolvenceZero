@@ -306,13 +306,25 @@ class ResearchLabCollector:
                     )
                 )
                 continue
+            decision = approval.payload.get("decision")
             authority = approval.payload.get("authority")
+            expected_authorized = decision == "APPROVE"
             if (
-                approval.payload.get("decision") == "APPROVE"
-                and isinstance(authority, Mapping)
-                and authority.get("research_start_authorized") is True
+                decision not in {"APPROVE", "REJECT"}
+                or not isinstance(authority, Mapping)
+                or authority.get("research_start_authorized") is not expected_authorized
             ):
-                approvals.append(approval)
+                warnings.append(
+                    PortalWarning(
+                        code="APPROVAL_AUTHORITY_MALFORMED",
+                        message=f"approval decision and authority disagree: {_portable(path, self.repo_root)}",
+                        source="control",
+                        severity=WarningSeverity.ERROR,
+                        task_id=task_id,
+                    )
+                )
+                continue
+            approvals.append(approval)
         approval = max(approvals, key=lambda artifact: _created_at(artifact.payload), default=None)
 
         events: list[_LoadedArtifact] = []
@@ -727,7 +739,7 @@ def _authority(
     if isinstance(release, Mapping) and isinstance(release.get("initial_wiring"), str):
         initial_wiring = str(release["initial_wiring"])
     return AuthoritySnapshot(
-        a0_research_start_authorized=control.approval is not None,
+        a0_research_start_authorized=_is_a0_approved(control),
         formal_validation_status=validation_status,
         modification_gate_decision=gate_decision,
         authorized_wiring=authorized_wiring,
@@ -751,6 +763,13 @@ def _lifecycle(
             None,
             "multiple active Praxist runs map to one Task",
             active_run.updated_at if active_run else None,
+        )
+    if control.approval is not None and control.approval.payload.get("decision") == "REJECT":
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            "exact A0 review rejected this ResearchRequest",
+            _created_at(control.approval.payload),
         )
     if active_run is not None:
         return LifecycleSnapshot(
@@ -813,7 +832,7 @@ def _lifecycle(
             None,
             _created_at(promotion.candidate.payload),
         )
-    if control.approval is not None:
+    if _is_a0_approved(control):
         blocker = None
         if control.event is not None and control.event.payload.get("state") == "WAITING_FOR_CAPACITY":
             blocker = "waiting for Praxist capacity"
@@ -868,7 +887,7 @@ def _actions(
 ) -> tuple[str, ...]:
     if stage is LifecycleStage.AWAITING_A0 and control.request is not None:
         return ("review_a0",)
-    if stage is LifecycleStage.PREFLIGHT and control.approval is not None:
+    if stage is LifecycleStage.PREFLIGHT and _is_a0_approved(control):
         return ("reconcile",)
     if stage is LifecycleStage.RESEARCH_RUNNING:
         return ("view_run",)
@@ -905,6 +924,17 @@ def _summary(items: Sequence[ResearchLabItem]) -> ResearchLabSummary:
             in {LifecycleStage.AWAITING_A0, LifecycleStage.AWAITING_A1, LifecycleStage.AWAITING_A2}
         ),
         production_active=sum(1 for item in items if item.authority.runtime_wiring == "active"),
+    )
+
+
+def _is_a0_approved(control: _ControlBundle) -> bool:
+    if control.approval is None:
+        return False
+    authority = control.approval.payload.get("authority")
+    return (
+        control.approval.payload.get("decision") == "APPROVE"
+        and isinstance(authority, Mapping)
+        and authority.get("research_start_authorized") is True
     )
 
 

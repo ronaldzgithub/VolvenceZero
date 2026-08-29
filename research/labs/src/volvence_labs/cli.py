@@ -324,14 +324,39 @@ def _cmd_lab_snapshot(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab_server(args: argparse.Namespace) -> int:
-    from .portal import ResearchLabCollector, command_status_loader, create_server
+    from .portal import (
+        ResearchLabCollector,
+        ResearchLabCommandService,
+        SubprocessForgeCommandRunner,
+        command_status_loader,
+        create_server,
+    )
 
     repo_root = _resolve_repo_root(args.repo_root)
     status_loader = command_status_loader(args.praxist_executable) if args.praxist_executable is not None else None
     collector = ResearchLabCollector(repo_root, status_loader=status_loader)
-    server = create_server(collector, host=args.host, port=args.port)
+    command_service = None
+    allowed_origins: tuple[str, ...] = ()
+    if args.enable_mutations:
+        runner = SubprocessForgeCommandRunner(
+            repo_root,
+            python_executable=args.forge_python,
+            timeout_seconds=args.command_timeout,
+        )
+        command_service = ResearchLabCommandService(collector, runner=runner)
+        allowed_origins = tuple(args.ui_origin or ("http://localhost:3000", "http://127.0.0.1:3000"))
+    server = create_server(
+        collector,
+        host=args.host,
+        port=args.port,
+        command_service=command_service,
+        allowed_origins=allowed_origins,
+    )
     bound_host, bound_port = server.server_address[:2]
-    print(f"[research-lab] read-only API on http://{bound_host}:{bound_port}")
+    mode = "controlled mutation" if command_service is not None else "read-only"
+    print(f"[research-lab] {mode} API on http://{bound_host}:{bound_port}")
+    if allowed_origins:
+        print(f"[research-lab] accepted UI origins: {', '.join(allowed_origins)}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -454,7 +479,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_lab_server = sub.add_parser(
         "lab-server",
-        help="serve the read-only Research Lab API on loopback",
+        help="serve the Research Lab API on loopback",
     )
     p_lab_server.add_argument("--repo-root", default=None, help="Volvence repository root")
     p_lab_server.add_argument("--host", default="127.0.0.1", help="loopback bind host")
@@ -463,6 +488,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "--praxist-executable",
         default=None,
         help="explicit Praxist executable used only for fixed `status --json`",
+    )
+    p_lab_server.add_argument(
+        "--enable-mutations",
+        action="store_true",
+        help="enable exact-bound A0 review and approved-request reconciliation",
+    )
+    p_lab_server.add_argument(
+        "--ui-origin",
+        action="append",
+        default=[],
+        help="exact loopback UI origin allowed to submit commands (repeatable)",
+    )
+    p_lab_server.add_argument(
+        "--forge-python",
+        default=sys.executable,
+        help="Python >=3.11 runtime used for the checked-in Forge CLI",
+    )
+    p_lab_server.add_argument(
+        "--command-timeout",
+        type=float,
+        default=180.0,
+        help="bounded Forge command timeout in seconds",
     )
     p_lab_server.set_defaults(func=_cmd_lab_server)
 

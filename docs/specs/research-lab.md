@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1 architecture freeze；local-first control surface；implementation in convergence packages
+> Status: v1.1 architecture freeze；read-only aggregation + opt-in exact A0 operations implemented
 > Last updated: 2026-08-29
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -150,17 +150,34 @@ POST /api/v1/rollback
 `reconcile` 只能处理已经 exact-approved 的 Request。A1/A2 endpoint 只委托 Forge promotion CLI；真正的 target
 adapter 仍消费 receipt 并执行自身协议。
 
+当前实现矩阵：
+
+| Endpoint | 状态 | Owner seam |
+|---|---|---|
+| `GET snapshot/task/session` | 已实现 | portal collector/session |
+| `POST a0/review` | 已实现，mutation mode 默认关闭 | `forge research-approve` |
+| `POST reconcile` | 已实现，仅当 fresh snapshot 发布 `reconcile` 动作 | `forge research-reconcile --once --request ...` |
+| scan/import/A1/A2/rollback | 后续收敛包；UI 只能展示 blocker | 对应 Forge owner 尚未接入 portal |
+
+`GET /api/v1/session` 只向同源本地 UI 发布当前进程 CSRF token 和已启用动作。mutation 服务不接受 locator、raw
+argv 或 extra args；客户端只提交 snapshot revision、Task id、artifact id/hash、named actor、reason 与 typed
+decision。服务从 fresh snapshot 反查正式 locator、重算文件 SHA，并在 action 仍可用时构造固定 argv。Forge 自身仍
+二次验证 Request identity、全部 binding bytes、全局 capacity 与 reconcile lock，因此 portal 的预检不替代 owner gate。
+
 ## 7. Local-first deployment
 
 Lab 控制本机仓库、Praxist registry 和进程，因此 functional control plane 默认本地运行。Web build 可静态部署
 为只读 demo，但 hosted UI 不获得本机 mutation token，也不能直接连接 production credentials。未来远程控制必须
 新增 authenticated relay、host identity 和 scheduler lease，不能把 localhost API 暴露公网。
 
+本地 API 默认也是 read-only；只有显式传入 `--enable-mutations` 才创建 Forge command service。mutation mode
+仍只绑定 loopback，并要求显式 loopback UI Origin、进程级 CSRF、16 KiB body 上限和 exact artifact binding。
+
 ## 8. 收敛包与里程碑
 
 1. **Foundation**：冻结 Forge/Praxist pilot 与 control-plane contracts；不含 UI。
 2. **Read-only Lab**：Sites web shell + `ResearchLabSnapshot` collector + local GET API；不含 mutation。
-3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。
+3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。**已实现。**
 4. **Promotion operations**：candidate/formal/A1/A2/rollback UI；缺 validator/adapter 时只显示 blocker。
 5. **Remote/read-only mirror**：可选；不扩本地控制权限。
 

@@ -11,7 +11,14 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from volvence_labs.portal import LifecycleStage, ResearchLabCollector, create_server
+from volvence_labs.portal import (
+    LifecycleStage,
+    OwnerCommandResult,
+    PortalCommandError,
+    ResearchLabCollector,
+    ResearchLabCommandService,
+    create_server,
+)
 
 
 FIXED_NOW = datetime(2026, 8, 29, 14, 30, tzinfo=timezone.utc)
@@ -81,6 +88,50 @@ def _make_request(repo: Path, *, approved: bool, correct_sha: bool = True) -> Pa
             },
         )
     return request_path
+
+
+def _write_review(repo: Path, request_path: Path, *, decision: str) -> Path:
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    suffix = "b" if decision == "APPROVE" else "c"
+    path = request_path.parent / "approvals" / f"{suffix * 64}.json"
+    _write_json(
+        path,
+        {
+            "schema_version": "forge-research-approval.v1",
+            "approval_id": "research-approval:" + suffix * 64,
+            "request_id": request["request_id"],
+            "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
+            "decision": decision,
+            "review": {"reviewed_by": "Test Reviewer", "reason": "Fixture decision"},
+            "authority": {"research_start_authorized": decision == "APPROVE"},
+            "created_at": "2026-08-29T14:01:00Z",
+        },
+    )
+    return path
+
+
+class FakeForgeRunner:
+    def __init__(self, repo: Path) -> None:
+        self.repo = repo
+        self.calls: list[tuple[str, ...]] = []
+
+    def __call__(self, arguments: object) -> OwnerCommandResult:
+        if not isinstance(arguments, tuple):
+            raise AssertionError("portal must pass one frozen argv tuple")
+        self.calls.append(arguments)
+        if "research-approve" in arguments:
+            command_index = arguments.index("research-approve")
+            request_path = Path(arguments[command_index + 1])
+            decision = "REJECT" if "--reject" in arguments else "APPROVE"
+            _write_review(self.repo, request_path, decision=decision)
+            return OwnerCommandResult(0, f"{decision}: fake approval\n", "")
+        if "research-reconcile" in arguments:
+            return OwnerCommandResult(
+                0,
+                json.dumps([{"state": "WAITING_FOR_CAPACITY", "run_id": None}]),
+                "",
+            )
+        raise AssertionError(f"unexpected Forge command: {arguments}")
 
 
 def _running_status(repo: Path, *, run_id: str = "run_example", pid: int = 1234) -> dict[str, object]:
@@ -159,6 +210,20 @@ def test_request_without_approval_is_awaiting_a0(tmp_path: Path) -> None:
     assert item.authority.a0_research_start_authorized is False
     assert item.available_actions == ("review_a0",)
     assert snapshot.summary.awaiting_human == 1
+
+
+def test_rejected_a0_review_is_a_visible_terminal_blocker(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    request_path = _make_request(tmp_path, approved=False)
+    _write_review(tmp_path, request_path, decision="REJECT")
+
+    snapshot = _collector(tmp_path, []).collect()
+
+    item = snapshot.items[0]
+    assert item.lifecycle.stage is LifecycleStage.BLOCKED
+    assert item.lifecycle.blocking_reason == "exact A0 review rejected this ResearchRequest"
+    assert item.authority.a0_research_start_authorized is False
+    assert item.available_actions == ("inspect_blocker",)
 
 
 def test_malformed_request_is_visible_as_degraded_source(tmp_path: Path) -> None:
@@ -293,3 +358,242 @@ def test_server_rejects_non_loopback_bind(tmp_path: Path) -> None:
     _make_task(tmp_path)
     with pytest.raises(ValueError, match="loopback"):
         create_server(_collector(tmp_path, []), host="0.0.0.0")
+
+
+def test_exact_a0_service_delegates_fixed_argv_and_refreshes_snapshot(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=False)
+    collector = _collector(tmp_path, [])
+    before = collector.collect()
+    request_ref = next(ref for ref in before.items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    result = service.review_a0(
+        {
+            "snapshot_revision": before.revision,
+            "task_id": TASK_ID,
+            "artifact_id": request_ref.artifact_id,
+            "artifact_sha256": request_ref.sha256,
+            "actor": "Meng Fu",
+            "reason": "Approve the exact frozen bounded task",
+            "decision": "approve",
+        }
+    )
+
+    assert result["outcome"] == "approved"
+    assert result["previous_revision"] == before.revision
+    assert result["current_revision"] != before.revision
+    assert runner.calls == [
+        (
+            "--repo-root",
+            str(tmp_path),
+            "research-approve",
+            str(tmp_path / request_ref.locator),
+            "--approved-by",
+            "Meng Fu",
+            "--reason",
+            "Approve the exact frozen bounded task",
+        )
+    ]
+    after = collector.collect().items[0]
+    assert after.lifecycle.stage is LifecycleStage.PREFLIGHT
+    assert after.authority.a0_research_start_authorized is True
+    assert after.available_actions == ("reconcile",)
+
+
+def test_command_service_rejects_stale_revision_before_owner_call(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=False)
+    collector = _collector(tmp_path, [])
+    request_ref = next(ref for ref in collector.collect().items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    with pytest.raises(PortalCommandError) as error:
+        service.review_a0(
+            {
+                "snapshot_revision": "0" * 64,
+                "task_id": TASK_ID,
+                "artifact_id": request_ref.artifact_id,
+                "artifact_sha256": request_ref.sha256,
+                "actor": "Meng Fu",
+                "reason": "Stale review must not execute",
+                "decision": "approve",
+            }
+        )
+
+    assert error.value.code == "stale_snapshot"
+    assert runner.calls == []
+
+
+def test_command_service_rejects_wrong_request_digest_before_owner_call(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=False)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    request_ref = next(ref for ref in snapshot.items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    with pytest.raises(PortalCommandError) as error:
+        service.review_a0(
+            {
+                "snapshot_revision": snapshot.revision,
+                "task_id": TASK_ID,
+                "artifact_id": request_ref.artifact_id,
+                "artifact_sha256": "0" * 64,
+                "actor": "Meng Fu",
+                "reason": "Wrong bytes must never receive approval",
+                "decision": "approve",
+            }
+        )
+
+    assert error.value.code == "artifact_digest_mismatch"
+    assert runner.calls == []
+
+
+def test_approved_request_reconcile_uses_one_exact_bounded_pass(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=True)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    request_ref = next(ref for ref in snapshot.items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    result = service.reconcile(
+        {
+            "snapshot_revision": snapshot.revision,
+            "task_id": TASK_ID,
+            "artifact_id": request_ref.artifact_id,
+            "artifact_sha256": request_ref.sha256,
+            "actor": "Meng Fu",
+            "reason": "Run one approved control-plane reconciliation",
+        }
+    )
+
+    assert result["outcome"] == "reconciled"
+    assert result["message"] == "Forge reconciliation state: WAITING_FOR_CAPACITY; run_id=-"
+    assert runner.calls == [
+        (
+            "--repo-root",
+            str(tmp_path),
+            "research-reconcile",
+            "--once",
+            "--request",
+            str(tmp_path / request_ref.locator),
+            "--json",
+        )
+    ]
+
+
+def test_running_task_cannot_reconcile_or_create_a_duplicate_run(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=True)
+    collector = _collector(tmp_path, [_running_status(tmp_path)])
+    snapshot = collector.collect()
+    request_ref = next(ref for ref in snapshot.items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+
+    with pytest.raises(PortalCommandError) as error:
+        service.reconcile(
+            {
+                "snapshot_revision": snapshot.revision,
+                "task_id": TASK_ID,
+                "artifact_id": request_ref.artifact_id,
+                "artifact_sha256": request_ref.sha256,
+                "actor": "Meng Fu",
+                "reason": "Inspect duplicate-run protection",
+            }
+        )
+
+    assert error.value.code == "action_not_available"
+    assert runner.calls == []
+
+
+def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_request(tmp_path, approved=False)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    request_ref = next(ref for ref in snapshot.items[0].bindings if ref.kind == "research request")
+    runner = FakeForgeRunner(tmp_path)
+    service = ResearchLabCommandService(collector, runner=runner)
+    csrf_token = "x" * 32
+    ui_origin = "http://localhost:3000"
+    server = create_server(
+        collector,
+        port=0,
+        command_service=service,
+        allowed_origins=(ui_origin,),
+        csrf_token=csrf_token,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    endpoint = f"http://{host}:{port}/api/v1/a0/review"
+    body = json.dumps(
+        {
+            "snapshot_revision": snapshot.revision,
+            "task_id": TASK_ID,
+            "artifact_id": request_ref.artifact_id,
+            "artifact_sha256": request_ref.sha256,
+            "actor": "Meng Fu",
+            "reason": "Approve through the local exact-bound workbench",
+            "decision": "approve",
+        }
+    ).encode()
+    try:
+        with urlopen(f"http://{host}:{port}/api/v1/session", timeout=5) as response:
+            session = json.loads(response.read())
+        assert session["mutations_enabled"] is True
+        assert session["csrf_token"] == csrf_token
+
+        missing_origin = Request(
+            endpoint,
+            method="POST",
+            data=body,
+            headers={"Content-Type": "application/json", "X-Research-Lab-CSRF": csrf_token},
+        )
+        with pytest.raises(HTTPError) as forbidden:
+            urlopen(missing_origin, timeout=5)
+        assert forbidden.value.code == 403
+        assert json.loads(forbidden.value.read())["error"] == "origin_forbidden"
+        assert runner.calls == []
+
+        wrong_csrf = Request(
+            endpoint,
+            method="POST",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Origin": ui_origin,
+                "X-Research-Lab-CSRF": "y" * 32,
+            },
+        )
+        with pytest.raises(HTTPError) as csrf_forbidden:
+            urlopen(wrong_csrf, timeout=5)
+        assert csrf_forbidden.value.code == 403
+        assert json.loads(csrf_forbidden.value.read())["error"] == "csrf_forbidden"
+        assert runner.calls == []
+
+        approved = Request(
+            endpoint,
+            method="POST",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Origin": ui_origin,
+                "X-Research-Lab-CSRF": csrf_token,
+            },
+        )
+        with urlopen(approved, timeout=5) as response:
+            result = json.loads(response.read())
+        assert result["outcome"] == "approved"
+        assert len(runner.calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
