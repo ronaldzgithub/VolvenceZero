@@ -1,7 +1,8 @@
+'use client';
+
 import {
   Activity,
-  ArrowUpRight,
-  Bell,
+  AlertTriangle,
   Boxes,
   Check,
   ChevronRight,
@@ -12,9 +13,11 @@ import {
   GitBranch,
   LayoutDashboard,
   LockKeyhole,
+  RefreshCw,
   Search,
   ShieldCheck,
   UserRoundCheck,
+  WifiOff,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -36,32 +39,48 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useResearchLab } from '@/hooks/use-research-lab';
+import type {
+  LifecycleStage,
+  ResearchLabItem,
+  ResearchLabSnapshot,
+} from '@/lib/research-lab';
 
-const stages = [
-  { label: 'Forge', detail: 'Opportunity', state: 'complete' },
-  { label: 'A0', detail: 'Human review', state: 'complete' },
-  { label: 'Praxist', detail: 'Research run', state: 'current' },
-  { label: 'Formal', detail: 'Sealed validation', state: 'locked' },
-  { label: 'Gate', detail: 'ModificationGate', state: 'locked' },
-  { label: 'Shadow', detail: 'A1 observation', state: 'locked' },
-  { label: 'Active', detail: 'A2 canary', state: 'locked' },
+type StageState = 'complete' | 'current' | 'locked';
+
+interface StageNodeData {
+  label: string;
+  detail: string;
+  state: StageState;
+}
+
+const stageBlueprints = [
+  { label: 'Forge', detail: 'Opportunity' },
+  { label: 'A0', detail: 'Human review' },
+  { label: 'Praxist', detail: 'Research run' },
+  { label: 'Formal', detail: 'Sealed validation' },
+  { label: 'Gate', detail: 'ModificationGate' },
+  { label: 'Shadow', detail: 'A1 observation' },
+  { label: 'Active', detail: 'A2 canary' },
 ] as const;
 
-const navItems = [
-  { label: 'Pipeline', icon: LayoutDashboard, active: true },
-  { label: 'Approvals', icon: UserRoundCheck, count: 0 },
-  { label: 'Runs', icon: Activity, count: 1 },
-  { label: 'Evidence', icon: Database },
-  { label: 'System', icon: Cpu },
-] as const;
+const stageLabels: Record<LifecycleStage, string> = {
+  NEEDS_TASK_DESIGN: 'Needs task design',
+  AWAITING_A0: 'Awaiting A0',
+  PREFLIGHT: 'Preflight',
+  RESEARCH_RUNNING: 'Research running',
+  RESEARCH_COMPLETE: 'Research complete',
+  CANDIDATE_RETAINED: 'Candidate retained',
+  FORMAL_VALIDATION: 'Formal validation',
+  AWAITING_A1: 'Awaiting A1',
+  SHADOW: 'Shadow',
+  AWAITING_A2: 'Awaiting A2',
+  ACTIVE: 'Active',
+  ROLLED_BACK: 'Rolled back',
+  BLOCKED: 'Blocked',
+};
 
-function StageNode({
-  stage,
-  index,
-}: {
-  stage: (typeof stages)[number];
-  index: number;
-}) {
+function StageNode({ stage, index }: { stage: StageNodeData; index: number }) {
   const current = stage.state === 'current';
   const complete = stage.state === 'complete';
 
@@ -102,7 +121,7 @@ function StageNode({
         </p>
         <p className="mt-0.5 text-[11px] text-slate-500">{stage.detail}</p>
       </div>
-      {index < stages.length - 1 && (
+      {index < stageBlueprints.length - 1 && (
         <ChevronRight className="absolute -right-3.5 top-1/2 z-20 size-3 -translate-y-1/2 text-slate-600" />
       )}
     </div>
@@ -110,6 +129,28 @@ function StageNode({
 }
 
 export default function Home() {
+  const { snapshot, connection, error, refreshing, refresh } = useResearchLab();
+  const primaryItem = snapshot?.items[0] ?? null;
+  const stages = buildStages(primaryItem);
+  const navItems = [
+    { label: 'Pipeline', icon: LayoutDashboard, active: true },
+    {
+      label: 'Approvals',
+      icon: UserRoundCheck,
+      count: snapshot?.summary.awaiting_human ?? 0,
+    },
+    {
+      label: 'Runs',
+      icon: Activity,
+      count: snapshot?.summary.active_runs ?? 0,
+    },
+    { label: 'Evidence', icon: Database },
+    { label: 'System', icon: Cpu },
+  ] as const;
+  const metrics = buildMetrics(snapshot, primaryItem);
+  const systemChecks = buildSystemChecks(snapshot);
+  const inspectorFacts = buildInspectorFacts(primaryItem);
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-background/90 backdrop-blur-xl">
@@ -137,14 +178,17 @@ export default function Home() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="hidden border-emerald-300/20 bg-emerald-300/[0.06] font-mono text-[10px] text-emerald-200 lg:flex"
+            <ConnectionBadge connection={connection} />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Refresh Research Lab snapshot"
+              onClick={refresh}
+              disabled={refreshing}
             >
-              <span className="size-1.5 rounded-full bg-emerald-300" /> local
-            </Badge>
-            <Button variant="ghost" size="icon" aria-label="Notifications">
-              <Bell className="size-4 text-slate-400" />
+              <RefreshCw
+                className={`size-4 text-slate-400 ${refreshing ? 'animate-spin' : ''}`}
+              />
             </Button>
             <div className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-slate-800 font-mono text-[10px] text-slate-300">
               MF
@@ -182,8 +226,8 @@ export default function Home() {
 
           <div className="mt-auto rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
             <div className="flex items-center gap-2 text-xs text-slate-300">
-              <ShieldCheck className="size-4 text-emerald-300" />
-              Authority guard
+              <ShieldCheck className="size-4 text-emerald-300" /> Authority
+              guard
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
               Evaluation is read-only. Every transition requires an exact owner
@@ -213,11 +257,26 @@ export default function Home() {
               >
                 <GitBranch className="size-4" /> View lineage
               </Button>
-              <Button className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
-                View live run <ArrowUpRight className="size-4" />
+              <Button
+                className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                onClick={refresh}
+              >
+                Refresh snapshot <RefreshCw className="size-4" />
               </Button>
             </div>
           </div>
+
+          {error && (
+            <div className="mt-5 flex items-start gap-3 rounded-xl border border-rose-300/20 bg-rose-300/[0.06] px-4 py-3 text-xs text-rose-100">
+              <WifiOff className="mt-0.5 size-4 shrink-0 text-rose-300" />
+              <div>
+                <p className="font-medium">Live snapshot refresh failed</p>
+                <p className="mt-1 text-rose-100/55">
+                  {error}. Last valid snapshot remains visible when available.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 overflow-x-auto pb-2">
             <div className="flex min-w-[980px] gap-3">
@@ -228,32 +287,7 @@ export default function Home() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                label: 'Registered tasks',
-                value: '1',
-                detail: '1 exact mapping',
-                icon: Boxes,
-              },
-              {
-                label: 'Awaiting human',
-                value: '0',
-                detail: 'A0 completed',
-                icon: UserRoundCheck,
-              },
-              {
-                label: 'Active runs',
-                value: '1',
-                detail: 'PID 47372 · gen 0',
-                icon: Activity,
-              },
-              {
-                label: 'Production active',
-                value: '0',
-                detail: 'No authority granted',
-                icon: ShieldCheck,
-              },
-            ].map((metric) => {
+            {metrics.map((metric) => {
               const Icon = metric.icon;
               return (
                 <Card
@@ -294,7 +328,7 @@ export default function Home() {
                   variant="outline"
                   className="border-white/10 font-mono text-[10px] text-slate-500"
                 >
-                  1 item
+                  {snapshot?.items.length ?? 0} items
                 </Badge>
               </CardAction>
             </CardHeader>
@@ -323,58 +357,22 @@ export default function Home() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow className="border-white/[0.06] bg-cyan-300/[0.025] hover:bg-cyan-300/[0.045]">
-                    <TableCell className="pl-4">
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-8 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/[0.07] text-cyan-200">
-                          <Boxes className="size-4" />
-                        </span>
-                        <div>
-                          <p className="font-medium text-slate-200">
-                            Coding memory inheritance
-                          </p>
-                          <p className="font-mono text-[10px] text-slate-600">
-                            claim:coding-memory-scaling
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="border-white/10 font-mono text-[10px] text-slate-400"
+                  {snapshot?.items.length ? (
+                    snapshot.items.map((item) => (
+                      <ResearchRow key={item.item_id} item={item} />
+                    ))
+                  ) : (
+                    <TableRow className="border-white/[0.06] hover:bg-transparent">
+                      <TableCell
+                        colSpan={6}
+                        className="h-28 text-center text-xs text-slate-600"
                       >
-                        vz-memory
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-xs text-cyan-200">
-                        <span className="size-1.5 animate-pulse rounded-full bg-cyan-300" />{' '}
-                        Research running
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-4 font-mono text-[10px] text-slate-500">
-                          <span>generation 0</span>
-                          <span>4 initializing</span>
-                        </div>
-                        <Progress
-                          value={8}
-                          className="w-28 [&_[data-slot=progress-indicator]]:bg-cyan-300"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-300">
-                        <FlaskConical className="size-3.5 text-cyan-300" />{' '}
-                        Retained candidate
-                      </span>
-                    </TableCell>
-                    <TableCell className="pr-4 text-right font-mono text-[10px] text-slate-600">
-                      14:27 UTC
-                    </TableCell>
-                  </TableRow>
+                        {connection === 'loading'
+                          ? 'Loading immutable owner artifacts…'
+                          : 'No valid Research Task is currently available.'}
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -384,10 +382,11 @@ export default function Home() {
             <Card className="border-0 bg-card/80 ring-white/[0.07]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-200">
-                  <Database className="size-4 text-rose-300" /> Baseline finding
+                  <Database className="size-4 text-rose-300" /> Development
+                  evidence
                 </CardTitle>
                 <CardDescription>
-                  Public replay v2 · development evidence only
+                  Public replay v2 · never treated as formal validation
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -404,24 +403,13 @@ export default function Home() {
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-4">
-                  <div>
-                    <p className="font-mono text-sm text-slate-200">0.9720</p>
-                    <p className="text-[10px] text-slate-600">
-                      recalled retention
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-sm text-slate-200">0.9846</p>
-                    <p className="text-[10px] text-slate-600">
-                      failed retention
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-sm text-rose-300">0.0</p>
-                    <p className="text-[10px] text-slate-600">
-                      strict budget pass
-                    </p>
-                  </div>
+                  <EvidenceMetric value="0.9720" label="recalled retention" />
+                  <EvidenceMetric value="0.9846" label="failed retention" />
+                  <EvidenceMetric
+                    value="0.0"
+                    label="strict budget pass"
+                    alert
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -432,32 +420,27 @@ export default function Home() {
                   <Cpu className="size-4 text-emerald-300" /> Local system
                 </CardTitle>
                 <CardDescription>
-                  Readiness from exact host-bound checks
+                  Readiness from the latest aggregate snapshot
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
-                {[
-                  ['Forge scanner', 'ready'],
-                  ['Praxist doctor', 'ready'],
-                  ['Formal validator', 'blocked'],
-                  ['Target adapter', 'blocked'],
-                ].map(([label, state]) => (
+                {systemChecks.map((check) => (
                   <div
-                    key={label}
+                    key={check.label}
                     className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-500">
-                        {label}
+                        {check.label}
                       </span>
                       <span
-                        className={`size-1.5 rounded-full ${state === 'ready' ? 'bg-emerald-300' : 'bg-slate-600'}`}
+                        className={`size-1.5 rounded-full ${healthDot(check.state)}`}
                       />
                     </div>
                     <p
-                      className={`mt-2 font-mono text-[10px] uppercase ${state === 'ready' ? 'text-emerald-300' : 'text-slate-600'}`}
+                      className={`mt-2 font-mono text-[10px] uppercase ${healthText(check.state)}`}
                     >
-                      {state}
+                      {check.state}
                     </p>
                   </div>
                 ))}
@@ -473,44 +456,26 @@ export default function Home() {
                 Inspector
               </p>
               <h2 className="mt-1 text-sm font-semibold text-slate-200">
-                Praxist live run
+                {primaryItem?.title ?? 'No selected research task'}
               </h2>
             </div>
-            <Badge className="bg-cyan-300/10 text-cyan-200">running</Badge>
+            <Badge className={stageBadge(primaryItem?.lifecycle.stage)}>
+              {primaryItem
+                ? stageLabels[primaryItem.lifecycle.stage]
+                : connection}
+            </Badge>
           </div>
 
-          <div className="mt-5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.05] p-4">
-            <div className="flex items-start gap-3">
-              <Activity className="mt-0.5 size-4 text-cyan-300" />
-              <div>
-                <p className="text-xs font-medium text-cyan-100">
-                  A0 approved · run resumed safely
-                </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-cyan-100/55">
-                  The registry reports one live controller. Four peers are
-                  initializing in generation 0; no duplicate run was started.
-                </p>
-              </div>
-            </div>
-          </div>
+          <InspectorBanner item={primaryItem} connection={connection} />
 
           <dl className="mt-5 space-y-4">
-            {[
-              ['Request', '8f44be1d…88ae6be9'],
-              ['Request SHA', 'dd7ca6cb…97b68d61'],
-              ['Task manifest', '093957ad…d4e6128'],
-              ['Run id', 'run_2026-08…inheritance'],
-              ['PID / state', '47372 · running'],
-              ['Generation', '0 · 4 yellow peers'],
-              ['Runtime', 'codex_sdk'],
-              ['Model', 'gpt-5.6-luna'],
-            ].map(([term, value]) => (
+            {inspectorFacts.map(([term, value]) => (
               <div
                 key={term}
                 className="flex items-start justify-between gap-4 border-b border-white/[0.05] pb-3"
               >
                 <dt className="text-[11px] text-slate-600">{term}</dt>
-                <dd className="text-right font-mono text-[10px] text-slate-400">
+                <dd className="max-w-[220px] break-all text-right font-mono text-[10px] text-slate-400">
                   {value}
                 </dd>
               </div>
@@ -523,9 +488,9 @@ export default function Home() {
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {[
-                ['Peers', '4'],
-                ['Generation', '0'],
-                ['Strategy', 'auto'],
+                ['Peers', String(primaryItem?.run?.peers_total ?? '—')],
+                ['Generation', String(primaryItem?.run?.generation ?? '—')],
+                ['Findings', String(primaryItem?.run?.findings_total ?? '—')],
               ].map(([label, value]) => (
                 <div
                   key={label}
@@ -544,29 +509,420 @@ export default function Home() {
               boundary
             </p>
             <ul className="mt-3 space-y-2 text-[11px] text-slate-500">
-              <li className="flex gap-2">
-                <Check className="mt-0.5 size-3 text-emerald-300" /> A0 exact
-                approval consumed
-              </li>
-              <li className="flex gap-2">
-                <LockKeyhole className="mt-0.5 size-3 text-slate-600" /> No
-                formal validation authority
-              </li>
-              <li className="flex gap-2">
-                <LockKeyhole className="mt-0.5 size-3 text-slate-600" /> No
-                SHADOW or ACTIVE authority
-              </li>
+              <AuthorityLine
+                allowed={
+                  primaryItem?.authority.a0_research_start_authorized ?? false
+                }
+                text="A0 exact research authorization"
+              />
+              <AuthorityLine
+                allowed={
+                  primaryItem?.authority.formal_validation_status === 'pass'
+                }
+                text={`Formal validation: ${primaryItem?.authority.formal_validation_status ?? 'unknown'}`}
+              />
+              <AuthorityLine
+                allowed={primaryItem?.authority.runtime_wiring === 'shadow'}
+                text={`Runtime SHADOW: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
+              />
+              <AuthorityLine
+                allowed={primaryItem?.authority.runtime_wiring === 'active'}
+                text={`Runtime ACTIVE: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
+              />
             </ul>
           </div>
 
-          <Button className="mt-5 w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200">
-            Open live run <ChevronRight className="size-4" />
+          <Button
+            className="mt-5 w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+            onClick={refresh}
+            disabled={refreshing}
+          >
+            Refresh exact state <RefreshCw className="size-4" />
           </Button>
           <p className="mt-2 text-center text-[10px] text-slate-700">
-            Read-only preview · mutations not wired
+            Read-only live view · mutation gates remain separate
           </p>
         </aside>
       </div>
     </main>
   );
+}
+
+function ResearchRow({ item }: { item: ResearchLabItem }) {
+  const running = item.lifecycle.stage === 'RESEARCH_RUNNING';
+  const blocked = item.lifecycle.stage === 'BLOCKED';
+  return (
+    <TableRow className="border-white/[0.06] bg-cyan-300/[0.025] hover:bg-cyan-300/[0.045]">
+      <TableCell className="pl-4">
+        <div className="flex items-center gap-3">
+          <span className="flex size-8 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/[0.07] text-cyan-200">
+            <Boxes className="size-4" />
+          </span>
+          <div>
+            <p className="max-w-[260px] truncate font-medium text-slate-200">
+              {item.title}
+            </p>
+            <p className="font-mono text-[10px] text-slate-600">
+              {item.claim_id}
+            </p>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant="outline"
+          className="border-white/10 font-mono text-[10px] text-slate-400"
+        >
+          {item.owner}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs ${
+            blocked
+              ? 'text-rose-200'
+              : running
+                ? 'text-cyan-200'
+                : 'text-slate-300'
+          }`}
+        >
+          <span
+            className={`size-1.5 rounded-full ${
+              blocked
+                ? 'bg-rose-300'
+                : running
+                  ? 'animate-pulse bg-cyan-300'
+                  : 'bg-slate-500'
+            }`}
+          />
+          {stageLabels[item.lifecycle.stage]}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4 font-mono text-[10px] text-slate-500">
+            <span>{item.evidence.development}</span>
+            <span>
+              {item.run
+                ? `${item.run.peers_total} peers`
+                : item.evidence.formal}
+            </span>
+          </div>
+          <Progress
+            value={pipelineProgress(item)}
+            className="w-28 [&_[data-slot=progress-indicator]]:bg-cyan-300"
+          />
+        </div>
+      </TableCell>
+      <TableCell>
+        <span className="inline-flex items-center gap-1.5 text-xs text-slate-300">
+          <FlaskConical className="size-3.5 text-cyan-300" />
+          {item.lifecycle.next_stage
+            ? stageLabels[item.lifecycle.next_stage]
+            : 'Inspect outcome'}
+        </span>
+      </TableCell>
+      <TableCell className="pr-4 text-right font-mono text-[10px] text-slate-600">
+        {formatTime(item.updated_at)}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function InspectorBanner({
+  item,
+  connection,
+}: {
+  item: ResearchLabItem | null;
+  connection: 'loading' | 'live' | 'degraded' | 'offline';
+}) {
+  if (connection === 'offline') {
+    return (
+      <div className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/[0.05] p-4">
+        <div className="flex items-start gap-3">
+          <WifiOff className="mt-0.5 size-4 text-rose-300" />
+          <div>
+            <p className="text-xs font-medium text-rose-100">
+              Local API unavailable
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-rose-100/55">
+              Start the loopback collector; no cached state is being presented
+              as live.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (item?.run?.state === 'running') {
+    return (
+      <div className="mt-5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.05] p-4">
+        <div className="flex items-start gap-3">
+          <Activity className="mt-0.5 size-4 text-cyan-300" />
+          <div>
+            <p className="text-xs font-medium text-cyan-100">
+              One live Praxist controller
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-cyan-100/55">
+              PID {item.run.pid ?? 'unknown'} · generation{' '}
+              {item.run.generation ?? 'unknown'} · {item.run.peers_total} peers.
+              Production wiring remains {item.authority.runtime_wiring}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 size-4 text-amber-300" />
+        <div>
+          <p className="text-xs font-medium text-amber-100">
+            {item
+              ? stageLabels[item.lifecycle.stage]
+              : 'Waiting for valid owner artifacts'}
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-amber-100/55">
+            {item?.lifecycle.blocking_reason ??
+              'The collector will publish the next exact state when available.'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionBadge({
+  connection,
+}: {
+  connection: 'loading' | 'live' | 'degraded' | 'offline';
+}) {
+  const color =
+    connection === 'live'
+      ? 'border-emerald-300/20 bg-emerald-300/[0.06] text-emerald-200'
+      : connection === 'offline'
+        ? 'border-rose-300/20 bg-rose-300/[0.06] text-rose-200'
+        : 'border-amber-300/20 bg-amber-300/[0.06] text-amber-200';
+  const dot =
+    connection === 'live'
+      ? 'bg-emerald-300'
+      : connection === 'offline'
+        ? 'bg-rose-300'
+        : 'bg-amber-300';
+  return (
+    <Badge
+      variant="outline"
+      className={`hidden font-mono text-[10px] lg:flex ${color}`}
+    >
+      <span className={`size-1.5 rounded-full ${dot}`} /> {connection}
+    </Badge>
+  );
+}
+
+function EvidenceMetric({
+  value,
+  label,
+  alert = false,
+}: {
+  value: string;
+  label: string;
+  alert?: boolean;
+}) {
+  return (
+    <div>
+      <p
+        className={`font-mono text-sm ${alert ? 'text-rose-300' : 'text-slate-200'}`}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] text-slate-600">{label}</p>
+    </div>
+  );
+}
+
+function AuthorityLine({ allowed, text }: { allowed: boolean; text: string }) {
+  return (
+    <li className="flex gap-2">
+      {allowed ? (
+        <Check className="mt-0.5 size-3 shrink-0 text-emerald-300" />
+      ) : (
+        <LockKeyhole className="mt-0.5 size-3 shrink-0 text-slate-600" />
+      )}
+      {text}
+    </li>
+  );
+}
+
+function buildStages(item: ResearchLabItem | null): StageNodeData[] {
+  const currentIndex = pipelineIndex(item);
+  return stageBlueprints.map((stage, index) => ({
+    ...stage,
+    state:
+      index < currentIndex
+        ? 'complete'
+        : index === currentIndex
+          ? 'current'
+          : 'locked',
+  }));
+}
+
+function pipelineIndex(item: ResearchLabItem | null): number {
+  if (!item) return 0;
+  if (
+    item.authority.runtime_wiring === 'active' ||
+    item.lifecycle.stage === 'AWAITING_A2'
+  )
+    return 6;
+  if (
+    item.authority.runtime_wiring === 'shadow' ||
+    item.lifecycle.stage === 'AWAITING_A1'
+  )
+    return 5;
+  if (item.authority.modification_gate_decision === 'allow') return 4;
+  if (
+    item.lifecycle.stage === 'CANDIDATE_RETAINED' ||
+    item.lifecycle.stage === 'FORMAL_VALIDATION' ||
+    item.authority.formal_validation_status === 'pass'
+  )
+    return 3;
+  if (
+    item.lifecycle.stage === 'PREFLIGHT' ||
+    item.lifecycle.stage === 'RESEARCH_RUNNING' ||
+    item.lifecycle.stage === 'RESEARCH_COMPLETE'
+  )
+    return 2;
+  if (item.lifecycle.stage === 'AWAITING_A0') return 1;
+  return 0;
+}
+
+function pipelineProgress(item: ResearchLabItem): number {
+  const values = [8, 18, 36, 52, 66, 84, 100];
+  return values[pipelineIndex(item)];
+}
+
+function buildMetrics(
+  snapshot: ResearchLabSnapshot | null,
+  item: ResearchLabItem | null,
+) {
+  return [
+    {
+      label: 'Registered tasks',
+      value: String(snapshot?.summary.registered_tasks ?? 0),
+      detail: snapshot
+        ? `${snapshot.items.length} immutable views`
+        : 'collector unavailable',
+      icon: Boxes,
+    },
+    {
+      label: 'Awaiting human',
+      value: String(snapshot?.summary.awaiting_human ?? 0),
+      detail:
+        item?.lifecycle.stage === 'AWAITING_A0'
+          ? 'A0 research start'
+          : 'No pending exact review',
+      icon: UserRoundCheck,
+    },
+    {
+      label: 'Active runs',
+      value: String(snapshot?.summary.active_runs ?? 0),
+      detail: item?.run
+        ? `PID ${item.run.pid ?? '—'} · gen ${item.run.generation ?? '—'}`
+        : 'Praxist registry',
+      icon: Activity,
+    },
+    {
+      label: 'Production active',
+      value: String(snapshot?.summary.production_active ?? 0),
+      detail: item
+        ? `runtime ${item.authority.runtime_wiring}`
+        : 'No authority observed',
+      icon: ShieldCheck,
+    },
+  ];
+}
+
+function buildSystemChecks(snapshot: ResearchLabSnapshot | null) {
+  const health = (source: string) =>
+    snapshot?.source_health.find((value) => value.source === source);
+  return [
+    {
+      label: 'Forge artifacts',
+      state: health('opportunities')?.status ?? 'unavailable',
+    },
+    {
+      label: 'Praxist status',
+      state: health('praxist')?.status ?? 'unavailable',
+    },
+    {
+      label: 'Promotion store',
+      state: health('promotion')?.artifacts_seen
+        ? (health('promotion')?.status ?? 'unavailable')
+        : 'empty',
+    },
+    { label: 'Target adapter', state: 'not wired' },
+  ];
+}
+
+function buildInspectorFacts(
+  item: ResearchLabItem | null,
+): Array<[string, string]> {
+  const binding = (kind: string) =>
+    item?.bindings.find((value) => value.kind === kind);
+  const request = binding('research request');
+  const approval = binding('research approval');
+  const task = binding('task');
+  return [
+    ['Request', shorten(request?.artifact_id)],
+    ['Request SHA', shorten(request?.sha256)],
+    ['Approval', shorten(approval?.artifact_id)],
+    ['Task SHA', shorten(task?.sha256)],
+    ['Run id', shorten(item?.run?.run_id, 28)],
+    [
+      'PID / state',
+      item?.run ? `${item.run.pid ?? '—'} · ${item.run.state}` : '—',
+    ],
+    ['Runtime', stripNamespace(item?.run?.runtime)],
+    ['Model', item?.run?.model ?? '—'],
+  ];
+}
+
+function shorten(value: string | null | undefined, width = 18): string {
+  if (!value) return '—';
+  if (value.length <= width) return value;
+  const side = Math.max(4, Math.floor((width - 1) / 2));
+  return `${value.slice(0, side)}…${value.slice(-side)}`;
+}
+
+function stripNamespace(value: string | null | undefined): string {
+  if (!value) return '—';
+  const separator = value.indexOf(':');
+  return separator >= 0 ? value.slice(separator + 1) : value;
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'invalid time';
+  return `${date.toISOString().slice(11, 16)} UTC`;
+}
+
+function stageBadge(stage: LifecycleStage | undefined): string {
+  if (stage === 'RESEARCH_RUNNING') return 'bg-cyan-300/10 text-cyan-200';
+  if (stage === 'BLOCKED') return 'bg-rose-300/10 text-rose-200';
+  if (stage === 'ACTIVE' || stage === 'SHADOW')
+    return 'bg-emerald-300/10 text-emerald-200';
+  return 'bg-amber-300/10 text-amber-200';
+}
+
+function healthDot(state: string): string {
+  if (state === 'healthy') return 'bg-emerald-300';
+  if (state === 'degraded') return 'bg-amber-300';
+  return 'bg-slate-600';
+}
+
+function healthText(state: string): string {
+  if (state === 'healthy') return 'text-emerald-300';
+  if (state === 'degraded') return 'text-amber-300';
+  return 'text-slate-600';
 }

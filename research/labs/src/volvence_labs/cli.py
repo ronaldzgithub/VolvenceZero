@@ -458,7 +458,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_lab_server.add_argument("--repo-root", default=None, help="Volvence repository root")
     p_lab_server.add_argument("--host", default="127.0.0.1", help="loopback bind host")
-    p_lab_server.add_argument("--port", type=int, default=8765, help="HTTP port")
+    p_lab_server.add_argument("--port", type=int, default=8766, help="HTTP port")
     p_lab_server.add_argument(
         "--praxist-executable",
         default=None,

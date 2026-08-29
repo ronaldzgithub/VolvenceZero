@@ -37,7 +37,8 @@ python -m volvence_labs.cli lab-server \
 ```
 
 只读 API 提供 `GET /api/v1/snapshot`、`GET /api/v1/tasks/{task_id}` 与
-`GET /healthz`；所有 `POST` 在本里程碑均返回 `405 read_only`。
+`GET /healthz`；默认绑定 `127.0.0.1:8766`，Web dev server 会将 `/api/v1` 同源代理到该地址。
+所有 `POST` 在本里程碑均返回 `405 read_only`。
 
 ## 设计底线
 
