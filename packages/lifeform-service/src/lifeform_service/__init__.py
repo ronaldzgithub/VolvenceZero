@@ -25,6 +25,8 @@ Routes (all under ``/v1``):
 * ``POST /v1/sessions/{id}/relationship-turns`` \u2014 run a P4 SHADOW-audited turn
 * ``POST /v1/sessions/{id}/relationship-outcomes`` \u2014 submit a qualified free-text outcome
 * ``POST /v1/sessions/{id}/relationship-followups/execute-due`` \u2014 run one gated due followup
+* ``POST /v1/sessions/{id}/coding/context-packs`` \u2014 build an ACTIVE memory-first Context Pack
+* ``POST /v1/sessions/{id}/coding/outcomes`` \u2014 append a typed test/review/merge outcome
 * ``POST /v1/sessions/{id}/end-scene`` \u2014 close the open scene + drain slow loop
 """
 

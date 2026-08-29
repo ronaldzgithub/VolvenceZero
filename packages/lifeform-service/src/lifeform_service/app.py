@@ -64,6 +64,10 @@ from lifeform_service.alpha import (
 )
 from lifeform_core import LlmJsonClient, TurnTriggerKind
 from lifeform_service.companion_evidence_profile import MSC_RUNTIME_PROFILE_NAMES
+from lifeform_service.coding_brain_routes import (
+    coding_brain_controller,
+    register_coding_brain_routes,
+)
 from lifeform_service.msc_runtime_collector import (
     build_msc_runtime_context_payload,
 )
@@ -363,6 +367,7 @@ def create_app(
             outcome_typer=outcome_typer,
         )
     app["relationship_intelligence_controller"] = relationship_controller
+    register_coding_brain_routes(app)
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -926,6 +931,7 @@ async def _handle_close_session(request: web.Request) -> web.Response:
     closed = await manager.close_session(session_id)
     if not closed:
         raise SessionNotFoundError(session_id)
+    coding_brain_controller(request.app).drop_session(session_id)
     evict_simulator_cache_entry(request.app, session_id)
     return _json_ok({"session_id": session_id, "closed": True})
 

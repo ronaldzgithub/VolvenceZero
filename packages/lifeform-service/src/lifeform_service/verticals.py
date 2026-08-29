@@ -841,6 +841,20 @@ def _try_coding() -> VerticalSpec | None:
         return None
     bdir = bootstraps_dir()
     sdir = scenarios_dir()
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        return build_coding_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+        )
+
     return VerticalSpec(
         name="coding",
         factory=lambda runtime: build_coding_lifeform(substrate_runtime=runtime),
@@ -848,6 +862,7 @@ def _try_coding() -> VerticalSpec | None:
         has_regime_bootstrap=has_coding_regime_bootstrap(),
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
         scenarios_dir=str(sdir) if sdir.is_dir() else None,
+        alpha_factory=alpha_factory,
     )
 
 

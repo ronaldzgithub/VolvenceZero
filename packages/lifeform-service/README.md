@@ -10,6 +10,44 @@ Today it ships:
 
 Run it via the `lifeform-serve` console script.
 
+## Coding Brain API
+
+Sessions created with `vertical="coding"` expose two additional routes:
+
+```text
+POST /v1/sessions/{session_id}/coding/context-packs
+POST /v1/sessions/{session_id}/coding/outcomes
+```
+
+The first returns an ACTIVE memory-first Context Pack plus a separately marked
+SHADOW advisor. The second accepts only the frozen test/review/merge enums from
+`coding-outcome-report.v1`; unknown fields and invalid kind/source pairs fail
+closed. Replaying the same id and payload is idempotent (`200`); the first
+publication returns `201`; reusing an id with different content returns `409`.
+
+Example request sequence:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8080/v1/sessions/coding-1/coding/context-packs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "request_id":"req-1",
+    "project_id":"project-1",
+    "repository_id":"repo-1",
+    "task_id":"task-1",
+    "task_kind":"bugfix",
+    "task_summary":"Fix checkpoint restoration",
+    "target_paths":["src/state.py"]
+  }'
+```
+
+Submit the resulting `context_pack_id` with a typed outcome. Deterministic
+`task_verified/task_regressed` results accept only `test_suite`, `build_gate`,
+or `ci`; review outcomes require `code_review`; merge/revert require `vcs`.
+Closed-alpha coding sessions use the existing identity-scoped memory root, so a
+new session for the same user can recall prior outcomes. The service retains
+only bounded live idempotency lineage; Memory remains the cognitive owner.
+
 ## One Qwen, many tenants — substrate sharing
 
 When you deploy on a single GPU server, every session must share **one** in-memory copy of the open-weight model. The service supports this directly:

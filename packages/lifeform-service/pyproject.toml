@@ -22,6 +22,7 @@ dependencies = [
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-figure==0.1.*",
+    "lifeform-domain-coding==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
     "lifeform-mcp-bridge==0.1.*",
     # TeachingCase closure: the service translates operator teaching
