@@ -579,6 +579,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | Spec | 内容 |
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
+| [research-promotion-pipeline.md](./research-promotion-pipeline.md) | 所有研究任务共用的 Research→Validation→Admission→Deployment 上架契约；Praxist 只 takeover 开发沙箱，Frontier 不等于上线，loop-external validation + ModificationGate 后才可按 DISABLED→SHADOW→ACTIVE 单步授权 |
 | [live-dialogue-outcome-evidence.md](./live-dialogue-outcome-evidence.md) | closed-alpha 显式 typed dialogue outcome 的去标识化、不可覆盖产品证据出口；为 Forge live failure source 预备，只读且不从文本推断失败 |
 | [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Stage 3 于 2026-08-04 完成 36/36，正式 `kill-eta`（operationalization-scoped）；P1 定位 free-bias incentive bypass、learned z 无稳定时序因果性。S1 v2 readout admission PASS（layer20/896，heldout 0.9833）；S2 additive no-bias steering 五门 FAIL；B faithful rewrite screen ETA 专属门 FAIL 封存。此后转向"读残差+有界条件 steering+Internal RL 学何时扳"（`research/steering-2026-08/`）：C1 冲突仪器 VALID → C2 条件写入 PASS → S3-前置非 oracle sensor PASS → S3-A 余量 PASS → **S3-E 学"何时扳" admission PASS（5/5 seed）**，三层闭环（读得到+扳得动+学会何时扳）成立；全程 evidence-lane SHADOW，不改写封存 verdict。Stage 4 关闭，production WiringLevel 不变；晋升路线见 `docs/moving forward/主线提升方案_2026-08.md` 工作流 B。 |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
@@ -594,6 +595,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 
 **核心不变量**：
 - 对外主张必须映射到 required gates、artifact 与 verdict
+- 研究成熟度与部署接线正交：Praxist Frontier/parent eligibility 仅为研究 retention；不能替代 loop-external validation、ModificationGate 或 SHADOW/ACTIVE
 - 盲评外发包不得泄漏 profile 条件
 - 证据结论必须可回溯到 manifest / provenance / 原始 artifact
 - same-substrate ablation：九 track 必须字节级同基底并由单 frozen substrate owner 承载（fingerprint + topology 守门）；裁判/用户模拟器非 substrate 家族；`first-stage-retained` 才可称人类世界模型 thesis 第一阶段成立，物理侧扩张需独立 benchmark

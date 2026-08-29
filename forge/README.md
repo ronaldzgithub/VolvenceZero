@@ -292,6 +292,39 @@ python scripts/forge_common_adapter_adjudicator.py \
 
 `READY` 之后仍需单独执行 substrate 的 publish 流程；Forge 不替用户执行该动作。
 
+### 通用研究候选上架
+
+所有 Praxist 研究任务可通过同一离线桥接面交付候选。先验证 Volvence-owned Task，再从一个
+committed generation boundary 导入候选：
+
+```bash
+forge research-validate-task '<task.json>'
+forge research-import-praxist '<task.json>' '<handoff.json>' --run-dir '<praxist-run>'
+```
+
+独立 validator 与正式 `ModificationGate` adapter 发布 exact-bound JSON 后，Forge 只签发授权收据：
+
+```bash
+forge research-authorize '<task.json>' '<candidate.json>' '<validation.json>' '<gate.json>' \
+  --to-wiring shadow \
+  --authorized-by '<reviewer>' \
+  --reason '<reason>'
+```
+
+`ACTIVE` 必须额外提供紧邻的 AUTHORIZED SHADOW receipt。回滚只依赖上一张授权收据，避免因
+研究目录或收益证据不可用而阻止降权：
+
+```bash
+forge research-rollback '<previous-receipt.json>' \
+  --to-wiring disabled \
+  --authorized-by '<operator>' \
+  --reason '<reason>'
+```
+
+这些命令均不会 apply candidate、调用 gate 或修改 runtime wiring；目标 owner 仍须消费 receipt，
+执行自己的 SHADOW/canary/ACTIVE 协议。完整契约见
+[`research-promotion-pipeline.md`](../docs/specs/research-promotion-pipeline.md)。
+
 ## 回滚与退出条件
 
 Forge 自身可独立移除；companion overlay 的运行时回滚优先把 wiring 设为 `DISABLED`，若已经

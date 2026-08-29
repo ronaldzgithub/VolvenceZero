@@ -1,0 +1,620 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.research-promotion.v1",
+  "oneOf": [
+    {"$ref": "#/$defs/task"},
+    {"$ref": "#/$defs/handoff"},
+    {"$ref": "#/$defs/candidate"},
+    {"$ref": "#/$defs/validation"},
+    {"$ref": "#/$defs/gate"},
+    {"$ref": "#/$defs/receipt"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "capability_axis": {
+      "enum": ["appendable", "readable", "learnable", "steerable"]
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lane", "maturity", "parent_eligible", "late_after_generation_boundary"],
+      "properties": {
+        "lane": {"type": "string", "minLength": 1},
+        "maturity": {"enum": ["preliminary", "mature", "diagnostic"]},
+        "parent_eligible": {"type": "boolean"},
+        "late_after_generation_boundary": {"type": "boolean"}
+      }
+    },
+    "candidate_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_path", "source"],
+      "properties": {
+        "target_path": {"type": "string", "minLength": 1},
+        "source": {"$ref": "#/$defs/content_ref"}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "claim_id",
+        "owner",
+        "objective",
+        "capability_axes",
+        "source_base_revision",
+        "baseline",
+        "praxist",
+        "sandbox",
+        "validation",
+        "release",
+        "authority"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-task.v1"},
+        "task_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "objective": {"type": "string", "minLength": 1},
+        "capability_axes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/capability_axis"}
+        },
+        "source_base_revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "baseline": {"$ref": "#/$defs/content_ref"},
+        "praxist": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_project_id", "task_project_manifest_sha256"],
+          "properties": {
+            "task_project_id": {"type": "string", "minLength": 1},
+            "task_project_manifest_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "sandbox": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "editable_roots",
+            "protected_roots",
+            "praxist_can_modify_task_contract",
+            "praxist_can_modify_formal_evaluator",
+            "praxist_can_read_sealed_holdout",
+            "praxist_can_change_production_wiring",
+            "praxist_can_access_production_credentials"
+          ],
+          "properties": {
+            "editable_roots": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "protected_roots": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "praxist_can_modify_task_contract": {"const": false},
+            "praxist_can_modify_formal_evaluator": {"const": false},
+            "praxist_can_read_sealed_holdout": {"const": false},
+            "praxist_can_change_production_wiring": {"const": false},
+            "praxist_can_access_production_credentials": {"const": false}
+          }
+        },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "development_evaluator_id",
+            "formal_validator_id",
+            "formal_protocol",
+            "shadow_required_checks",
+            "active_required_checks"
+          ],
+          "properties": {
+            "development_evaluator_id": {"type": "string", "minLength": 1},
+            "formal_validator_id": {"type": "string", "minLength": 1},
+            "formal_protocol": {"$ref": "#/$defs/content_ref"},
+            "shadow_required_checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "active_required_checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "target",
+            "initial_wiring",
+            "gate_authority",
+            "rollback_instructions"
+          ],
+          "properties": {
+            "mode": {"enum": ["evidence_only", "repository_apply", "runtime_wiring"]},
+            "target": {"type": "string", "minLength": 1},
+            "initial_wiring": {"const": "disabled"},
+            "gate_authority": {"const": "volvence_zero.credit.gate.evaluate_gate_reasons"},
+            "rollback_instructions": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "praxist_is_research_retention_authority_only",
+            "evaluation_is_learning_source",
+            "production_promotion_authorized"
+          ],
+          "properties": {
+            "praxist_is_research_retention_authority_only": {"const": true},
+            "evaluation_is_learning_source": {"const": false},
+            "production_promotion_authorized": {"const": false}
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "run_id",
+        "generation_id",
+        "source_base_revision",
+        "refs",
+        "candidate",
+        "authority"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-praxist-candidate-handoff.v1"},
+        "task_id": {"type": "string", "minLength": 1},
+        "run_id": {"type": "string", "minLength": 1},
+        "generation_id": {"type": "integer", "minimum": 0},
+        "source_base_revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "refs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["run_metadata", "task_project_manifest", "generation_boundary", "result_summary"],
+          "properties": {
+            "run_metadata": {"$ref": "#/$defs/content_ref"},
+            "task_project_manifest": {"$ref": "#/$defs/content_ref"},
+            "generation_boundary": {"$ref": "#/$defs/content_ref"},
+            "result_summary": {"$ref": "#/$defs/content_ref"}
+          }
+        },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["variant_id", "parent_candidate_ids", "retention", "files"],
+          "properties": {
+            "variant_id": {"type": "string", "minLength": 1},
+            "parent_candidate_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "retention": {"$ref": "#/$defs/retention"},
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/candidate_file"}
+            }
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "research_retention_only",
+            "production_promotion_authorized",
+            "requested_wiring",
+            "formal_validation_performed"
+          ],
+          "properties": {
+            "research_retention_only": {"const": true},
+            "production_promotion_authorized": {"const": false},
+            "requested_wiring": {"const": "disabled"},
+            "formal_validation_performed": {"const": false}
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "candidate_id",
+        "task_id",
+        "claim_id",
+        "owner",
+        "capability_axes",
+        "source_base_revision",
+        "baseline",
+        "inputs",
+        "source",
+        "research",
+        "release",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-candidate.v1"},
+        "candidate_id": {"type": "string", "pattern": "^research-candidate:[0-9a-f]{64}$"},
+        "task_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "capability_axes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/capability_axis"}
+        },
+        "source_base_revision": {"type": "string", "minLength": 1},
+        "baseline": {"$ref": "#/$defs/content_ref"},
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_manifest", "praxist_handoff"],
+          "properties": {
+            "task_manifest": {"$ref": "#/$defs/content_ref"},
+            "praxist_handoff": {"$ref": "#/$defs/content_ref"}
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "run_root",
+            "run_id",
+            "generation_id",
+            "variant_id",
+            "refs",
+            "files"
+          ],
+          "properties": {
+            "kind": {"const": "praxist"},
+            "run_root": {"type": "string", "minLength": 1},
+            "run_id": {"type": "string", "minLength": 1},
+            "generation_id": {"type": "integer", "minimum": 0},
+            "variant_id": {"type": "string", "minLength": 1},
+            "refs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["run_metadata", "task_project_manifest", "generation_boundary", "result_summary"],
+              "properties": {
+                "run_metadata": {"$ref": "#/$defs/content_ref"},
+                "task_project_manifest": {"$ref": "#/$defs/content_ref"},
+                "generation_boundary": {"$ref": "#/$defs/content_ref"},
+                "result_summary": {"$ref": "#/$defs/content_ref"}
+              }
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/candidate_file"}
+            }
+          }
+        },
+        "research": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maturity", "source_retention", "parent_candidate_ids"],
+          "properties": {
+            "maturity": {"const": "candidate_sealed"},
+            "source_retention": {"$ref": "#/$defs/retention"},
+            "parent_candidate_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "target", "gate_decision", "wiring_level"],
+          "properties": {
+            "mode": {"enum": ["evidence_only", "repository_apply", "runtime_wiring"]},
+            "target": {"type": "string", "minLength": 1},
+            "gate_decision": {"const": "not_evaluated"},
+            "wiring_level": {"const": "disabled"}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "praxist_retention_is_release_authority",
+            "evaluation_is_learning_source",
+            "production_promotion_authorized"
+          ],
+          "properties": {
+            "praxist_retention_is_release_authority": {"const": false},
+            "evaluation_is_learning_source": {"const": false},
+            "production_promotion_authorized": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "validation_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed", "evidence"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "passed": {"type": "boolean"},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/content_ref"}
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "candidate_id",
+        "candidate_sha256",
+        "validator_id",
+        "formal_protocol",
+        "status",
+        "checks",
+        "sealed_holdout",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-validation.v1"},
+        "task_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "validator_id": {"type": "string", "minLength": 1},
+        "formal_protocol": {"$ref": "#/$defs/content_ref"},
+        "status": {"enum": ["PASS", "BLOCK"]},
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/validation_check"}
+        },
+        "sealed_holdout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["used", "visible_to_praxist"],
+          "properties": {
+            "used": {"const": true},
+            "visible_to_praxist": {"const": false}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["loop_external", "evaluation_is_learning_source", "production_promotion_authorized"],
+          "properties": {
+            "loop_external": {"const": true},
+            "evaluation_is_learning_source": {"const": false},
+            "production_promotion_authorized": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "candidate_id",
+        "candidate_sha256",
+        "validation_sha256",
+        "target",
+        "desired_gate",
+        "decision",
+        "reasons",
+        "gate_review",
+        "rollback_evidence_present",
+        "authority",
+        "production_promotion_authorized",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-gate.v1"},
+        "task_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "validation_sha256": {"$ref": "#/$defs/sha256"},
+        "target": {"type": "string", "minLength": 1},
+        "desired_gate": {"const": "offline"},
+        "decision": {"enum": ["ALLOW", "BLOCK"]},
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "gate_review": {"$ref": "#/$defs/content_ref"},
+        "rollback_evidence_present": {"const": true},
+        "authority": {"const": "volvence_zero.credit.gate.evaluate_gate_reasons"},
+        "production_promotion_authorized": {"const": false},
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "check_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "receipt_id",
+        "task_id",
+        "candidate_id",
+        "release",
+        "action",
+        "outcome",
+        "transition",
+        "state",
+        "bindings",
+        "check_results",
+        "blocking_reasons",
+        "authorization",
+        "rollback",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-promotion-receipt.v1"},
+        "receipt_id": {"type": "string", "pattern": "^research-receipt:[0-9a-f]{64}$"},
+        "task_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "target"],
+          "properties": {
+            "mode": {"const": "runtime_wiring"},
+            "target": {"type": "string", "minLength": 1}
+          }
+        },
+        "action": {"enum": ["authorize", "rollback"]},
+        "outcome": {"enum": ["AUTHORIZED", "BLOCKED"]},
+        "transition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_wiring", "requested_wiring", "resulting_wiring"],
+          "properties": {
+            "from_wiring": {"enum": ["disabled", "shadow", "active"]},
+            "requested_wiring": {"enum": ["disabled", "shadow", "active"]},
+            "resulting_wiring": {"enum": ["disabled", "shadow", "active"]}
+          }
+        },
+        "state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["research_maturity", "gate_decision", "wiring_level"],
+          "properties": {
+            "research_maturity": {"enum": ["candidate_sealed", "externally_validated", "rejected"]},
+            "gate_decision": {"enum": ["not_evaluated", "allow", "block"]},
+            "wiring_level": {"enum": ["disabled", "shadow", "active"]}
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "task_manifest_sha256",
+            "candidate_sha256",
+            "validation_sha256",
+            "gate_sha256",
+            "previous_receipt_sha256"
+          ],
+          "properties": {
+            "task_manifest_sha256": {"$ref": "#/$defs/sha256"},
+            "candidate_sha256": {"$ref": "#/$defs/sha256"},
+            "validation_sha256": {"$ref": "#/$defs/sha256"},
+            "gate_sha256": {"$ref": "#/$defs/sha256"},
+            "previous_receipt_sha256": {
+              "oneOf": [
+                {"type": "null"},
+                {"$ref": "#/$defs/sha256"}
+              ]
+            }
+          }
+        },
+        "check_results": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/check_result"}
+        },
+        "blocking_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authorized_by", "reason"],
+          "properties": {
+            "authorized_by": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "rollback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["to_wiring", "instructions"],
+          "properties": {
+            "to_wiring": {"enum": ["disabled", "shadow"]},
+            "instructions": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runtime_mutated",
+            "production_default_changed",
+            "target_adapter_apply_required",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "runtime_mutated": {"const": false},
+            "production_default_changed": {"const": false},
+            "target_adapter_apply_required": {"const": true},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    }
+  }
+}

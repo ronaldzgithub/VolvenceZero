@@ -1,7 +1,7 @@
 # RSI Forge Spec
 
-> Status: phase 3–5 contracts landed；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
-> Last updated: 2026-08-03
+> Status: phase 3–5 contracts landed；统一研究上架流水线 v1 离线桥接已落地；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
+> Last updated: 2026-08-29
 > 对应需求: R8, R10, R12, R15
 
 ## 要解决的问题
@@ -222,6 +222,18 @@ Forge 是 out-of-turn development/background 工具，不进入 `online-fast`、
 rare-heavy artifact；产品 runtime 的自修改仍必须走 cognition owner 的 `ModificationGate`。
 
 Evaluation 在此只提供只读 gate evidence（R12），不会反向成为 PE 或 runtime credit 源。
+
+### 统一研究上架桥接（2026-08-29）
+
+[`research-promotion-pipeline.md`](./research-promotion-pipeline.md) 把 Forge 扩展为所有研究任务可复用的
+离线候选桥接面。Praxist 可以接管一个 external task project 的开发研究循环，但其 Frontier、Gems、
+PI/Chair 议程与 evaluator 只拥有 research-retention 语义。Forge 只读取 committed generation boundary、
+task manifest、result summary 与内容寻址候选文件，规范化为初始恒 `DISABLED` 的 candidate。
+
+正式上架仍分三权：task-owned loop-external validator 发布 sealed-heldout evidence，cognition
+`ModificationGate.OFFLINE` 发布 ALLOW/BLOCK，target owner 消费 authorization receipt 后按单字段
+`DISABLED→SHADOW→ACTIVE` 和相反方向回滚。Forge core 不 import `vz-*`、不调用 gate、不翻 wiring；
+因此该桥接不新增 runtime owner 或 DATA_CONTRACT slot，也不改变本 spec 既有 proposal/apply 路径。
 
 ## 迁移、退出与回滚
 

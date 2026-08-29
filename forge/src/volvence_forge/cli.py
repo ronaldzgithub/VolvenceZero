@@ -26,6 +26,12 @@ from .rare_heavy import (
     RareHeavyTrainingSpec,
     create_rare_heavy_request,
 )
+from .research_promotion import (
+    authorize_research_candidate,
+    import_praxist_candidate,
+    rollback_research_candidate,
+    validate_research_task,
+)
 from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
 from .task_benchmark import run_task_benchmark
 from .validate import validate_proposal
@@ -147,6 +153,45 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--human-approved-by", required=True)
     apply.add_argument("--reject", action="store_true")
     apply.add_argument("--reason")
+
+    research_validate = subparsers.add_parser(
+        "research-validate-task",
+        help="Validate a Volvence-owned research and release contract",
+    )
+    research_validate.add_argument("task_manifest", type=Path)
+
+    research_import = subparsers.add_parser(
+        "research-import-praxist",
+        help="Seal a content-addressed DISABLED candidate from a Praxist handoff",
+    )
+    research_import.add_argument("task_manifest", type=Path)
+    research_import.add_argument("handoff", type=Path)
+    research_import.add_argument("--run-dir", type=Path, required=True)
+    research_import.add_argument("--output", type=Path)
+
+    research_authorize = subparsers.add_parser(
+        "research-authorize",
+        help="Issue an offline SHADOW/ACTIVE authorization receipt without changing runtime",
+    )
+    research_authorize.add_argument("task_manifest", type=Path)
+    research_authorize.add_argument("candidate", type=Path)
+    research_authorize.add_argument("validation", type=Path)
+    research_authorize.add_argument("gate", type=Path)
+    research_authorize.add_argument("--to-wiring", choices=("shadow", "active"), required=True)
+    research_authorize.add_argument("--previous-receipt", type=Path)
+    research_authorize.add_argument("--authorized-by", required=True)
+    research_authorize.add_argument("--reason", required=True)
+    research_authorize.add_argument("--output", type=Path)
+
+    research_rollback = subparsers.add_parser(
+        "research-rollback",
+        help="Issue an adjacent downgrade receipt from the last authorization receipt",
+    )
+    research_rollback.add_argument("previous_receipt", type=Path)
+    research_rollback.add_argument("--to-wiring", choices=("disabled", "shadow"), required=True)
+    research_rollback.add_argument("--authorized-by", required=True)
+    research_rollback.add_argument("--reason", required=True)
+    research_rollback.add_argument("--output", type=Path)
     return parser
 
 
@@ -318,6 +363,55 @@ def main(argv: Sequence[str] | None = None) -> int:
                     human_approved_by=args.human_approved_by,
                 )
             print(f"{result.decision}: {result.proposal_id} → {result.target}; ledger={result.ledger_path}")
+            return 0
+        if args.command == "research-validate-task":
+            task = validate_research_task(config=config, task_path=args.task_manifest)
+            print(
+                f"VALID: task={task['task_id']}; release={task['release']['mode']}; "
+                f"initial_wiring={task['release']['initial_wiring']}"
+            )
+            return 0
+        if args.command == "research-import-praxist":
+            result = import_praxist_candidate(
+                config=config,
+                task_path=args.task_manifest,
+                handoff_path=args.handoff,
+                run_dir=args.run_dir,
+                output_path=args.output,
+            )
+            print(f"SEALED: {result.candidate_id}; candidate={result.candidate_path}; wiring=disabled")
+            return 0
+        if args.command == "research-authorize":
+            result = authorize_research_candidate(
+                config=config,
+                task_path=args.task_manifest,
+                candidate_path=args.candidate,
+                validation_path=args.validation,
+                gate_path=args.gate,
+                to_wiring=args.to_wiring,
+                previous_receipt_path=args.previous_receipt,
+                authorized_by=args.authorized_by,
+                reason=args.reason,
+                output_path=args.output,
+            )
+            print(
+                f"{result.outcome}: {result.receipt_id}; "
+                f"resulting_wiring={result.resulting_wiring}; receipt={result.receipt_path}"
+            )
+            return 0 if result.outcome == "AUTHORIZED" else 2
+        if args.command == "research-rollback":
+            result = rollback_research_candidate(
+                config=config,
+                previous_receipt_path=args.previous_receipt,
+                to_wiring=args.to_wiring,
+                authorized_by=args.authorized_by,
+                reason=args.reason,
+                output_path=args.output,
+            )
+            print(
+                f"{result.outcome}: {result.receipt_id}; "
+                f"resulting_wiring={result.resulting_wiring}; receipt={result.receipt_path}"
+            )
             return 0
         parser.error(f"Unknown command: {args.command}")
     except (ForgeError, ForgeConfigError, BackendError) as exc:
