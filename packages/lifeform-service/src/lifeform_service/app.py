@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import web
 
 if TYPE_CHECKING:
+    from lifeform_domain_operations import OperationsBrainController
     from lifeform_service.character_packages import CharacterRuntimeAssets
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
@@ -73,8 +74,11 @@ from lifeform_service.venture_brain_routes import (
     venture_brain_controller,
 )
 from lifeform_service.operations_brain_routes import (
-    operations_brain_controller,
+    operations_brain_controller as get_operations_brain_controller,
     register_operations_brain_routes,
+)
+from lifeform_service.operations_policy_activation import (
+    build_operations_brain_controller_from_env,
 )
 from lifeform_service.msc_runtime_collector import (
     build_msc_runtime_context_payload,
@@ -196,6 +200,7 @@ def create_app(
     character_runtime_assets: "CharacterRuntimeAssets | None" = None,
     companion_evidence_profile: str | None = None,
     allow_evidence_single_session_mutation: bool = False,
+    operations_brain_controller: "OperationsBrainController | None" = None,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -230,6 +235,9 @@ def create_app(
             vertical). Save-as-template writes back into the
             session's vertical subdir. ``None`` disables the
             template surface entirely.
+        operations_brain_controller: trusted explicit controller injection for
+            tests or an embedding deployment. When omitted, the service reads
+            the fail-closed AutoCompany Operations policy activation fields.
 
     Substrate args (``substrate_runtime`` vs ``substrate_provider``,
     plus the rest) are unchanged from the prior release.
@@ -377,7 +385,13 @@ def create_app(
     app["relationship_intelligence_controller"] = relationship_controller
     register_coding_brain_routes(app)
     register_venture_brain_routes(app)
-    register_operations_brain_routes(app)
+    resolved_operations_controller = operations_brain_controller
+    if resolved_operations_controller is None:
+        resolved_operations_controller = build_operations_brain_controller_from_env()
+    register_operations_brain_routes(
+        app,
+        controller=resolved_operations_controller,
+    )
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -944,7 +958,7 @@ async def _handle_close_session(request: web.Request) -> web.Response:
         raise SessionNotFoundError(session_id)
     coding_brain_controller(request.app).drop_session(session_id)
     venture_brain_controller(request.app).drop_session(session_id)
-    operations_brain_controller(request.app).drop_session(session)
+    get_operations_brain_controller(request.app).drop_session(session)
     evict_simulator_cache_entry(request.app, session_id)
     return _json_ok({"session_id": session_id, "closed": True})
 

@@ -230,6 +230,15 @@ utility `0.6133422962`，最强基线 `uniform_candidate=-0.3016577038`，delta 
 没有改变。回滚只需把 `AUTOCOMPANY_OPERATIONS_BRAIN_WIRING` 设回 SHADOW；ACTIVE 无 receipt 会在初始化时
 失败。
 
+`lifeform-service` 的默认 controller 同样是 SHADOW。只有以下四个启动字段同时成立时才构造 ACTIVE
+controller：`AUTOCOMPANY_OPERATIONS_BRAIN_ENVIRONMENT=staging`、
+`AUTOCOMPANY_OPERATIONS_BRAIN_WIRING=active`、完整 evidence bundle 目录，以及精确的
+`AUTOCOMPANY_OPERATIONS_POLICY_ACTIVATION_RECEIPT_ID`。loader 会校验六个文件的原始 SHA-256，解析并
+重算 checkpoint/report/review/receipt 内容寻址，核对预注册与 scenario protocol，再执行完整
+`validate_operations_policy_activation()`。manifest 只是完整性索引，不能自行授权；production 请求 ACTIVE
+会 fail startup。把唯一 wiring 字段切回 `shadow` 或 `disabled` 时不再读取 bundle，route policy 保持
+SHADOW，AutoCompany consumer 负责停止消费。
+
 ### 4.4 有界产品状态
 
 Controller 只拥有进程内 live-session 幂等/lineage ledger：默认每 session 512 个 request/outcome，最多
@@ -294,6 +303,18 @@ AutoCompany 适配必须以显式 feature flag / wiring level 上线。关闭 Co
 ACTIVE receipt 只允许 staging；production 必须强制 SHADOW。任何扩大 scope 或直接 dispatch 都需要新的
 benchmark、ModificationGate、activation receipt、独立 field evidence 与单字段回滚晋升，不能复用本次
 simulation receipt。
+
+staging service 的正式启动字段为：
+
+```text
+AUTOCOMPANY_OPERATIONS_BRAIN_ENVIRONMENT=staging
+AUTOCOMPANY_OPERATIONS_BRAIN_WIRING=active
+AUTOCOMPANY_OPERATIONS_POLICY_BUNDLE_DIR=<operations_policy_gate bundle directory>
+AUTOCOMPANY_OPERATIONS_POLICY_ACTIVATION_RECEIPT_ID=operations-policy-activation:f13c21df7c5c9ebeacac935c9aa69b198e57b3d5047512cec8e671cb9f94d161
+```
+
+bundle 路径或 pin 缺失、任何文件/typed lineage 漂移、非 staging ACTIVE 都在监听端口前失败；不能降级成
+未验证 ACTIVE。生产部署只允许 `shadow`/`disabled`。
 
 ## 7. 四能力轴审计
 

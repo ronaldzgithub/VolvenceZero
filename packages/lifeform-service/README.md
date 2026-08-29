@@ -79,9 +79,12 @@ POST /v1/sessions/{session_id}/operations/context-packs
 POST /v1/sessions/{session_id}/operations/outcomes
 ```
 
-The Context Pack is ACTIVE and memory-first; its nested Advice is permanently
-SHADOW and constrained to AutoCompany-provided division/action-catalog ids,
-cost, risk, reversibility, prerequisite, and approval bounds. Outcomes require
+The Context Pack is ACTIVE and memory-first; its nested policy Advice defaults
+to SHADOW and is constrained to AutoCompany-provided division/action-catalog
+ids, cost, risk, reversibility, prerequisite, and approval bounds. Only a
+staging process configured with `AUTOCOMPANY_OPERATIONS_BRAIN_WIRING=active`,
+the exact reviewed evidence bundle, and its pinned activation receipt id can
+expose ACTIVE policy advice. Production ACTIVE fails startup. Outcomes require
 typed work-order lineage. Only a qualified `field_operation_result` can enter
 the next-turn PE lane; progress, cost, incident, human-load, simulation,
 internal-review, and machine-check records remain memory/execution evidence.
