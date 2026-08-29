@@ -99,6 +99,34 @@ PORT=8878 ./start_relationship_assistant.sh
 冒烟测试，不能作为用户事实抽取与召回的产品验收模型。CPU 上完整认知链单轮可能
 需要数分钟，交互部署应优先使用 MPS、CUDA 或后续的 vLLM 批处理服务。
 
+## 启动 Research Lab
+
+根目录的统一研究工作台把 Forge Opportunity / A0、Praxist、formal validation、
+ModificationGate、SHADOW、ACTIVE 与 rollback 放在同一个本地界面：
+
+```bash
+./start_research_lab.sh
+```
+
+服务就绪后访问 [http://localhost:3000](http://localhost:3000)。脚本同时管理 loopback API
+和 Vinext Web，按 `Ctrl-C` 会停止这两个 Lab 进程。它会自动识别当前仓库 `.venv`、Codex
+native Node 以及同级 `PRAXIST` checkout；缺少依赖或端口已占用时 fail loudly，不会叠加第二套
+控制面。
+
+默认脚本显式开启本地 controlled mode，但这**不等于自动批准或自动启动研究**：发现问题后仍需
+形成 exact ResearchRequest，由 named human 在界面提交 A0；只有 Forge 的单次 reconcile 能在
+binding、capacity、doctor、resolve 和 lock 全部通过后启动 Praxist。运行中的任务只显示
+`view_run`，不会暴露第二次 start/reconcile。若只需观察：
+
+```bash
+./start_research_lab.sh --read-only
+```
+
+可用参数包括 `--api-port`、`--web-port`、`--open`；运行时覆盖使用
+`RESEARCH_LAB_PYTHON`、`RESEARCH_LAB_NODE`、`RESEARCH_LAB_PRAXIST`、
+`RESEARCH_LAB_API_PORT` 与 `RESEARCH_LAB_WEB_PORT`。完整权限边界见
+[Research Lab 规范](docs/specs/research-lab.md)。
+
 ## 可复现证据命令行（Apple MPS）
 
 ### 脚本完备性与证据状态

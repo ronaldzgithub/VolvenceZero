@@ -4,12 +4,15 @@ Cognitive AGI 统一实验框架。支持 **AB ablation × SHADOW / ACTIVE wirin
 
 - 完整设计：[`DESIGN.md`](DESIGN.md)
 - 统一研究控制台规范：[`../../docs/specs/research-lab.md`](../../docs/specs/research-lab.md)
-- Research Lab Web：[`web/`](web/)（local-first；当前里程碑为只读界面壳）
+- Research Lab Web：[`web/`](web/)（local-first；read-only snapshot + opt-in exact A0 operations）
 - 调研源头：[`../volvence-research/probe/`](../volvence-research/probe/)（7 primitives + 5 frontier 的出处）
 
 ## 阶段 0 快速入口
 
 ```bash
+# 从仓库根目录启动 API + Web；不会直接启动 Praxist
+../../start_research_lab.sh
+
 # 跑所有单测
 make test
 
@@ -30,15 +33,25 @@ python -m volvence_labs.cli lab-snapshot \
   --repo-root ../.. \
   --praxist-executable /absolute/path/to/praxist
 
-# 启动 loopback-only GET API（不包含审批、启动或 wiring mutation）
+# 启动 loopback-only read-only API
 python -m volvence_labs.cli lab-server \
   --repo-root ../.. \
   --praxist-executable /absolute/path/to/praxist
+
+# 显式启用 exact A0 review / approved Request reconcile
+python -m volvence_labs.cli lab-server \
+  --repo-root ../.. \
+  --praxist-executable /absolute/path/to/praxist \
+  --enable-mutations \
+  --ui-origin http://localhost:3000
 ```
 
-只读 API 提供 `GET /api/v1/snapshot`、`GET /api/v1/tasks/{task_id}` 与
-`GET /healthz`；默认绑定 `127.0.0.1:8766`，Web dev server 会将 `/api/v1` 同源代理到该地址。
-所有 `POST` 在本里程碑均返回 `405 read_only`。
+API 提供 `GET /api/v1/snapshot`、`GET /api/v1/tasks/{task_id}`、
+`GET /api/v1/session` 与 `GET /healthz`；默认绑定 `127.0.0.1:8766`，Web dev server 会将
+`/api/v1` 同源代理到该地址。默认所有 `POST` 返回 `405 read_only`。只有显式 mutation mode
+才开放 `POST /api/v1/a0/review` 与 `POST /api/v1/reconcile`，且要求 loopback Origin、进程 CSRF、
+fresh snapshot revision、ResearchRequest id + SHA、named actor 和 reason。当前 scan/import/A1/A2/
+rollback 只展示正式 artifact 与 blocker，尚未接入可写 portal seam。
 
 ## 设计底线
 

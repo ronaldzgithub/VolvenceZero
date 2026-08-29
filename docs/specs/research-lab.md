@@ -173,6 +173,11 @@ Lab 控制本机仓库、Praxist registry 和进程，因此 functional control 
 本地 API 默认也是 read-only；只有显式传入 `--enable-mutations` 才创建 Forge command service。mutation mode
 仍只绑定 loopback，并要求显式 loopback UI Origin、进程级 CSRF、16 KiB body 上限和 exact artifact binding。
 
+仓库根入口 `./start_research_lab.sh` 是本机进程编排器，不是研究 lifecycle owner。运行该脚本本身视为显式选择
+controlled local mode；它只启动 API 与 Web、检查端口和依赖、在退出时回收两个子进程。它禁止调用
+`praxist start`、自动生成 Approval、自动 reconcile 或直接修改 wiring。`--read-only` 会关闭全部 POST delegation；端口已被
+占用时 launcher 必须拒绝启动，不能复用或覆盖未知进程。
+
 ## 8. 收敛包与里程碑
 
 1. **Foundation**：冻结 Forge/Praxist pilot 与 control-plane contracts；不含 UI。
@@ -180,6 +185,8 @@ Lab 控制本机仓库、Praxist registry 和进程，因此 functional control 
 3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。**已实现。**
 4. **Promotion operations**：candidate/formal/A1/A2/rollback UI；缺 validator/adapter 时只显示 blocker。
 5. **Remote/read-only mirror**：可选；不扩本地控制权限。
+
+根目录 launcher 已实现，但不改变第 4 包仍未接入 owner mutation seam 的事实。
 
 每包独立提交、测试和回滚。共享 snapshot shape 先冻结，writer/collector 与 web consumer 分开提交。
 
