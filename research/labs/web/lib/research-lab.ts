@@ -224,7 +224,7 @@ export async function fetchResearchLabSnapshot(
     throw new Error(`Research Lab API returned HTTP ${response.status}`);
   }
   const payload: unknown = await response.json();
-  if (!isSnapshot(payload)) {
+  if (!isResearchLabSnapshot(payload)) {
     throw new Error('Research Lab API returned an incompatible snapshot');
   }
   return payload;
@@ -296,24 +296,193 @@ export async function submitResearchLabCommand<
   return body;
 }
 
-function isSnapshot(value: unknown): value is ResearchLabSnapshot {
+export function isResearchLabSnapshot(
+  value: unknown,
+): value is ResearchLabSnapshot {
   if (!isRecord(value)) return false;
-  if (value.schema_version !== 'volvence-research-lab-snapshot.v1')
-    return false;
-  if (
-    typeof value.revision !== 'string' ||
-    typeof value.generated_at !== 'string'
-  )
-    return false;
-  if (!Array.isArray(value.items) || !Array.isArray(value.source_health))
-    return false;
-  if (!isRecord(value.summary)) return false;
   return (
-    typeof value.summary.registered_tasks === 'number' &&
-    typeof value.summary.active_runs === 'number' &&
-    typeof value.summary.awaiting_human === 'number' &&
-    typeof value.summary.production_active === 'number'
+    value.schema_version === 'volvence-research-lab-snapshot.v1' &&
+    typeof value.generated_at === 'string' &&
+    typeof value.revision === 'string' &&
+    typeof value.repo_revision === 'string' &&
+    isSnapshotSummary(value.summary) &&
+    Array.isArray(value.source_health) &&
+    value.source_health.every(isSourceHealth) &&
+    Array.isArray(value.items) &&
+    value.items.every(isResearchLabItem) &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every(isPortalWarning)
   );
+}
+
+function isSnapshotSummary(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isNumber(value.registered_tasks) &&
+    Array.isArray(value.stage_counts) &&
+    value.stage_counts.every(isNamedCount) &&
+    isNumber(value.active_runs) &&
+    isNumber(value.blocked) &&
+    isNumber(value.awaiting_human) &&
+    isNumber(value.production_active)
+  );
+}
+
+function isSourceHealth(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.source === 'string' &&
+    (value.status === 'healthy' ||
+      value.status === 'degraded' ||
+      value.status === 'unavailable') &&
+    isNumber(value.artifacts_seen) &&
+    typeof value.detail === 'string'
+  );
+}
+
+function isResearchLabItem(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.item_id === 'string' &&
+    typeof value.task_id === 'string' &&
+    (value.research_mode === 'volvence_promotion' ||
+      value.research_mode === 'external_simulation') &&
+    typeof value.claim_id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.objective === 'string' &&
+    typeof value.owner === 'string' &&
+    isStringArray(value.capability_axes) &&
+    typeof value.release_target === 'string' &&
+    isLifecycle(value.lifecycle) &&
+    isAuthority(value.authority) &&
+    isEvidence(value.evidence) &&
+    Array.isArray(value.bindings) &&
+    value.bindings.every(isArtifactRef) &&
+    (value.run === null || isPraxistRun(value.run)) &&
+    isStringArray(value.available_actions) &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every(isPortalWarning) &&
+    isNullableString(value.updated_at)
+  );
+}
+
+function isLifecycle(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isLifecycleStage(value.stage) &&
+    (value.next_stage === null || isLifecycleStage(value.next_stage)) &&
+    isNullableString(value.blocking_reason) &&
+    isNullableString(value.last_transition_at)
+  );
+}
+
+function isAuthority(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.a0_research_start_authorized === 'boolean' &&
+    typeof value.formal_validation_status === 'string' &&
+    typeof value.modification_gate_decision === 'string' &&
+    typeof value.authorized_wiring === 'string' &&
+    typeof value.runtime_wiring === 'string' &&
+    typeof value.target_adapter_apply_required === 'boolean' &&
+    typeof value.production_default_changed === 'boolean' &&
+    typeof value.evaluation_is_learning_source === 'boolean'
+  );
+}
+
+function isEvidence(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.development === 'string' &&
+    typeof value.formal === 'string' &&
+    typeof value.shadow === 'string' &&
+    typeof value.canary === 'string'
+  );
+}
+
+function isArtifactRef(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.kind === 'string' &&
+    typeof value.locator === 'string' &&
+    typeof value.sha256 === 'string' &&
+    isNullableString(value.artifact_id)
+  );
+}
+
+function isPraxistRun(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.run_id === 'string' &&
+    typeof value.state === 'string' &&
+    typeof value.source === 'string' &&
+    isNullableNumber(value.pid) &&
+    typeof value.task_path === 'string' &&
+    isNullableString(value.run_dir) &&
+    isNullableNumber(value.generation) &&
+    isNumber(value.findings_total) &&
+    isNumber(value.peers_total) &&
+    Array.isArray(value.peer_health) &&
+    value.peer_health.every(isNamedCount) &&
+    isNullableString(value.runtime) &&
+    isNullableString(value.model_provider) &&
+    isNullableString(value.model) &&
+    isNullableString(value.started_at) &&
+    isNullableString(value.updated_at)
+  );
+}
+
+function isPortalWarning(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.code === 'string' &&
+    typeof value.message === 'string' &&
+    typeof value.source === 'string' &&
+    (value.severity === 'warning' || value.severity === 'error') &&
+    isNullableString(value.task_id)
+  );
+}
+
+function isNamedCount(value: unknown): boolean {
+  return (
+    isRecord(value) && typeof value.name === 'string' && isNumber(value.count)
+  );
+}
+
+function isLifecycleStage(value: unknown): value is LifecycleStage {
+  return (
+    value === 'NEEDS_TASK_DESIGN' ||
+    value === 'AWAITING_A0' ||
+    value === 'PREFLIGHT' ||
+    value === 'RESEARCH_RUNNING' ||
+    value === 'RESEARCH_COMPLETE' ||
+    value === 'CANDIDATE_RETAINED' ||
+    value === 'FORMAL_VALIDATION' ||
+    value === 'AWAITING_A1' ||
+    value === 'SHADOW' ||
+    value === 'AWAITING_A2' ||
+    value === 'ACTIVE' ||
+    value === 'ROLLED_BACK' ||
+    value === 'BLOCKED'
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || isNumber(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
 }
 
 function isSession(value: unknown): value is ResearchLabSession {

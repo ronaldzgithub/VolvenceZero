@@ -77,6 +77,10 @@ collector 不遍历 producer 私有结构重建状态。只接受正式 JSON/sch
 validation raw SHA 精确绑定后才进入同一视图。Receipt 作为上一轮 authorization boundary 单独显示，以允许新一轮
 formal/gate evidence 在其后形成 A2 输入。
 
+Web consumer 必须逐层校验 snapshot v1 的 summary、source health、item、`research_mode`、lifecycle、authority、
+evidence、binding、run 与 warning shape；不得只检查顶层版本后用缺省值把旧进程或残缺 payload 伪装成兼容状态。
+常驻 API 若仍运行旧代码，client 必须显示 incompatible snapshot 并要求重启控制台，而不是猜测 promotion track。
+
 ## 4. Lifecycle 与正交状态
 
 主 lifecycle stage：
