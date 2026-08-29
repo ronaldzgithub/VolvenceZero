@@ -343,7 +343,11 @@ def _cmd_lab_server(args: argparse.Namespace) -> int:
             python_executable=args.forge_python,
             timeout_seconds=args.command_timeout,
         )
-        command_service = ResearchLabCommandService(collector, runner=runner)
+        command_service = ResearchLabCommandService(
+            collector,
+            runner=runner,
+            external_domain_roots=_parse_external_domain_roots(args.external_domain_root),
+        )
         allowed_origins = tuple(args.ui_origin or ("http://localhost:3000", "http://127.0.0.1:3000"))
     server = create_server(
         collector,
@@ -377,9 +381,26 @@ def _resolve_repo_root(value: str | None) -> Path:
     for start in starts:
         current = start if start.is_dir() else start.parent
         for candidate in (current, *current.parents):
-            if (candidate / "research" / "tasks").is_dir() and (candidate / "docs" / "specs" / "00_INDEX.md").is_file():
+            if (candidate / "research" / "tasks").is_dir() and (
+                candidate / "docs" / "specs" / "00_INDEX.md"
+            ).is_file():
                 return candidate
     raise ValueError("cannot discover Volvence repo root; pass --repo-root")
+
+
+def _parse_external_domain_roots(values: list[str]) -> dict[str, Path]:
+    roots: dict[str, Path] = {}
+    for value in values:
+        domain_id, separator, raw_path = value.partition("=")
+        if not separator or not domain_id or not raw_path:
+            raise ValueError("--external-domain-root must use DOMAIN_ID=/absolute/path")
+        if domain_id in roots:
+            raise ValueError(f"external domain root is duplicated: {domain_id}")
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            raise ValueError("--external-domain-root path must be absolute")
+        roots[domain_id] = path
+    return roots
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -510,6 +531,13 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=180.0,
         help="bounded Forge command timeout in seconds",
+    )
+    p_lab_server.add_argument(
+        "--external-domain-root",
+        action="append",
+        default=[],
+        metavar="DOMAIN_ID=/ABSOLUTE/PATH",
+        help="register one read-only external descriptor root for controlled ingress",
     )
     p_lab_server.set_defaults(func=_cmd_lab_server)
 

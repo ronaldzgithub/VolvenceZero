@@ -9,18 +9,21 @@ import re
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .collector import ResearchLabCollector
 from .models import ArtifactRef, ResearchLabItem, ResearchLabSnapshot
 
 _TASK_ID = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+_DOMAIN_ID = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
 _MAX_ACTOR_LENGTH = 160
 _MAX_REASON_LENGTH = 2_000
 _TASK_KIND = "task"
 _REQUEST_KIND = "research request"
 _HANDOFF_KIND = "praxist handoff"
+_EXTERNAL_DESCRIPTOR_KIND = "external descriptor"
+_EXTERNAL_HANDOFF_KIND = "external handoff"
 _CANDIDATE_KIND = "candidate"
 _VALIDATION_KIND = "validation"
 _GATE_KIND = "gate"
@@ -111,8 +114,10 @@ class ResearchLabCommandService:
     """Validate portal commands against a fresh snapshot, then delegate to Forge."""
 
     supported_actions = (
+        "submit_external",
         "review_a0",
         "reconcile",
+        "record_external_handoff",
         "import_candidate",
         "authorize_shadow",
         "authorize_active",
@@ -124,10 +129,168 @@ class ResearchLabCommandService:
         collector: ResearchLabCollector,
         *,
         runner: OwnerCommandRunner,
+        external_domain_roots: Mapping[str, str | os.PathLike[str]] | None = None,
     ) -> None:
         self.collector = collector
         self.repo_root = collector.repo_root
         self.runner = runner
+        roots: dict[str, Path] = {}
+        for domain_id, raw_root in (external_domain_roots or {}).items():
+            if not _DOMAIN_ID.fullmatch(domain_id):
+                raise ValueError(f"invalid external domain id: {domain_id!r}")
+            candidate = Path(raw_root).expanduser()
+            if candidate.is_symlink():
+                raise ValueError(f"external domain root may not be a symlink: {candidate}")
+            resolved = candidate.resolve(strict=True)
+            if not resolved.is_dir():
+                raise ValueError(f"external domain root must be a directory: {resolved}")
+            roots[domain_id] = resolved
+        self.external_domain_roots = roots
+        if not roots:
+            self.supported_actions = tuple(
+                action for action in type(self).supported_actions if action != "submit_external"
+            )
+
+    def submit_external(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "domain_id",
+            "descriptor_locator",
+            "descriptor_id",
+            "descriptor_sha256",
+            "actor",
+            "reason",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        previous = self._require_current_revision(payload)
+        actor = _bounded_text(payload, "actor", _MAX_ACTOR_LENGTH)
+        reason = _bounded_text(payload, "reason", _MAX_REASON_LENGTH)
+        domain_id = _required_string(payload, "domain_id")
+        descriptor_id = _required_string(payload, "descriptor_id")
+        descriptor_sha256 = _required_sha256(payload, "descriptor_sha256")
+        descriptor_path = self._resolve_external_descriptor(
+            domain_id=domain_id,
+            locator=_required_string(payload, "descriptor_locator"),
+            descriptor_id=descriptor_id,
+            descriptor_sha256=descriptor_sha256,
+        )
+        owner_result = self._run_owner(
+            [
+                "--repo-root",
+                str(self.repo_root),
+                "research-submit-external",
+                str(descriptor_path),
+                "--requested-by",
+                actor,
+                "--reason",
+                reason,
+                "--json",
+            ]
+        )
+        owner_payload = _owner_json_object(owner_result.stdout, context="external submission")
+        if (
+            owner_payload.get("descriptor_id") != descriptor_id
+            or owner_payload.get("domain_id") != domain_id
+            or not isinstance(owner_payload.get("request_id"), str)
+            or not isinstance(owner_payload.get("request_sha256"), str)
+        ):
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "Forge external submission result does not bind the reviewed descriptor",
+                status_code=502,
+            )
+        current = self.collector.collect()
+        matches = [
+            item
+            for item in current.items
+            if any(
+                ref.kind == _REQUEST_KIND
+                and ref.artifact_id == owner_payload["request_id"]
+                and ref.sha256 == owner_payload["request_sha256"]
+                for ref in item.bindings
+            )
+        ]
+        if len(matches) != 1:
+            raise PortalCommandError(
+                "owner_transition_missing",
+                "Forge returned success but one exact external Request is not visible",
+                status_code=502,
+            )
+        item = matches[0]
+        request_ref = _required_binding(item, _REQUEST_KIND)
+        descriptor_ref = ArtifactRef(
+            kind=_EXTERNAL_DESCRIPTOR_KIND,
+            locator=str(descriptor_path),
+            sha256=descriptor_sha256,
+            artifact_id=descriptor_id,
+        )
+        return _command_response(
+            action="submit_external",
+            task_id=item.task_id,
+            outcome="awaiting_a0",
+            message="External simulation Request sealed; exact named-human A0 review is required",
+            previous=previous,
+            current=current,
+            binding=request_ref,
+            input_bindings=(descriptor_ref,),
+        )
+
+    def record_external_handoff(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        allowed_fields = {
+            "snapshot_revision",
+            "task_id",
+            "artifact_id",
+            "artifact_sha256",
+            "actor",
+            "reason",
+        }
+        _require_exact_fields(payload, allowed_fields)
+        snapshot, item, request_ref, request_path, actor, reason = self._resolve_command(
+            payload,
+            action="record_external_handoff",
+        )
+        if item.research_mode != "external_simulation":
+            raise PortalCommandError(
+                "wrong_research_mode",
+                "external handoff is only available for an external simulation Request",
+                status_code=409,
+            )
+        owner_result = self._run_owner(
+            [
+                "--repo-root",
+                str(self.repo_root),
+                "research-handoff-external",
+                str(request_path),
+                "--recorded-by",
+                actor,
+                "--reason",
+                reason,
+                "--json",
+            ]
+        )
+        owner_payload = _owner_json_object(owner_result.stdout, context="external handoff")
+        current = self.collector.collect()
+        current_item = _required_task(current, item.task_id)
+        handoff_ref = _required_binding(current_item, _EXTERNAL_HANDOFF_KIND)
+        if (
+            owner_payload.get("handoff_id") != handoff_ref.artifact_id
+            or owner_payload.get("handoff_sha256") != handoff_ref.sha256
+        ):
+            raise PortalCommandError(
+                "owner_transition_mismatch",
+                "Forge external handoff result does not match the visible immutable handoff",
+                status_code=502,
+            )
+        return _command_response(
+            action="record_external_handoff",
+            task_id=item.task_id,
+            outcome="handed_off_for_external_review",
+            message="Simulation evidence sealed for Foundry-owned review; no Volvence promotion was created",
+            previous=snapshot,
+            current=current,
+            binding=handoff_ref,
+            input_bindings=(request_ref,),
+        )
 
     def review_a0(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         allowed_fields = {
@@ -510,6 +673,93 @@ class ResearchLabCommandService:
             )
         return snapshot, item, request_ref, request_path, actor, reason
 
+    def _require_current_revision(self, payload: Mapping[str, Any]) -> ResearchLabSnapshot:
+        requested_revision = _required_string(payload, "snapshot_revision")
+        snapshot = self.collector.collect()
+        if snapshot.revision != requested_revision:
+            raise PortalCommandError(
+                "stale_snapshot",
+                "Research Lab snapshot changed; refresh before submitting the external descriptor",
+                status_code=409,
+            )
+        return snapshot
+
+    def _resolve_external_descriptor(
+        self,
+        *,
+        domain_id: str,
+        locator: str,
+        descriptor_id: str,
+        descriptor_sha256: str,
+    ) -> Path:
+        if not _DOMAIN_ID.fullmatch(domain_id):
+            raise PortalCommandError(
+                "invalid_domain_id",
+                "domain_id has an invalid shape",
+                status_code=400,
+            )
+        root = self.external_domain_roots.get(domain_id)
+        if root is None:
+            raise PortalCommandError(
+                "external_domain_not_registered",
+                "external domain root is not registered on this Research Lab server",
+                status_code=409,
+            )
+        relative = PurePosixPath(locator)
+        if (
+            not locator
+            or "\\" in locator
+            or relative.is_absolute()
+            or "." in relative.parts
+            or ".." in relative.parts
+        ):
+            raise PortalCommandError(
+                "unsafe_external_descriptor_locator",
+                "descriptor_locator must be a safe path below the registered domain root",
+                status_code=400,
+            )
+        candidate = root / Path(*relative.parts)
+        if candidate.is_symlink():
+            raise PortalCommandError(
+                "unsafe_external_descriptor_locator",
+                "external descriptor may not be a symlink",
+                status_code=409,
+            )
+        try:
+            resolved = candidate.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise PortalCommandError(
+                "external_descriptor_missing",
+                "external descriptor is missing",
+                status_code=409,
+            ) from exc
+        if not resolved.is_relative_to(root) or not resolved.is_file():
+            raise PortalCommandError(
+                "unsafe_external_descriptor_locator",
+                "external descriptor must be a regular file below the registered domain root",
+                status_code=409,
+            )
+        if _sha256_file(resolved) != descriptor_sha256:
+            raise PortalCommandError(
+                "artifact_digest_mismatch",
+                "external descriptor bytes do not match descriptor_sha256",
+                status_code=409,
+            )
+        descriptor = _read_json_object(resolved, context="external research descriptor")
+        domain = descriptor.get("domain")
+        if (
+            descriptor.get("schema_version") != "forge-external-research-descriptor.v1"
+            or descriptor.get("descriptor_id") != descriptor_id
+            or not isinstance(domain, Mapping)
+            or domain.get("domain_id") != domain_id
+        ):
+            raise PortalCommandError(
+                "artifact_identity_mismatch",
+                "external descriptor identity or domain does not match the submitted binding",
+                status_code=409,
+            )
+        return resolved
+
     def _resolve_context(
         self,
         payload: Mapping[str, Any],
@@ -815,6 +1065,24 @@ def _sha256_file(path: Path) -> str:
 def _first_output_line(value: str, *, fallback: str) -> str:
     lines = [line.strip() for line in value.splitlines() if line.strip()]
     return lines[-1][:1_000] if lines else fallback
+
+
+def _owner_json_object(value: str, *, context: str) -> Mapping[str, Any]:
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise PortalCommandError(
+            "owner_response_malformed",
+            f"Forge {context} response is not valid JSON",
+            status_code=502,
+        ) from exc
+    if not isinstance(payload, Mapping):
+        raise PortalCommandError(
+            "owner_response_malformed",
+            f"Forge {context} response must be one JSON object",
+            status_code=502,
+        )
+    return payload
 
 
 def _reconcile_message(stdout: str) -> str:

@@ -3,7 +3,7 @@
 > Status: v1 mechanism landed；单 pilot A0 Request 正等待人审；无有效 research run，formal validator 与部署 adapter 尚未落地
 > Last updated: 2026-08-29
 > Owner: `volvence_forge`（development-plane control artifacts only）
-> Companion contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
+> Companion contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`external-research-adapter.md`](./external-research-adapter.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
 
 ## 1. 决策摘要
 
@@ -57,6 +57,10 @@ Praxist 继续唯一拥有：
 Volvence runtime owner、formal validator、`ModificationGate` 和 target adapter 的职责不变。本控制面
 不是 `vz-*` runtime wheel，不注册 `docs/DATA_CONTRACT.md` slot，不发布 Brain snapshot，也不把
 Praxist evaluator 或 status 变成 PE/credit 来源。
+
+外部领域通过 `forge-external-research-request.v1` 进入同一 control registry，复用完全相同的 Approval、
+Event、lock、doctor/resolve/start/status 实现；它不是 Volvence Task，也不进入本 spec 后半段的 promotion
+路径。Foundry first-class Intent 与 simulation handoff 的额外约束见 `external-research-adapter.md`。
 
 ## 3. 为什么不用根目录脚本
 
@@ -199,18 +203,28 @@ forge research-submit <task.json> \
   --requested-by <name> \
   --reason <reason> [frozen launch profile...]
 
+forge research-submit-external <descriptor.json> \
+  --requested-by <name> --reason <reason> [--json]
+
 forge research-inbox [--json]
 
 forge research-approve <request.json> \
   --approved-by <human> --reason <reason> [--reject]
 
 forge research-reconcile --once [--request <request.json>] [--json]
+
+forge research-handoff-external <request.json> \
+  --recorded-by <name> --reason <reason> [--json]
 ```
 
 `research-submit` 是 detector 与人类共用的稳定提交 seam，但它本身不做自然语言发现。
 `research-scan` v1 只消费 `forge-failure-pattern.v3`，形成不可变 Opportunity，再按 exact
 component/target registry mapping 调用该 seam；禁止用关键词、正则或 LLM prose 选择 task，更不能直接
 触发 start。其他 prediction-error/benchmark/protocol-gap typed adapter 尚未开放。
+
+`research-submit-external` 只接受已冻结的 external descriptor，并把 Foundry Intent 映射为独立 external
+Request；它不接受 `forge-research-task.v1`，也不自动批准或启动。`research-handoff-external` 只封存
+`RUN_COMPLETED` 的 simulation evidence，不调用 Candidate importer、ModificationGate 或 wiring owner。
 
 ## 8. Human gates 与上架链
 

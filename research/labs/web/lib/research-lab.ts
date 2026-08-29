@@ -54,6 +54,7 @@ export interface PraxistRunSnapshot {
 export interface ResearchLabItem {
   item_id: string;
   task_id: string;
+  research_mode: 'volvence_promotion' | 'external_simulation';
   claim_id: string;
   title: string;
   objective: string;
@@ -113,8 +114,10 @@ export interface ResearchLabSnapshot {
 }
 
 export type SupportedCommandAction =
+  | 'submit_external'
   | 'review_a0'
   | 'reconcile'
+  | 'record_external_handoff'
   | 'import_candidate'
   | 'authorize_shadow'
   | 'authorize_active'
@@ -130,6 +133,16 @@ export interface ResearchLabSession {
 interface BaseCommandPayload {
   snapshot_revision: string;
   task_id: string;
+  actor: string;
+  reason: string;
+}
+
+export interface SubmitExternalCommandPayload {
+  snapshot_revision: string;
+  domain_id: string;
+  descriptor_locator: string;
+  descriptor_id: string;
+  descriptor_sha256: string;
   actor: string;
   reason: string;
 }
@@ -169,8 +182,10 @@ export interface RollbackCommandPayload extends BaseCommandPayload {
 }
 
 export interface ResearchLabCommandPayloadByAction {
+  submit_external: SubmitExternalCommandPayload;
   review_a0: A0CommandPayload;
   reconcile: ReconcileCommandPayload;
+  record_external_handoff: ReconcileCommandPayload;
   import_candidate: ImportCandidateCommandPayload;
   authorize_shadow: AuthorizeCommandPayload;
   authorize_active: AuthorizeCommandPayload;
@@ -247,8 +262,10 @@ export async function submitResearchLabCommand<
     throw new Error(`${action} is not enabled by the local API session`);
   }
   const endpoints: Record<SupportedCommandAction, string> = {
+    submit_external: '/api/v1/external/requests',
     review_a0: '/api/v1/a0/review',
     reconcile: '/api/v1/reconcile',
+    record_external_handoff: '/api/v1/external/handoff',
     import_candidate: '/api/v1/candidates/import',
     authorize_shadow: '/api/v1/a1/authorize-shadow',
     authorize_active: '/api/v1/a2/authorize-active',
@@ -339,8 +356,10 @@ function isSupportedCommandAction(
   value: unknown,
 ): value is SupportedCommandAction {
   return (
+    value === 'submit_external' ||
     value === 'review_a0' ||
     value === 'reconcile' ||
+    value === 'record_external_handoff' ||
     value === 'import_candidate' ||
     value === 'authorize_shadow' ||
     value === 'authorize_active' ||

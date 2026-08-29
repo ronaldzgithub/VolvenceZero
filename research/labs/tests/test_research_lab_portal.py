@@ -25,6 +25,7 @@ from volvence_labs.portal import (
 
 FIXED_NOW = datetime(2026, 8, 29, 14, 30, tzinfo=timezone.utc)
 TASK_ID = "example_research_task"
+EXTERNAL_TASK_ID = "external_0123456789abcdef"
 
 
 def _write_json(path: Path, payload: object) -> str:
@@ -90,6 +91,157 @@ def _make_request(repo: Path, *, approved: bool, correct_sha: bool = True) -> Pa
             },
         )
     return request_path
+
+
+def _make_external_request(
+    repo: Path,
+    *,
+    approved: bool = False,
+    completed: bool = False,
+    handed_off: bool = False,
+) -> tuple[Path, Path]:
+    external_root = repo / "external-foundry"
+    intent_path = external_root / "artifacts/research_lab/intent.json"
+    intent_sha = _write_json(
+        intent_path,
+        {
+            "schema_version": "foundry-research-lab-intent.v1",
+            "intent_id": "rli_0123456789abcdef",
+        },
+    )
+    descriptor_id = "external-research-descriptor:" + "d" * 64
+    descriptor_path = external_root / "artifacts/research_lab/descriptor.json"
+    descriptor_sha = _write_json(
+        descriptor_path,
+        {
+            "schema_version": "forge-external-research-descriptor.v1",
+            "descriptor_id": descriptor_id,
+            "domain": {
+                "domain_id": "foundry",
+                "task_id": "opp_research_lab_001",
+                "intent_id": "rli_0123456789abcdef",
+            },
+        },
+    )
+    task_project = repo / "research/praxist_tasks/foundry_optimizer"
+    task_project.mkdir(parents=True, exist_ok=True)
+    (task_project / "task.yaml").write_text("task_id: foundry_optimizer\n", encoding="utf-8")
+    run_dir = repo / "artifacts/praxist_runs/run_foundry_001"
+    if completed:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(run_dir / "result.json", {"best": "candidate-a"})
+    request_id = "research-request:" + "e" * 64
+    root = repo / "artifacts/research_control" / EXTERNAL_TASK_ID / ("e" * 64)
+    request_path = root / "request.json"
+    request_sha = _write_json(
+        request_path,
+        {
+            "schema_version": "forge-external-research-request.v1",
+            "request_id": request_id,
+            "task_id": EXTERNAL_TASK_ID,
+            "claim_id": "foundry:rli_0123456789abcdef",
+            "owner": "external-domain:foundry",
+            "objective": "Explore evaluator-backed variants without changing Foundry governance surfaces.",
+            "external_domain": {
+                "descriptor_id": descriptor_id,
+                "adapter_id": "foundry-research-lab-intent.v1",
+                "intent_schema_version": "foundry-research-lab-intent.v1",
+                "domain_id": "foundry",
+                "task_id": "opp_research_lab_001",
+                "intent_id": "rli_0123456789abcdef",
+                "ownership": {
+                    "research_intent": "foundry",
+                    "budget": "foundry",
+                    "evidence_classification": "foundry",
+                    "result_adoption": "foundry",
+                    "human_application": "foundry",
+                },
+                "result_policy": {
+                    "result_locator": "result.json",
+                    "evidence_class": "simulation",
+                    "adoption_mode": "proposal_only",
+                },
+            },
+            "bindings": {
+                "external_descriptor": {
+                    "locator": str(descriptor_path),
+                    "sha256": descriptor_sha,
+                },
+                "external_intent": {"locator": str(intent_path), "sha256": intent_sha},
+                "external_budget": {"locator": str(intent_path), "sha256": intent_sha},
+                "external_evidence": [],
+                "task_project": {"root": str(task_project)},
+            },
+            "launch": {
+                "run_dir": str(run_dir),
+                "run_id": run_dir.name,
+                "profile": {
+                    "runtime": "agent_runtime:codex_sdk",
+                    "model_provider": "model_provider:openai_compatible",
+                    "model": "gpt-5.6-luna",
+                },
+            },
+            "created_at": "2026-08-30T00:00:00Z",
+        },
+    )
+    approval_id = "research-approval:" + "f" * 64
+    approval_sha = None
+    if approved:
+        approval_path = root / "approvals" / ("f" * 64 + ".json")
+        approval_sha = _write_json(
+            approval_path,
+            {
+                "schema_version": "forge-research-approval.v1",
+                "approval_id": approval_id,
+                "request_id": request_id,
+                "request_sha256": request_sha,
+                "decision": "APPROVE",
+                "authority": {"research_start_authorized": True},
+                "created_at": "2026-08-30T00:01:00Z",
+            },
+        )
+    if completed:
+        _write_json(
+            root / "events/000001-event.json",
+            {
+                "schema_version": "forge-research-control-event.v1",
+                "event_id": "research-control-event:" + "1" * 64,
+                "sequence": 1,
+                "request_id": request_id,
+                "state": "RUN_COMPLETED",
+                "run": {
+                    "run_id": run_dir.name,
+                    "run_dir": str(run_dir),
+                    "praxist_state": "completed",
+                    "generation": 3,
+                    "findings_total": 9,
+                    "updated_at": "2026-08-30T00:05:00Z",
+                },
+                "created_at": "2026-08-30T00:05:00Z",
+            },
+        )
+    if handed_off:
+        if approval_sha is None:
+            raise AssertionError("handoff fixture requires approval")
+        _write_json(
+            root / "handoffs/handoff.json",
+            {
+                "schema_version": "forge-external-research-handoff.v1",
+                "handoff_id": "external-research-handoff:" + "2" * 64,
+                "request": {"request_id": request_id, "sha256": request_sha},
+                "result": {
+                    "evidence_class": "simulation",
+                    "adoption_mode": "proposal_only",
+                },
+                "authority": {
+                    "volvence_promotion_eligible": False,
+                    "modification_gate_applicable": False,
+                    "runtime_wiring_applicable": False,
+                },
+                "created_at": "2026-08-30T00:06:00Z",
+            },
+        )
+    return request_path, descriptor_path
 
 
 def _write_review(repo: Path, request_path: Path, *, decision: str) -> Path:
@@ -373,6 +525,29 @@ def test_running_snapshot_binds_exact_approval_and_live_praxist_status(tmp_path:
         snapshot.repo_revision = "mutated"  # type: ignore[misc]
 
 
+def test_external_simulation_track_stops_at_immutable_foundry_handoff(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_external_request(tmp_path, approved=True, completed=True)
+    before = _collector(tmp_path, []).collect().get_task(EXTERNAL_TASK_ID)
+    assert before is not None
+    assert before.research_mode == "external_simulation"
+    assert before.lifecycle.stage is LifecycleStage.RESEARCH_COMPLETE
+    assert before.available_actions == ("record_external_handoff",)
+    assert before.authority.modification_gate_decision == "not_applicable"
+    assert before.authority.runtime_wiring == "not_applicable"
+    assert before.evidence.development == "simulation_completed"
+    assert not any(ref.kind == "candidate" for ref in before.bindings)
+
+    _make_external_request(tmp_path, approved=True, completed=True, handed_off=True)
+    after = _collector(tmp_path, []).collect().get_task(EXTERNAL_TASK_ID)
+    assert after is not None
+    assert after.lifecycle.stage is LifecycleStage.RESEARCH_COMPLETE
+    assert after.available_actions == ()
+    assert after.evidence.development == "simulation_handoff_sealed"
+    handoff = next(ref for ref in after.bindings if ref.kind == "external handoff")
+    assert handoff.artifact_id == "external-research-handoff:" + "2" * 64
+
+
 def test_request_without_approval_is_awaiting_a0(tmp_path: Path) -> None:
     _make_task(tmp_path)
     _make_request(tmp_path, approved=False)
@@ -641,6 +816,116 @@ def test_server_rejects_non_loopback_bind(tmp_path: Path) -> None:
     _make_task(tmp_path)
     with pytest.raises(ValueError, match="loopback"):
         create_server(_collector(tmp_path, []), host="0.0.0.0")
+
+
+def test_external_submission_requires_registered_exact_descriptor_and_fixed_argv(
+    tmp_path: Path,
+) -> None:
+    _make_task(tmp_path)
+    request_path, descriptor_path = _make_external_request(tmp_path)
+    request_path.unlink()
+    collector = _collector(tmp_path, [])
+    previous = collector.collect()
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    descriptor_sha = hashlib.sha256(descriptor_path.read_bytes()).hexdigest()
+    calls: list[tuple[str, ...]] = []
+
+    def runner(arguments: object) -> OwnerCommandResult:
+        assert isinstance(arguments, tuple)
+        calls.append(arguments)
+        created, _ = _make_external_request(tmp_path)
+        request = json.loads(created.read_text(encoding="utf-8"))
+        return OwnerCommandResult(
+            0,
+            json.dumps(
+                {
+                    "descriptor_id": descriptor["descriptor_id"],
+                    "domain_id": "foundry",
+                    "request_id": request["request_id"],
+                    "request_sha256": hashlib.sha256(created.read_bytes()).hexdigest(),
+                }
+            ),
+            "",
+        )
+
+    service = ResearchLabCommandService(
+        collector,
+        runner=runner,
+        external_domain_roots={"foundry": tmp_path / "external-foundry"},
+    )
+    result = service.submit_external(
+        {
+            "snapshot_revision": previous.revision,
+            "domain_id": "foundry",
+            "descriptor_locator": "artifacts/research_lab/descriptor.json",
+            "descriptor_id": descriptor["descriptor_id"],
+            "descriptor_sha256": descriptor_sha,
+            "actor": "Meng Fu",
+            "reason": "Submit the exact Foundry simulation Intent for A0 review.",
+        }
+    )
+
+    assert result["action"] == "submit_external"
+    assert result["task_id"] == EXTERNAL_TASK_ID
+    assert result["outcome"] == "awaiting_a0"
+    assert calls == [
+        (
+            "--repo-root",
+            str(tmp_path),
+            "research-submit-external",
+            str(descriptor_path.resolve()),
+            "--requested-by",
+            "Meng Fu",
+            "--reason",
+            "Submit the exact Foundry simulation Intent for A0 review.",
+            "--json",
+        )
+    ]
+
+
+def test_external_handoff_command_never_enters_volvence_promotion(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    request_path, _ = _make_external_request(tmp_path, approved=True, completed=True)
+    collector = _collector(tmp_path, [])
+    snapshot = collector.collect()
+    item = snapshot.get_task(EXTERNAL_TASK_ID)
+    assert item is not None
+    request_ref = next(ref for ref in item.bindings if ref.kind == "research request")
+    calls: list[tuple[str, ...]] = []
+
+    def runner(arguments: object) -> OwnerCommandResult:
+        assert isinstance(arguments, tuple)
+        calls.append(arguments)
+        _make_external_request(tmp_path, approved=True, completed=True, handed_off=True)
+        handoff_path = request_path.parent / "handoffs/handoff.json"
+        handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+        return OwnerCommandResult(
+            0,
+            json.dumps(
+                {
+                    "handoff_id": handoff["handoff_id"],
+                    "handoff_sha256": hashlib.sha256(handoff_path.read_bytes()).hexdigest(),
+                }
+            ),
+            "",
+        )
+
+    service = ResearchLabCommandService(collector, runner=runner)
+    result = service.record_external_handoff(
+        {
+            "snapshot_revision": snapshot.revision,
+            "task_id": EXTERNAL_TASK_ID,
+            "artifact_id": request_ref.artifact_id,
+            "artifact_sha256": request_ref.sha256,
+            "actor": "Meng Fu",
+            "reason": "Seal simulation evidence for Foundry-owned review.",
+        }
+    )
+
+    assert result["action"] == "record_external_handoff"
+    assert result["outcome"] == "handed_off_for_external_review"
+    assert "research-handoff-external" in calls[0]
+    assert not (tmp_path / "artifacts/research_promotion" / EXTERNAL_TASK_ID).exists()
 
 
 def test_exact_a0_service_delegates_fixed_argv_and_refreshes_snapshot(tmp_path: Path) -> None:
@@ -1096,6 +1381,7 @@ def test_mutation_http_requires_origin_csrf_and_exact_binding(tmp_path: Path) ->
         assert set(session["supported_actions"]) == {
             "review_a0",
             "reconcile",
+            "record_external_handoff",
             "import_candidate",
             "authorize_shadow",
             "authorize_active",

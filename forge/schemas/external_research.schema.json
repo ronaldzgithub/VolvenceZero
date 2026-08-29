@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.external-research.v1",
+  "oneOf": [
+    {"$ref": "#/$defs/descriptor"},
+    {"$ref": "#/$defs/handoff"},
+    {"$ref": "#/$defs/foundry_intent"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain_id", "task_id", "intent_id"],
+      "properties": {
+        "domain_id": {"const": "foundry"},
+        "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "intent_id": {"type": "string", "pattern": "^rli_[0-9a-f]{16}$"}
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "research_intent",
+        "budget",
+        "evidence_classification",
+        "result_adoption",
+        "human_application"
+      ],
+      "properties": {
+        "research_intent": {"const": "foundry"},
+        "budget": {"const": "foundry"},
+        "evidence_classification": {"const": "foundry"},
+        "result_adoption": {"const": "foundry"},
+        "human_application": {"const": "foundry"}
+      }
+    },
+    "result_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_locator",
+        "evidence_class",
+        "adoption_mode",
+        "market_validation_claimed",
+        "adoption_status",
+        "domain_human_review_required"
+      ],
+      "properties": {
+        "result_locator": {"type": "string", "minLength": 1},
+        "evidence_class": {"const": "simulation"},
+        "adoption_mode": {"const": "proposal_only"},
+        "market_validation_claimed": {"const": false},
+        "adoption_status": {"const": "pending_external_human_review"},
+        "domain_human_review_required": {"const": true}
+      }
+    },
+    "external_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_actions_allowed",
+        "foundry_checkout_write_allowed",
+        "foundry_ledger_write_allowed",
+        "direct_apply_allowed",
+        "productzero_start_allowed",
+        "volvence_promotion_eligible",
+        "modification_gate_applicable",
+        "runtime_wiring_applicable"
+      ],
+      "properties": {
+        "external_actions_allowed": {"const": false},
+        "foundry_checkout_write_allowed": {"const": false},
+        "foundry_ledger_write_allowed": {"const": false},
+        "direct_apply_allowed": {"const": false},
+        "productzero_start_allowed": {"const": false},
+        "volvence_promotion_eligible": {"const": false},
+        "modification_gate_applicable": {"const": false},
+        "runtime_wiring_applicable": {"const": false}
+      }
+    },
+    "foundry_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "intent_id",
+        "opportunity_id",
+        "title",
+        "objective",
+        "trigger",
+        "task_project",
+        "launch",
+        "adoption_policy",
+        "execution_policy",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "foundry-research-lab-intent.v1"},
+        "intent_id": {"type": "string", "pattern": "^rli_[0-9a-f]{16}$"},
+        "opportunity_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "title": {"type": "string", "minLength": 3, "maxLength": 200},
+        "objective": {"type": "string", "minLength": 20, "maxLength": 10000},
+        "trigger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "submitted_by", "rationale", "evidence_refs"],
+          "properties": {
+            "kind": {
+              "enum": ["human", "evolver_failure", "product_incident", "factory_diagnostic"]
+            },
+            "submitted_by": {"type": "string", "minLength": 1, "maxLength": 200},
+            "rationale": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "evidence_refs": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["locator", "sha256", "evidence_class"],
+                "properties": {
+                  "locator": {"type": "string", "minLength": 1},
+                  "sha256": {"$ref": "#/$defs/sha256"},
+                  "evidence_class": {"enum": ["public_source", "simulation"]}
+                }
+              }
+            }
+          }
+        },
+        "task_project": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root", "task_id", "task_yaml_sha256"],
+          "properties": {
+            "root": {"type": "string", "minLength": 1},
+            "task_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+            "task_yaml_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "launch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent_system",
+            "runtime",
+            "codex_native",
+            "model_provider",
+            "model",
+            "strategy",
+            "cohort",
+            "generations",
+            "startup_timeout_seconds"
+          ],
+          "properties": {
+            "agent_system": {"enum": ["claude_sdk", "codex_sdk"]},
+            "runtime": {"type": "string", "minLength": 1},
+            "codex_native": {"type": "boolean"},
+            "model_provider": {"type": "string", "minLength": 1},
+            "model": {"type": "string", "minLength": 1},
+            "strategy": {"enum": ["auto", "mixed", "explore", "exploit"]},
+            "cohort": {"type": "integer", "minimum": 1},
+            "generations": {"type": "integer", "minimum": 1},
+            "startup_timeout_seconds": {"type": "integer", "minimum": 0, "maximum": 300}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {"codex_native": {"const": true}},
+                "required": ["codex_native"]
+              },
+              "then": {
+                "properties": {
+                  "agent_system": {"const": "codex_sdk"},
+                  "runtime": {"const": "agent_runtime:codex_sdk"},
+                  "model_provider": {"const": "model_provider:openai_compatible"}
+                }
+              }
+            }
+          ]
+        },
+        "adoption_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "formal_validation_required",
+            "named_human_apply_required",
+            "foundry_gate_is_final_authority"
+          ],
+          "properties": {
+            "mode": {"const": "proposal_only"},
+            "formal_validation_required": {"const": true},
+            "named_human_apply_required": {"const": true},
+            "foundry_gate_is_final_authority": {"const": true}
+          }
+        },
+        "execution_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "evidence_class",
+            "execution_mode",
+            "external_actions_allowed",
+            "deployment_allowed",
+            "market_contact_allowed",
+            "payment_allowed",
+            "contract_acceptance_allowed",
+            "secret_material_allowed",
+            "foundry_checkout_write_allowed",
+            "foundry_ledger_write_allowed",
+            "direct_apply_allowed",
+            "productzero_start_allowed",
+            "named_human_research_approval_required"
+          ],
+          "properties": {
+            "evidence_class": {"const": "simulation"},
+            "execution_mode": {"const": "research_lab_delegated"},
+            "external_actions_allowed": {"const": false},
+            "deployment_allowed": {"const": false},
+            "market_contact_allowed": {"const": false},
+            "payment_allowed": {"const": false},
+            "contract_acceptance_allowed": {"const": false},
+            "secret_material_allowed": {"const": false},
+            "foundry_checkout_write_allowed": {"const": false},
+            "foundry_ledger_write_allowed": {"const": false},
+            "direct_apply_allowed": {"const": false},
+            "productzero_start_allowed": {"const": false},
+            "named_human_research_approval_required": {"const": true}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "descriptor_id",
+        "adapter",
+        "domain",
+        "bindings",
+        "control",
+        "result_policy",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-external-research-descriptor.v1"},
+        "descriptor_id": {
+          "type": "string",
+          "pattern": "^external-research-descriptor:[0-9a-f]{64}$"
+        },
+        "adapter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapter_id", "intent_schema_version"],
+          "properties": {
+            "adapter_id": {"const": "foundry-research-lab-intent.v1"},
+            "intent_schema_version": {"const": "foundry-research-lab-intent.v1"}
+          }
+        },
+        "domain": {"$ref": "#/$defs/domain"},
+        "bindings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["intent", "budget", "budget_source"],
+          "properties": {
+            "intent": {"$ref": "#/$defs/content_ref"},
+            "budget": {"$ref": "#/$defs/content_ref"},
+            "budget_source": {"const": "intent:/launch"}
+          }
+        },
+        "control": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["praxist_executable", "run_dir", "config_file"],
+          "properties": {
+            "praxist_executable": {"type": "string", "minLength": 1},
+            "run_dir": {"type": "string", "minLength": 1},
+            "config_file": {
+              "oneOf": [
+                {"type": "null"},
+                {"$ref": "#/$defs/content_ref"}
+              ]
+            }
+          }
+        },
+        "result_policy": {"$ref": "#/$defs/result_policy"},
+        "authority": {"$ref": "#/$defs/external_authority"},
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "handoff_id",
+        "descriptor",
+        "request",
+        "approval",
+        "terminal_event",
+        "external_domain",
+        "run",
+        "result",
+        "review",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-external-research-handoff.v1"},
+        "handoff_id": {
+          "type": "string",
+          "pattern": "^external-research-handoff:[0-9a-f]{64}$"
+        },
+        "descriptor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["descriptor_id", "artifact"],
+          "properties": {
+            "descriptor_id": {
+              "type": "string",
+              "pattern": "^external-research-descriptor:[0-9a-f]{64}$"
+            },
+            "artifact": {"$ref": "#/$defs/content_ref"}
+          }
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_id", "sha256"],
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "pattern": "^research-request:[0-9a-f]{64}$"
+            },
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approval_id", "sha256"],
+          "properties": {
+            "approval_id": {
+              "type": "string",
+              "pattern": "^research-approval:[0-9a-f]{64}$"
+            },
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "terminal_event": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_id", "sha256"],
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^research-control-event:[0-9a-f]{64}$"
+            },
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "external_domain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapter_id", "domain", "ownership"],
+          "properties": {
+            "adapter_id": {"const": "foundry-research-lab-intent.v1"},
+            "domain": {"$ref": "#/$defs/domain"},
+            "ownership": {"$ref": "#/$defs/ownership"}
+          }
+        },
+        "run": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["run_id", "run_dir"],
+          "properties": {
+            "run_id": {"type": "string", "minLength": 1},
+            "run_dir": {"type": "string", "minLength": 1}
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "evidence_class",
+            "adoption_mode",
+            "market_validation_claimed",
+            "adoption_status"
+          ],
+          "properties": {
+            "artifact": {"$ref": "#/$defs/content_ref"},
+            "evidence_class": {"const": "simulation"},
+            "adoption_mode": {"const": "proposal_only"},
+            "market_validation_claimed": {"const": false},
+            "adoption_status": {"const": "pending_external_human_review"}
+          }
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["recorded_by", "reason"],
+          "properties": {
+            "recorded_by": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {"$ref": "#/$defs/external_authority"},
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    }
+  }
+}

@@ -28,6 +28,7 @@ Optional environment:
   RESEARCH_LAB_PYTHON     Python >=3.11 executable (default: .venv/bin/python).
   RESEARCH_LAB_NODE       Node >=22.13 executable (Codex native is auto-detected).
   RESEARCH_LAB_PRAXIST    Praxist executable (sibling PRAXIST checkout is auto-detected).
+  RESEARCH_LAB_FOUNDRY_ROOT  Read-only Foundry descriptor root (sibling checkout is auto-detected).
   RESEARCH_LAB_API_PORT   API port override.
   RESEARCH_LAB_WEB_PORT   Web port override.
 EOF
@@ -178,6 +179,17 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
+RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED=""
+if [[ -n "${RESEARCH_LAB_FOUNDRY_ROOT:-}" ]]; then
+  if [[ ! -d "${RESEARCH_LAB_FOUNDRY_ROOT}" ]]; then
+    echo "Foundry root is not a directory: ${RESEARCH_LAB_FOUNDRY_ROOT}" >&2
+    exit 1
+  fi
+  RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED="$(cd "${RESEARCH_LAB_FOUNDRY_ROOT}" && pwd -P)"
+elif [[ -f "${RESEARCH_LAB_ROOT}/../foundry/schemas/research_lab_intent.schema.json" ]]; then
+  RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED="$(cd "${RESEARCH_LAB_ROOT}/../foundry" && pwd -P)"
+fi
+
 assert_port_free() {
   local port="$1"
   local label="$2"
@@ -223,12 +235,20 @@ if [[ "${RESEARCH_LAB_MODE}" == "controlled" ]]; then
     --ui-origin "http://localhost:${RESEARCH_LAB_WEB_PORT}"
     --ui-origin "http://127.0.0.1:${RESEARCH_LAB_WEB_PORT}"
   )
+  if [[ -n "${RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED}" ]]; then
+    RESEARCH_LAB_API_ARGS+=(
+      --external-domain-root "foundry=${RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED}"
+    )
+  fi
 fi
 
 echo "[research-lab] mode=${RESEARCH_LAB_MODE}"
 echo "[research-lab] python=${RESEARCH_LAB_PYTHON_BIN}"
 echo "[research-lab] node=${RESEARCH_LAB_NODE_BIN} (${RESEARCH_LAB_NODE_VERSION})"
 echo "[research-lab] praxist=${RESEARCH_LAB_PRAXIST_BIN}"
+if [[ -n "${RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED}" ]]; then
+  echo "[research-lab] external foundry root=${RESEARCH_LAB_FOUNDRY_ROOT_RESOLVED} (read-only ingress)"
+fi
 echo "[research-lab] no Praxist start occurs until an exact A0 review and Forge reconcile are submitted"
 
 PYTHONUNBUFFERED=1 \

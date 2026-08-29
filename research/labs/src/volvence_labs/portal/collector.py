@@ -65,8 +65,10 @@ _EXPECTED_IDS = {
     "forge-research-opportunity.v1": "opportunity_id",
     "forge-research-opportunity-routing.v1": "routing_id",
     "forge-research-request.v1": "request_id",
+    "forge-external-research-request.v1": "request_id",
     "forge-research-approval.v1": "approval_id",
     "forge-research-control-event.v1": "event_id",
+    "forge-external-research-handoff.v1": "handoff_id",
     "forge-research-candidate.v1": "candidate_id",
     "forge-research-promotion-receipt.v1": "receipt_id",
 }
@@ -148,8 +150,10 @@ class ResearchLabCollector:
         promotions = self._load_promotions(warnings, source_counts)
 
         items: list[ResearchLabItem] = []
+        formal_task_ids: set[str] = set()
         for task in tasks:
             task_id = _require_str(task.payload, "task_id", task.path)
+            formal_task_ids.add(task_id)
             item_warnings = [warning for warning in warnings if warning.task_id == task_id]
             inherited_warning_count = len(item_warnings)
             control = self._load_control(task_id, item_warnings, source_counts)
@@ -165,6 +169,30 @@ class ResearchLabCollector:
                 warnings=item_warnings,
             )
             items.append(item)
+            warnings.extend(item_warnings[inherited_warning_count:])
+
+        control_root = self.repo_root / "artifacts" / "research_control"
+        for task_root in sorted(control_root.glob("external_*")):
+            task_id = task_root.name
+            if task_id in formal_task_ids or not task_root.is_dir():
+                continue
+            item_warnings = [warning for warning in warnings if warning.task_id == task_id]
+            inherited_warning_count = len(item_warnings)
+            control = self._load_control(
+                task_id,
+                item_warnings,
+                source_counts,
+                request_versions=frozenset({"forge-external-research-request.v1"}),
+            )
+            if control.request is None:
+                continue
+            items.append(
+                self._build_external_item(
+                    control=control,
+                    status_rows=status_rows,
+                    warnings=item_warnings,
+                )
+            )
             warnings.extend(item_warnings[inherited_warning_count:])
 
         items.sort(key=lambda item: (item.lifecycle.stage.value, item.task_id))
@@ -283,13 +311,36 @@ class ResearchLabCollector:
         task_id: str,
         warnings: list[PortalWarning],
         counts: dict[str, int],
+        request_versions: frozenset[str] = frozenset({"forge-research-request.v1"}),
     ) -> _ControlBundle:
         root = self.repo_root / "artifacts" / "research_control" / task_id
         requests: list[_LoadedArtifact] = []
         for path in sorted(root.glob("*/request.json")):
-            artifact = self._load_artifact(path, "forge-research-request.v1", "research request", warnings)
-            if artifact is not None:
-                requests.append(artifact)
+            payload = self._load_json_object(path, "research request", warnings, task_id=task_id)
+            if payload is None:
+                continue
+            version = payload.get("schema_version")
+            if version not in request_versions:
+                warnings.append(
+                    PortalWarning(
+                        code="ARTIFACT_SCHEMA_MISMATCH",
+                        message=(
+                            f"expected one of {sorted(request_versions)}, got {version!r}: "
+                            f"{_portable(path, self.repo_root)}"
+                        ),
+                        source="control",
+                        severity=WarningSeverity.ERROR,
+                        task_id=task_id,
+                    )
+                )
+                continue
+            requests.append(
+                _LoadedArtifact(
+                    payload=payload,
+                    ref=_artifact_ref(path, payload, "research request", self.repo_root),
+                    path=path,
+                )
+            )
         counts["control"] += len(requests)
         if not requests:
             return _ControlBundle(None, None, None)
@@ -564,6 +615,7 @@ class ResearchLabCollector:
         return ResearchLabItem(
             item_id=f"research-lab-item:{task_id}",
             task_id=task_id,
+            research_mode="volvence_promotion",
             claim_id=_require_str(task.payload, "claim_id", task.path),
             title=title,
             objective=_require_str(task.payload, "objective", task.path),
@@ -578,6 +630,277 @@ class ResearchLabCollector:
             available_actions=_actions(lifecycle.stage, control, promotion, handoff),
             warnings=tuple(warnings),
             updated_at=updated_at,
+        )
+
+    def _build_external_item(
+        self,
+        *,
+        control: _ControlBundle,
+        status_rows: Sequence[Mapping[str, Any]],
+        warnings: list[PortalWarning],
+    ) -> ResearchLabItem:
+        request = control.request
+        if request is None:  # pragma: no cover - caller narrows this invariant.
+            raise AssertionError("external item requires a ResearchRequest")
+        payload = request.payload
+        task_id = _require_str(payload, "task_id", request.path)
+        external = _require_mapping(payload, "external_domain", request.path)
+        bindings = _require_mapping(payload, "bindings", request.path)
+        project = _require_mapping(bindings, "task_project", request.path)
+        task_project = Path(_require_str(project, "root", request.path)).expanduser()
+
+        matching_rows = [row for row in status_rows if _same_path(row.get("task_path"), task_project)]
+        active_rows = [row for row in matching_rows if row.get("state") == "running"]
+        run: PraxistRunSnapshot | None = None
+        terminal_control = (
+            control.event is not None
+            and control.event.payload.get("state") in {"RUN_COMPLETED", "RUN_FAILED", "BLOCKED"}
+        )
+        if terminal_control and control.event is not None:
+            run = _external_event_run(payload, control.event.payload)
+            if active_rows:
+                warnings.append(
+                    PortalWarning(
+                        code="PRAXIST_STATUS_AFTER_TERMINAL_EVENT",
+                        message="live status conflicts with the exact terminal Research Control event",
+                        source="praxist",
+                        severity=WarningSeverity.ERROR,
+                        task_id=task_id,
+                    )
+                )
+        elif len(active_rows) == 1:
+            run = self._run_snapshot(active_rows[0], task_id, warnings)
+        elif len(active_rows) > 1:
+            warnings.append(
+                PortalWarning(
+                    code="DUPLICATE_ACTIVE_RUNS",
+                    message=f"{len(active_rows)} active Praxist runs map to one external Request",
+                    source="praxist",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+        elif matching_rows:
+            latest_row = max(
+                matching_rows,
+                key=lambda row: str(row.get("updated_at") or row.get("started_at") or row.get("run_id") or ""),
+            )
+            run = self._run_snapshot(latest_row, task_id, warnings)
+        elif control.event is not None:
+            run = _external_event_run(payload, control.event.payload)
+
+        handoff = self._load_external_handoff(control, task_id, warnings)
+        lifecycle = _external_lifecycle(
+            control=control,
+            run=run,
+            handoff=handoff,
+            duplicate_active_runs=not terminal_control and len(active_rows) > 1,
+        )
+        refs = [request.ref]
+        for artifact in (control.approval, control.event, handoff):
+            if artifact is not None:
+                refs.append(artifact.ref)
+        declared = (
+            ("external descriptor", bindings.get("external_descriptor"), external.get("descriptor_id")),
+            ("external intent", bindings.get("external_intent"), external.get("intent_id")),
+            ("external budget", bindings.get("external_budget"), external.get("intent_id")),
+        )
+        for kind, raw_ref, artifact_id in declared:
+            ref = self._external_declared_ref(
+                kind=kind,
+                raw_ref=raw_ref,
+                artifact_id=artifact_id,
+                task_id=task_id,
+                warnings=warnings,
+            )
+            if ref is not None:
+                refs.append(ref)
+        raw_evidence = bindings.get("external_evidence")
+        if isinstance(raw_evidence, list):
+            for index, raw_ref in enumerate(raw_evidence):
+                ref = self._external_declared_ref(
+                    kind=f"external evidence {index}",
+                    raw_ref=raw_ref,
+                    artifact_id=None,
+                    task_id=task_id,
+                    warnings=warnings,
+                )
+                if ref is not None:
+                    refs.append(ref)
+
+        authority = AuthoritySnapshot(
+            a0_research_start_authorized=_is_a0_approved(control),
+            formal_validation_status="external_domain_owned",
+            modification_gate_decision="not_applicable",
+            authorized_wiring="not_applicable",
+            runtime_wiring="not_applicable",
+            target_adapter_apply_required=False,
+            production_default_changed=False,
+            evaluation_is_learning_source=False,
+        )
+        development = "simulation_pending"
+        if run is not None and run.state == "running":
+            development = "simulation_running"
+        if run is not None and run.state == "completed":
+            development = "simulation_completed"
+        if handoff is not None:
+            development = "simulation_handoff_sealed"
+        evidence = EvidenceSnapshot(
+            development=development,
+            formal="external_domain_owned",
+            shadow="not_applicable",
+            canary="not_applicable",
+        )
+        updated_at = _latest_timestamp(
+            run.updated_at if run else None,
+            *(
+                _created_at(artifact.payload)
+                for artifact in (handoff, control.event, control.approval, request)
+                if artifact is not None
+            ),
+        )
+        external_task_id = str(external.get("task_id", task_id))
+        return ResearchLabItem(
+            item_id=f"research-lab-item:{task_id}",
+            task_id=task_id,
+            research_mode="external_simulation",
+            claim_id=_require_str(payload, "claim_id", request.path),
+            title=f"Foundry · {external_task_id}",
+            objective=_require_str(payload, "objective", request.path),
+            owner=_require_str(payload, "owner", request.path),
+            capability_axes=(),
+            release_target="foundry:simulation:proposal_only",
+            lifecycle=lifecycle,
+            authority=authority,
+            evidence=evidence,
+            bindings=tuple(refs),
+            run=run,
+            available_actions=_external_actions(lifecycle.stage, handoff),
+            warnings=tuple(warnings),
+            updated_at=updated_at,
+        )
+
+    def _load_external_handoff(
+        self,
+        control: _ControlBundle,
+        task_id: str,
+        warnings: list[PortalWarning],
+    ) -> _LoadedArtifact | None:
+        request = control.request
+        if request is None:
+            return None
+        paths = sorted(request.path.parent.glob("handoffs/*.json"))
+        if len(paths) > 1:
+            warnings.append(
+                PortalWarning(
+                    code="EXTERNAL_HANDOFF_AMBIGUOUS",
+                    message="external Request has more than one immutable handoff",
+                    source="control",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+            return None
+        if not paths:
+            return None
+        handoff = self._load_artifact(
+            paths[0],
+            "forge-external-research-handoff.v1",
+            "external handoff",
+            warnings,
+        )
+        if handoff is None:
+            return None
+        request_binding = handoff.payload.get("request")
+        result = handoff.payload.get("result")
+        authority = handoff.payload.get("authority")
+        if (
+            not isinstance(request_binding, Mapping)
+            or request_binding.get("request_id") != request.ref.artifact_id
+            or request_binding.get("sha256") != request.ref.sha256
+            or not isinstance(result, Mapping)
+            or result.get("evidence_class") != "simulation"
+            or result.get("adoption_mode") != "proposal_only"
+            or not isinstance(authority, Mapping)
+            or authority.get("volvence_promotion_eligible") is not False
+            or authority.get("modification_gate_applicable") is not False
+            or authority.get("runtime_wiring_applicable") is not False
+        ):
+            warnings.append(
+                PortalWarning(
+                    code="EXTERNAL_HANDOFF_BINDING_MISMATCH",
+                    message="external handoff does not preserve its exact simulation-only Request boundary",
+                    source="control",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+            return None
+        return handoff
+
+    def _external_declared_ref(
+        self,
+        *,
+        kind: str,
+        raw_ref: object,
+        artifact_id: object,
+        task_id: str,
+        warnings: list[PortalWarning],
+    ) -> ArtifactRef | None:
+        if not isinstance(raw_ref, Mapping):
+            warnings.append(
+                PortalWarning(
+                    code="EXTERNAL_BINDING_MALFORMED",
+                    message=f"{kind} binding is not an object",
+                    source="control",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+            return None
+        locator = raw_ref.get("locator")
+        declared_sha = raw_ref.get("sha256")
+        if not isinstance(locator, str) or not isinstance(declared_sha, str):
+            warnings.append(
+                PortalWarning(
+                    code="EXTERNAL_BINDING_MALFORMED",
+                    message=f"{kind} binding lacks locator or SHA-256",
+                    source="control",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+            return None
+        path = Path(locator).expanduser()
+        path = path if path.is_absolute() else self.repo_root / path
+        try:
+            actual_sha = _sha256_file(path.resolve())
+        except OSError as exc:
+            warnings.append(
+                PortalWarning(
+                    code="EXTERNAL_BINDING_UNREADABLE",
+                    message=f"cannot read {kind}: {exc}",
+                    source="control",
+                    severity=WarningSeverity.ERROR,
+                    task_id=task_id,
+                )
+            )
+        else:
+            if actual_sha != declared_sha:
+                warnings.append(
+                    PortalWarning(
+                        code="EXTERNAL_BINDING_DRIFT",
+                        message=f"{kind} bytes changed after Request submission",
+                        source="control",
+                        severity=WarningSeverity.ERROR,
+                        task_id=task_id,
+                    )
+                )
+        return ArtifactRef(
+            kind=kind,
+            locator=_portable(path, self.repo_root),
+            sha256=declared_sha,
+            artifact_id=str(artifact_id) if isinstance(artifact_id, str) else None,
         )
 
     def _run_snapshot(
@@ -783,6 +1106,160 @@ class ResearchLabCollector:
                 detail = "no artifacts yet"
             result.append(SourceHealth(source, status, counts[source], detail))
         return result
+
+
+def _external_event_run(
+    request: Mapping[str, Any],
+    event: Mapping[str, Any],
+) -> PraxistRunSnapshot | None:
+    raw_run = event.get("run")
+    if not isinstance(raw_run, Mapping):
+        return None
+    event_state = str(event.get("state", ""))
+    state = raw_run.get("praxist_state")
+    if not isinstance(state, str) or not state:
+        state = {
+            "RUNNING": "running",
+            "RUN_COMPLETED": "completed",
+            "RUN_FAILED": "failed",
+            "STARTING": "starting",
+        }.get(event_state, "unknown")
+    profile = request.get("launch")
+    profile = profile.get("profile") if isinstance(profile, Mapping) else None
+    bindings = request.get("bindings")
+    project = bindings.get("task_project") if isinstance(bindings, Mapping) else None
+    task_path = project.get("root") if isinstance(project, Mapping) else ""
+    pid = raw_run.get("pid")
+    generation = raw_run.get("generation")
+    findings = raw_run.get("findings_total")
+    return PraxistRunSnapshot(
+        run_id=str(raw_run.get("run_id", "")),
+        state=state,
+        source="research_control_event",
+        pid=pid if state == "running" and isinstance(pid, int) and not isinstance(pid, bool) else None,
+        task_path=str(task_path),
+        run_dir=str(raw_run["run_dir"]) if isinstance(raw_run.get("run_dir"), str) else None,
+        generation=(
+            generation if isinstance(generation, int) and not isinstance(generation, bool) else None
+        ),
+        findings_total=(
+            findings if isinstance(findings, int) and not isinstance(findings, bool) else 0
+        ),
+        peers_total=0,
+        peer_health=(),
+        runtime=(
+            str(profile["runtime"])
+            if isinstance(profile, Mapping) and isinstance(profile.get("runtime"), str)
+            else None
+        ),
+        model_provider=(
+            str(profile["model_provider"])
+            if isinstance(profile, Mapping) and isinstance(profile.get("model_provider"), str)
+            else None
+        ),
+        model=(
+            str(profile["model"])
+            if isinstance(profile, Mapping) and isinstance(profile.get("model"), str)
+            else None
+        ),
+        started_at=None,
+        updated_at=(
+            str(raw_run["updated_at"])
+            if isinstance(raw_run.get("updated_at"), str)
+            else _created_at(event)
+        ),
+    )
+
+
+def _external_lifecycle(
+    *,
+    control: _ControlBundle,
+    run: PraxistRunSnapshot | None,
+    handoff: _LoadedArtifact | None,
+    duplicate_active_runs: bool,
+) -> LifecycleSnapshot:
+    if duplicate_active_runs:
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            "multiple active Praxist runs map to one external Request",
+            run.updated_at if run else None,
+        )
+    if control.approval is not None and control.approval.payload.get("decision") == "REJECT":
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            "exact A0 review rejected this external ResearchRequest",
+            _created_at(control.approval.payload),
+        )
+    if control.event is not None and control.event.payload.get("state") in {"BLOCKED", "RUN_FAILED"}:
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            f"Research Control state is {control.event.payload.get('state')}",
+            _created_at(control.event.payload),
+        )
+    if handoff is not None:
+        return LifecycleSnapshot(
+            LifecycleStage.RESEARCH_COMPLETE,
+            None,
+            None,
+            _created_at(handoff.payload),
+        )
+    if run is not None and run.state == "completed":
+        return LifecycleSnapshot(
+            LifecycleStage.RESEARCH_COMPLETE,
+            None,
+            "simulation result is complete and awaits immutable external handoff",
+            run.updated_at,
+        )
+    if run is not None and run.state == "running":
+        return LifecycleSnapshot(
+            LifecycleStage.RESEARCH_RUNNING,
+            LifecycleStage.RESEARCH_COMPLETE,
+            None,
+            run.started_at or run.updated_at,
+        )
+    if run is not None and run.state in {"failed", "stale", "stopped", "status_inconsistent", "unknown"}:
+        return LifecycleSnapshot(
+            LifecycleStage.BLOCKED,
+            None,
+            f"Praxist run is {run.state}; explicit lifecycle repair is required",
+            run.updated_at,
+        )
+    if _is_a0_approved(control):
+        blocker = None
+        if control.event is not None and control.event.payload.get("state") == "WAITING_FOR_CAPACITY":
+            blocker = "waiting for Praxist capacity"
+        return LifecycleSnapshot(
+            LifecycleStage.PREFLIGHT,
+            LifecycleStage.RESEARCH_RUNNING,
+            blocker,
+            _created_at(control.event.payload if control.event else control.approval.payload),
+        )
+    return LifecycleSnapshot(
+        LifecycleStage.AWAITING_A0,
+        LifecycleStage.PREFLIGHT,
+        "exact named-human research approval is required",
+        _created_at(control.request.payload) if control.request is not None else None,
+    )
+
+
+def _external_actions(
+    stage: LifecycleStage,
+    handoff: _LoadedArtifact | None,
+) -> tuple[str, ...]:
+    if stage is LifecycleStage.AWAITING_A0:
+        return ("review_a0",)
+    if stage is LifecycleStage.PREFLIGHT:
+        return ("reconcile",)
+    if stage is LifecycleStage.RESEARCH_RUNNING:
+        return ("reconcile", "view_run")
+    if stage is LifecycleStage.RESEARCH_COMPLETE and handoff is None:
+        return ("record_external_handoff",)
+    if stage is LifecycleStage.BLOCKED:
+        return ("inspect_blocker",)
+    return ()
 
 
 def _authority(
@@ -1092,6 +1569,7 @@ def _is_a0_approved(control: _ControlBundle) -> bool:
 def _item_revision_view(item: ResearchLabItem) -> dict[str, Any]:
     return {
         "task_id": item.task_id,
+        "research_mode": item.research_mode,
         "stage": item.lifecycle.stage.value,
         "bindings": [(ref.kind, ref.sha256) for ref in item.bindings],
         "run": (
@@ -1351,7 +1829,12 @@ def _malformed_warning(path: Path, exc: Exception, *, source: str) -> PortalWarn
 def _source_for_version(version: str) -> str:
     if "opportunity" in version:
         return "opportunities"
-    if "request" in version or "approval" in version or "control-event" in version:
+    if (
+        "request" in version
+        or "approval" in version
+        or "control-event" in version
+        or "external-research-handoff" in version
+    ):
         return "control"
     if version == "forge-research-task.v1":
         return "tasks"
@@ -1364,7 +1847,7 @@ def _source_for_kind(kind: str) -> str:
         return "praxist"
     if "opportunity" in lowered:
         return "opportunities"
-    if "request" in lowered or "approval" in lowered or "event" in lowered:
+    if "request" in lowered or "approval" in lowered or "event" in lowered or "external handoff" in lowered:
         return "control"
     if "task" in lowered:
         return "tasks"

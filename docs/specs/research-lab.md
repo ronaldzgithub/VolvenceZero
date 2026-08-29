@@ -1,7 +1,7 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.4 architecture freeze；exact-bound aggregation + local promotion workbench implemented
-> Last updated: 2026-08-29
+> Status: v1.5；exact-bound aggregation + local promotion workbench + external simulation seam implemented
+> Last updated: 2026-08-30
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
 
@@ -32,12 +32,19 @@ Lab 不成为新的研究、验证、gate 或 wiring owner。它只做两件事�
 因此 Lab 不能用按钮直接改数据库、写 candidate、启动任意命令或切换 production wiring。UI 上的一个
 “批准”动作仍必须产生与 CLI 完全相同的 exact-bound Approval/receipt。
 
+外部领域走一条不与 Volvence promotion 混合的轨道：Foundry `foundry-research-lab-intent.v1` 经 external
+descriptor 形成 exact Request，复用 A0/Praxist 调和，完成后终止于 immutable simulation handoff。该轨道没有
+Candidate、ModificationGate、SHADOW、ACTIVE 或 runtime wiring。完整协议见
+[`external-research-adapter.md`](./external-research-adapter.md)。
+
 ## 2. 唯一 owner 与边界
 
 | 数据/动作 | 唯一 owner | Lab 权限 |
 |---|---|---|
 | FailurePattern / Opportunity / routing | `volvence_forge.research_opportunity` | 只读；可委托一次 bounded scan |
 | ResearchRequest / Approval / Event | `volvence_forge.research_control` | 只读；可提交 exact A0 review 与 reconcile |
+| Foundry Intent / budget / evidence class / adoption | Foundry | 只读 exact binding；Lab 不重分类、不采纳、不 apply |
+| external descriptor / simulation handoff | `volvence_forge.research_control` | 可委托 submit/handoff；不转入 Volvence promotion |
 | task resolution、run、generation、frontier | Praxist | 只读 targeted status；启动只经 approved Forge reconcile |
 | candidate import / formal validation / gate receipt | Forge promotion pipeline + named validator/Gate | 只读；可委托 exact import/authorize |
 | runtime wiring | target owner | 只读 receipt；Lab 不直接 mutate |
@@ -53,7 +60,7 @@ Lab 不成为新的研究、验证、gate 或 wiring owner。它只做两件事�
 
 - `schema_version / generated_at / repo_revision / source_health`；
 - `summary`：各 lifecycle stage 数量、active run 数、blocked 数、待人审数；
-- `items[]`：稳定 `item_id/task_id/claim_id/owner/capability_axes`；
+- `items[]`：稳定 `item_id/task_id/research_mode/claim_id/owner/capability_axes`；
 - `lifecycle`：当前 stage、允许的下一 stage、blocking reason、last transition；
 - `bindings`：Task、Request、Approval、run、candidate、validation、gate、receipt 的 content refs；
 - `run`：Praxist `run_id/state/pid/generation/findings/run_dir`，无匹配时显式 null；
@@ -101,6 +108,10 @@ stage 只是导航视图，不替代 authority。以下状态始终正交显示�
 
 Research completion 不自动进入 formal validation；formal PASS 不自动进入 SHADOW；SHADOW observation 不自动
 进入 ACTIVE。每条边都必须有 exact artifact 与 named human review。
+
+`research_mode=external_simulation` 时，`RESEARCH_COMPLETE` 是 Lab 轨道终点：缺 handoff 只开放
+`record_external_handoff`，handoff sealed 后不开放 Candidate/A1/A2。其 authority readout 对 formal、Gate 与
+wiring 显式显示 `external_domain_owned/not_applicable`，不能借用 Volvence stage 文案暗示上线权限。
 
 Praxist status 的 `completed` 是 process lifecycle readout，不等于 committed handoff。Lab 只在 completed run 的固定
 `<run_dir>/volvence_handoff.json` 读取 `forge-praxist-candidate-handoff.v1`，并核对 `task_id/run_id`；缺失、schema
@@ -151,6 +162,8 @@ GET  /api/v1/tasks/{task_id}
 POST /api/v1/scan
 POST /api/v1/a0/review
 POST /api/v1/reconcile
+POST /api/v1/external/requests
+POST /api/v1/external/handoff
 POST /api/v1/candidates/import
 POST /api/v1/a1/authorize-shadow
 POST /api/v1/a2/authorize-active
@@ -167,6 +180,8 @@ adapter 仍消费 receipt 并执行自身协议。
 | `GET snapshot/task/session` | 已实现；含跨 owner exact promotion graph 与 completed handoff | portal collector/session |
 | `POST a0/review` | 已实现，mutation mode 默认关闭 | `forge research-approve` |
 | `POST reconcile` | 已实现，仅当 fresh snapshot 发布 `reconcile` 动作 | `forge research-reconcile --once --request ...` |
+| `POST external/requests` | 已实现；registered domain root + descriptor id/file SHA + fresh revision | `forge research-submit-external --json` |
+| `POST external/handoff` | 已实现；只接受 completed external Request，固定 simulation/proposal_only | `forge research-handoff-external --json` |
 | `POST candidates/import` | 已实现；只接受 completed run 的 exact Task/Handoff/run id | `forge research-import-praxist` |
 | `POST a1/authorize-shadow` | 已实现；首次或 fresh rollback boundary 的 exact Candidate/Validation/Gate | `forge research-authorize --to-wiring shadow` |
 | `POST a2/authorize-active` | 已实现；要求 fresh Validation/Gate 与 exact previous SHADOW receipt | `forge research-authorize --to-wiring active` |
@@ -177,6 +192,10 @@ adapter 仍消费 receipt 并执行自身协议。
 argv 或 extra args；客户端只提交 snapshot revision、Task id、artifact id/hash、named actor、reason 与 typed
 decision。服务从 fresh snapshot 反查正式 locator、重算文件 SHA，并在 action 仍可用时构造固定 argv。Forge 自身仍
 二次验证 Request identity、全部 binding bytes、全局 capacity 与 reconcile lock，因此 portal 的预检不替代 owner gate。
+
+唯一 locator 例外是 external submit 的 `descriptor_locator`：它必须是 server 启动时显式注册的
+`--external-domain-root DOMAIN_ID=/absolute/root` 下的安全相对 regular file，并同时提交 descriptor id/file SHA。
+客户端仍不能提交任意绝对 path、Praxist argv 或 launch override。
 
 Promotion endpoint 同样不接受 path：import 绑定 Task SHA、Handoff SHA 与 run id；A1/A2 绑定 Task/Candidate id+SHA、
 Validation/Gate SHA 以及 nullable/exact previous receipt；rollback 只绑定 current Receipt id+SHA，降级目标由 receipt 的
@@ -197,6 +216,9 @@ Lab 控制本机仓库、Praxist registry 和进程，因此 functional control 
 controlled local mode；它只启动 API 与 Web、检查端口和依赖、在退出时回收两个子进程。它禁止调用
 `praxist start`、自动生成 Approval、自动 reconcile 或直接修改 wiring。`--read-only` 会关闭全部 POST delegation；端口已被
 占用时 launcher 必须拒绝启动，不能复用或覆盖未知进程。
+
+launcher 可只读检测 sibling Foundry checkout，并注册 `foundry=<root>` ingress；这不扫描、不提交、不审批 Intent，
+也不写 Foundry。未注册 root 时 external POST fail closed，现有 Volvence UI/CLI 不受影响。
 
 ## 8. 收敛包与里程碑
 

@@ -3,6 +3,7 @@
   "$id": "forge.research-control.v1",
   "oneOf": [
     {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/external_request"},
     {"$ref": "#/$defs/approval"},
     {"$ref": "#/$defs/event"}
   ],
@@ -46,6 +47,16 @@
       "properties": {
         "locator": {"type": "string", "minLength": 1},
         "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "classified_content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256", "evidence_class"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_class": {"enum": ["public_source", "simulation"]}
       }
     },
     "project_file": {
@@ -233,6 +244,201 @@
             "research_start_authorized": {"const": false},
             "production_promotion_authorized": {"const": false},
             "formal_validation_required_after_run": {"const": true},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "external_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_id",
+        "task_id",
+        "claim_id",
+        "owner",
+        "objective",
+        "external_domain",
+        "trigger",
+        "bindings",
+        "launch",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-external-research-request.v1"},
+        "request_id": {
+          "type": "string",
+          "pattern": "^research-request:[0-9a-f]{64}$"
+        },
+        "task_id": {"type": "string", "pattern": "^external_[0-9a-f]{16}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "objective": {"type": "string", "minLength": 1},
+        "external_domain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "descriptor_id",
+            "adapter_id",
+            "intent_schema_version",
+            "domain_id",
+            "task_id",
+            "intent_id",
+            "ownership",
+            "result_policy"
+          ],
+          "properties": {
+            "descriptor_id": {
+              "type": "string",
+              "pattern": "^external-research-descriptor:[0-9a-f]{64}$"
+            },
+            "adapter_id": {"const": "foundry-research-lab-intent.v1"},
+            "intent_schema_version": {"const": "foundry-research-lab-intent.v1"},
+            "domain_id": {"const": "foundry"},
+            "task_id": {"type": "string", "minLength": 1},
+            "intent_id": {"type": "string", "minLength": 1},
+            "ownership": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "research_intent",
+                "budget",
+                "evidence_classification",
+                "result_adoption",
+                "human_application"
+              ],
+              "properties": {
+                "research_intent": {"type": "string", "minLength": 1},
+                "budget": {"type": "string", "minLength": 1},
+                "evidence_classification": {"type": "string", "minLength": 1},
+                "result_adoption": {"type": "string", "minLength": 1},
+                "human_application": {"type": "string", "minLength": 1}
+              }
+            },
+            "result_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "result_locator",
+                "evidence_class",
+                "adoption_mode",
+                "market_validation_claimed",
+                "adoption_status",
+                "domain_human_review_required"
+              ],
+              "properties": {
+                "result_locator": {"type": "string", "minLength": 1},
+                "evidence_class": {"const": "simulation"},
+                "adoption_mode": {"const": "proposal_only"},
+                "market_validation_claimed": {"const": false},
+                "adoption_status": {"const": "pending_external_human_review"},
+                "domain_human_review_required": {"const": true}
+              }
+            }
+          }
+        },
+        "trigger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "submitted_by", "rationale", "evidence"],
+          "properties": {
+            "kind": {"const": "external_domain_descriptor"},
+            "submitted_by": {"type": "string", "minLength": 1},
+            "rationale": {"type": "string", "minLength": 1},
+            "evidence": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/content_ref"}
+            }
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "external_descriptor",
+            "external_intent",
+            "external_budget",
+            "external_evidence",
+            "task_project",
+            "praxist"
+          ],
+          "properties": {
+            "external_descriptor": {"$ref": "#/$defs/content_ref"},
+            "external_intent": {"$ref": "#/$defs/content_ref"},
+            "external_budget": {"$ref": "#/$defs/content_ref"},
+            "external_evidence": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/classified_content_ref"}
+            },
+            "task_project": {"$ref": "#/$defs/task_project_snapshot"},
+            "praxist": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["executable", "source_checkout"],
+              "properties": {
+                "executable": {"$ref": "#/$defs/content_ref"},
+                "source_checkout": {"$ref": "#/$defs/source_checkout_snapshot"}
+              }
+            }
+          }
+        },
+        "launch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_dir",
+            "run_id",
+            "daemonize",
+            "status_scope",
+            "profile"
+          ],
+          "properties": {
+            "run_dir": {"type": "string", "minLength": 1},
+            "run_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            "daemonize": {"const": true},
+            "status_scope": {"const": "targeted_run_id"},
+            "profile": {"$ref": "#/$defs/launch_profile"}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "human_research_approval_required",
+            "research_start_authorized",
+            "external_domain_adoption_required",
+            "external_domain_human_apply_required",
+            "result_evidence_class",
+            "external_actions_allowed",
+            "foundry_checkout_write_allowed",
+            "foundry_ledger_write_allowed",
+            "direct_apply_allowed",
+            "productzero_start_allowed",
+            "production_promotion_authorized",
+            "modification_gate_applicable",
+            "runtime_wiring_applicable",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "human_research_approval_required": {"const": true},
+            "research_start_authorized": {"const": false},
+            "external_domain_adoption_required": {"const": true},
+            "external_domain_human_apply_required": {"const": true},
+            "result_evidence_class": {"const": "simulation"},
+            "external_actions_allowed": {"const": false},
+            "foundry_checkout_write_allowed": {"const": false},
+            "foundry_ledger_write_allowed": {"const": false},
+            "direct_apply_allowed": {"const": false},
+            "productzero_start_allowed": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "modification_gate_applicable": {"const": false},
+            "runtime_wiring_applicable": {"const": false},
             "evaluation_is_learning_source": {"const": false}
           }
         },

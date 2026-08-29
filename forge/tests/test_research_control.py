@@ -19,9 +19,12 @@ from volvence_forge.research_control import (
     SubprocessPraxistRunner,
     inspect_research_request,
     list_research_inbox,
+    record_external_research_handoff,
     reconcile_research_control,
     review_research_request,
+    submit_external_research_request,
     submit_research_request,
+    validate_external_research_descriptor,
     validate_research_request,
 )
 
@@ -411,6 +414,123 @@ def _submit(fixture: ControlFixture, **overrides: Any):
     return submit_research_request(**values)
 
 
+def _external_descriptor(fixture: ControlFixture, *, result_locator: str = "result.json") -> Path:
+    root = fixture.config.paths.repo_root / "external-foundry"
+    evidence = _write_json(root / "artifacts/evidence.json", {"source": "public"})
+    intent: dict[str, Any] = {
+        "schema_version": "foundry-research-lab-intent.v1",
+        "opportunity_id": "opp_research_lab_001",
+        "title": "Improve one bounded Foundry mechanism",
+        "objective": "Explore evaluator-backed variants without changing Foundry governance surfaces.",
+        "trigger": {
+            "kind": "factory_diagnostic",
+            "submitted_by": "Foundry detector",
+            "rationale": "A bounded mechanism has measurable alternatives.",
+            "evidence_refs": [
+                {
+                    "locator": str(evidence.resolve()),
+                    "sha256": _sha(evidence),
+                    "evidence_class": "public_source",
+                }
+            ],
+        },
+        "task_project": {
+            "root": str(fixture.task_project.resolve()),
+            "task_id": "memory_inheritance_project",
+            "task_yaml_sha256": _sha(fixture.task_project / "task.yaml"),
+        },
+        "launch": {
+            "agent_system": "claude_sdk",
+            "runtime": "agent_runtime:claude_sdk",
+            "codex_native": False,
+            "model_provider": "model_provider:fake",
+            "model": "fake-model",
+            "strategy": "auto",
+            "cohort": 2,
+            "generations": 3,
+            "startup_timeout_seconds": 30,
+        },
+        "adoption_policy": {
+            "mode": "proposal_only",
+            "formal_validation_required": True,
+            "named_human_apply_required": True,
+            "foundry_gate_is_final_authority": True,
+        },
+        "execution_policy": {
+            "evidence_class": "simulation",
+            "execution_mode": "research_lab_delegated",
+            "external_actions_allowed": False,
+            "deployment_allowed": False,
+            "market_contact_allowed": False,
+            "payment_allowed": False,
+            "contract_acceptance_allowed": False,
+            "secret_material_allowed": False,
+            "foundry_checkout_write_allowed": False,
+            "foundry_ledger_write_allowed": False,
+            "direct_apply_allowed": False,
+            "productzero_start_allowed": False,
+            "named_human_research_approval_required": True,
+        },
+        "created_at": "2026-08-30T00:00:00Z",
+    }
+    intent_identity = {
+        key: value for key, value in intent.items() if key not in {"intent_id", "created_at"}
+    }
+    intent["intent_id"] = f"rli_{sha256_text(canonical_json(intent_identity))[:16]}"
+    intent_path = _write_json(root / "artifacts/research_lab/intent.json", intent)
+    intent_ref = {"locator": str(intent_path.resolve()), "sha256": _sha(intent_path)}
+    descriptor: dict[str, Any] = {
+        "schema_version": "forge-external-research-descriptor.v1",
+        "adapter": {
+            "adapter_id": "foundry-research-lab-intent.v1",
+            "intent_schema_version": "foundry-research-lab-intent.v1",
+        },
+        "domain": {
+            "domain_id": "foundry",
+            "task_id": intent["opportunity_id"],
+            "intent_id": intent["intent_id"],
+        },
+        "bindings": {
+            "intent": intent_ref,
+            "budget": intent_ref,
+            "budget_source": "intent:/launch",
+        },
+        "control": {
+            "praxist_executable": str(fixture.executable.resolve()),
+            "run_dir": str(fixture.run_dir),
+            "config_file": None,
+        },
+        "result_policy": {
+            "result_locator": result_locator,
+            "evidence_class": "simulation",
+            "adoption_mode": "proposal_only",
+            "market_validation_claimed": False,
+            "adoption_status": "pending_external_human_review",
+            "domain_human_review_required": True,
+        },
+        "authority": {
+            "external_actions_allowed": False,
+            "foundry_checkout_write_allowed": False,
+            "foundry_ledger_write_allowed": False,
+            "direct_apply_allowed": False,
+            "productzero_start_allowed": False,
+            "volvence_promotion_eligible": False,
+            "modification_gate_applicable": False,
+            "runtime_wiring_applicable": False,
+        },
+        "created_at": "2026-08-30T00:01:00Z",
+    }
+    descriptor_identity = {
+        key: value
+        for key, value in descriptor.items()
+        if key not in {"descriptor_id", "created_at"}
+    }
+    descriptor["descriptor_id"] = (
+        f"external-research-descriptor:{sha256_text(canonical_json(descriptor_identity))}"
+    )
+    return _write_json(root / "artifacts/research_lab/descriptor.json", descriptor)
+
+
 def _approve(fixture: ControlFixture, request_path: Path):
     return review_research_request(
         config=fixture.config,
@@ -579,6 +699,167 @@ def test_running_request_reaches_terminal_completion_without_promotion_authority
     )[0]
     assert terminal_again.state == "RUN_COMPLETED"
     assert len(runner.calls) == call_count
+
+
+def test_foundry_intent_uses_shared_lifecycle_and_seals_simulation_handoff(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    descriptor_path = _external_descriptor(fixture)
+    descriptor = validate_external_research_descriptor(
+        config=fixture.config,
+        descriptor_path=descriptor_path,
+    )
+    submitted = submit_external_research_request(
+        config=fixture.config,
+        descriptor_path=descriptor_path,
+        requested_by="lab-operator@example.com",
+        reason="Submit the exact Foundry Intent for A0 review.",
+    )
+    request = validate_research_request(
+        config=fixture.config,
+        request_path=submitted.request_path,
+    )
+
+    assert descriptor["adapter"]["intent_schema_version"] == (
+        "foundry-research-lab-intent.v1"
+    )
+    assert request["schema_version"] == "forge-external-research-request.v1"
+    assert request["external_domain"]["domain_id"] == "foundry"
+    assert request["bindings"]["external_intent"] == request["bindings"]["external_budget"]
+    assert request["launch"]["profile"]["cohort"] == 2
+    assert request["authority"]["result_evidence_class"] == "simulation"
+    assert request["authority"]["foundry_checkout_write_allowed"] is False
+    assert request["authority"]["foundry_ledger_write_allowed"] is False
+    assert request["authority"]["direct_apply_allowed"] is False
+    assert request["authority"]["productzero_start_allowed"] is False
+    assert request["authority"]["production_promotion_authorized"] is False
+    assert request["authority"]["modification_gate_applicable"] is False
+    assert request["authority"]["runtime_wiring_applicable"] is False
+
+    _approve(fixture, submitted.request_path)
+    runner = FakePraxistRunner(fixture)
+    running = reconcile_research_control(
+        config=fixture.config,
+        request_path=submitted.request_path,
+        runner=runner,
+    )[0]
+    assert running.state == "RUNNING"
+    assert runner.start_count == 1
+
+    _write_json(fixture.run_dir / "result.json", {"best_variant": "candidate-a"})
+    runner.state = "completed"
+    completed = reconcile_research_control(
+        config=fixture.config,
+        request_path=submitted.request_path,
+        runner=runner,
+    )[0]
+    assert completed.state == "RUN_COMPLETED"
+
+    handoff_result = record_external_research_handoff(
+        config=fixture.config,
+        request_path=submitted.request_path,
+        recorded_by="lab-operator@example.com",
+        reason="Return simulation evidence to Foundry for its own review.",
+    )
+    handoff = json.loads(handoff_result.handoff_path.read_text(encoding="utf-8"))
+    assert handoff["request"]["request_id"] == submitted.request_id
+    assert handoff["descriptor"]["descriptor_id"] == descriptor["descriptor_id"]
+    assert handoff["result"]["evidence_class"] == "simulation"
+    assert handoff["result"]["adoption_mode"] == "proposal_only"
+    assert handoff["authority"]["volvence_promotion_eligible"] is False
+    assert handoff["authority"]["modification_gate_applicable"] is False
+    assert handoff["authority"]["runtime_wiring_applicable"] is False
+
+
+def test_external_descriptor_fails_closed_on_budget_or_result_escape(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    descriptor_path = _external_descriptor(fixture)
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["bindings"]["budget"] = {
+        "locator": str(fixture.task_manifest),
+        "sha256": _sha(fixture.task_manifest),
+    }
+    descriptor_identity = {
+        key: value
+        for key, value in descriptor.items()
+        if key not in {"descriptor_id", "created_at"}
+    }
+    descriptor["descriptor_id"] = (
+        f"external-research-descriptor:{sha256_text(canonical_json(descriptor_identity))}"
+    )
+    _write_json(descriptor_path, descriptor)
+    with pytest.raises(ResearchControlError, match="same exact Intent"):
+        submit_external_research_request(
+            config=fixture.config,
+            descriptor_path=descriptor_path,
+            requested_by="lab-operator@example.com",
+            reason="This mismatched budget binding must fail.",
+        )
+
+    unsafe_path = _external_descriptor(fixture, result_locator="../outside.json")
+    with pytest.raises(ResearchControlError, match="unsafe external result locator"):
+        validate_external_research_descriptor(
+            config=fixture.config,
+            descriptor_path=unsafe_path,
+        )
+
+
+def test_external_intent_drift_after_a0_blocks_before_praxist(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    descriptor_path = _external_descriptor(fixture)
+    submitted = submit_external_research_request(
+        config=fixture.config,
+        descriptor_path=descriptor_path,
+        requested_by="lab-operator@example.com",
+        reason="Submit an exact Intent that must remain immutable.",
+    )
+    _approve(fixture, submitted.request_path)
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    intent_path = Path(descriptor["bindings"]["intent"]["locator"])
+    intent_path.write_text(intent_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    runner = FakePraxistRunner(fixture)
+
+    status = reconcile_research_control(
+        config=fixture.config,
+        request_path=submitted.request_path,
+        runner=runner,
+    )[0]
+    assert status.state == "BLOCKED"
+    assert runner.calls == []
+
+
+def test_cli_external_submit_returns_stable_machine_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _fixture(tmp_path)
+    descriptor_path = _external_descriptor(fixture)
+    exit_code = main(
+        [
+            "--repo-root",
+            str(fixture.config.paths.repo_root),
+            "--transcripts-root",
+            str(fixture.config.paths.transcripts_root),
+            "research-submit-external",
+            str(descriptor_path),
+            "--requested-by",
+            "lab-operator@example.com",
+            "--reason",
+            "Submit exact Foundry Intent through the machine CLI.",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == "forge-external-research-submit-result.v1"
+    assert payload["state"] == "AWAITING_RESEARCH_APPROVAL"
+    assert payload["domain_id"] == "foundry"
+    assert payload["evidence_class"] == "simulation"
+    assert payload["praxist_started"] is False
+    assert payload["volvence_promotion_eligible"] is False
+    assert len(payload["request_sha256"]) == 64
 
 
 def test_active_host_capacity_queues_approved_request(tmp_path: Path) -> None:

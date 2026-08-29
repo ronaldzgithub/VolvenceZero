@@ -116,6 +116,7 @@ class LifecycleSnapshot:
 class ResearchLabItem:
     item_id: str
     task_id: str
+    research_mode: str
     claim_id: str
     title: str
     objective: str

@@ -18,6 +18,7 @@ from .foundation import (
     ReplayStructuredBackend,
     SentenceTransformerEmbeddingBackend,
     StructuredBackend,
+    sha256_bytes,
 )
 from .mine import mine_failures
 from .optimize import select_pareto_candidates
@@ -36,9 +37,12 @@ from .research_promotion import (
 from .research_control import (
     ResearchControlStatus,
     list_research_inbox,
+    record_external_research_handoff,
     reconcile_research_control,
     review_research_request,
+    submit_external_research_request,
     submit_research_request,
+    validate_external_research_descriptor,
 )
 from .research_opportunity import (
     ResearchOpportunityStatus,
@@ -200,6 +204,24 @@ def build_parser() -> argparse.ArgumentParser:
     research_submit.add_argument("--cohort", type=int)
     research_submit.add_argument("--generations", type=int)
     research_submit.add_argument("--startup-timeout", type=int, default=30)
+
+    external_submit = subparsers.add_parser(
+        "research-submit-external",
+        help="Bind one external-domain descriptor to the shared A0 Praxist lifecycle",
+    )
+    external_submit.add_argument("descriptor", type=Path)
+    external_submit.add_argument("--requested-by", required=True)
+    external_submit.add_argument("--reason", required=True)
+    external_submit.add_argument("--json", action="store_true")
+
+    external_handoff = subparsers.add_parser(
+        "research-handoff-external",
+        help="Seal a completed external simulation result for domain-owned review",
+    )
+    external_handoff.add_argument("request", type=Path)
+    external_handoff.add_argument("--recorded-by", required=True)
+    external_handoff.add_argument("--reason", required=True)
+    external_handoff.add_argument("--json", action="store_true")
 
     research_scan = subparsers.add_parser(
         "research-scan",
@@ -479,6 +501,65 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"AWAITING_RESEARCH_APPROVAL: {result.request_id}; "
                 f"request={result.request_path}"
             )
+            return 0
+        if args.command == "research-submit-external":
+            descriptor = validate_external_research_descriptor(
+                config=config,
+                descriptor_path=args.descriptor,
+            )
+            result = submit_external_research_request(
+                config=config,
+                descriptor_path=args.descriptor,
+                requested_by=args.requested_by,
+                reason=args.reason,
+            )
+            payload = {
+                "schema_version": "forge-external-research-submit-result.v1",
+                "state": "AWAITING_RESEARCH_APPROVAL",
+                "descriptor_id": descriptor["descriptor_id"],
+                "domain_id": descriptor["domain"]["domain_id"],
+                "intent_id": descriptor["domain"]["intent_id"],
+                "request_id": result.request_id,
+                "request": str(result.request_path),
+                "request_sha256": sha256_bytes(result.request_path.read_bytes()),
+                "evidence_class": "simulation",
+                "praxist_started": False,
+                "volvence_promotion_eligible": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"AWAITING_RESEARCH_APPROVAL: {result.request_id}; "
+                    f"request={result.request_path}; evidence=simulation"
+                )
+            return 0
+        if args.command == "research-handoff-external":
+            result = record_external_research_handoff(
+                config=config,
+                request_path=args.request,
+                recorded_by=args.recorded_by,
+                reason=args.reason,
+            )
+            payload = {
+                "schema_version": "forge-external-research-handoff-result.v1",
+                "state": "HANDED_OFF_FOR_EXTERNAL_REVIEW",
+                "handoff_id": result.handoff_id,
+                "handoff": str(result.handoff_path),
+                "handoff_sha256": sha256_bytes(result.handoff_path.read_bytes()),
+                "result": str(result.result_path),
+                "result_sha256": sha256_bytes(result.result_path.read_bytes()),
+                "evidence_class": "simulation",
+                "adoption_mode": "proposal_only",
+                "volvence_promotion_eligible": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"HANDED_OFF_FOR_EXTERNAL_REVIEW: {result.handoff_id}; "
+                    f"handoff={result.handoff_path}; evidence=simulation"
+                )
             return 0
         if args.command == "research-scan":
             result = scan_research_opportunities(

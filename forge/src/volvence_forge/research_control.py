@@ -34,8 +34,12 @@ from .foundation import (
 from .research_promotion import validate_research_task
 
 SCHEMA_NAME = "research_control.schema.json"
+EXTERNAL_SCHEMA_NAME = "external_research.schema.json"
 
 _REQUEST_VERSION = "forge-research-request.v1"
+_EXTERNAL_DESCRIPTOR_VERSION = "forge-external-research-descriptor.v1"
+_EXTERNAL_REQUEST_VERSION = "forge-external-research-request.v1"
+_EXTERNAL_HANDOFF_VERSION = "forge-external-research-handoff.v1"
 _APPROVAL_VERSION = "forge-research-approval.v1"
 _EVENT_VERSION = "forge-research-control-event.v1"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -91,6 +95,13 @@ class ResearchApprovalResult:
     approval_id: str
     approval_path: Path
     decision: str
+
+
+@dataclass(frozen=True)
+class ExternalResearchHandoffResult:
+    handoff_id: str
+    handoff_path: Path
+    result_path: Path
 
 
 @dataclass(frozen=True)
@@ -323,6 +334,282 @@ def submit_research_request(
     return ResearchRequestResult(
         request_id=str(payload["request_id"]),
         request_path=destination,
+    )
+
+
+def validate_external_research_descriptor(
+    *,
+    config: ForgeConfig,
+    descriptor_path: Path,
+    verify_bindings: bool = True,
+) -> dict[str, Any]:
+    """Validate one external-domain envelope without treating it as a Volvence Task."""
+
+    descriptor, resolved = _load_external_descriptor(config, descriptor_path)
+    if verify_bindings:
+        _resolve_external_descriptor_bindings(
+            config,
+            descriptor,
+            descriptor_path=resolved,
+        )
+    return descriptor
+
+
+def submit_external_research_request(
+    *,
+    config: ForgeConfig,
+    descriptor_path: Path,
+    requested_by: str,
+    reason: str,
+) -> ResearchRequestResult:
+    """Map one exact Foundry Intent onto the shared approval-gated lifecycle."""
+
+    submitter = _nonempty(requested_by, "external research submission requires a named submitter")
+    rationale = _nonempty(reason, "external research submission requires a non-empty reason")
+    descriptor, resolved_descriptor = _load_external_descriptor(config, descriptor_path)
+    resolved = _resolve_external_descriptor_bindings(
+        config,
+        descriptor,
+        descriptor_path=resolved_descriptor,
+    )
+
+    project = resolved["task_project"]
+    executable = resolved["executable"]
+    source_checkout = _snapshot_praxist_source_checkout(executable)
+    normalized_run_dir = _normalize_fresh_run_dir(resolved["run_dir"])
+    if source_checkout is not None:
+        source_root = Path(source_checkout["root"])
+        if normalized_run_dir.is_relative_to(source_root):
+            raise ResearchControlError("Praxist run output may not be inside its source checkout")
+        if Path(project["root"]) == source_root:
+            raise ResearchControlError("the Praxist source checkout is not a task project")
+
+    intent = resolved["intent"]
+    domain = descriptor["domain"]
+    external_task_id = _external_control_task_id(domain)
+    profile = {
+        "config_file": resolved["config_file"],
+        **intent["launch"],
+    }
+    payload: dict[str, Any] = {
+        "schema_version": _EXTERNAL_REQUEST_VERSION,
+        "task_id": external_task_id,
+        "claim_id": f"foundry:{intent['intent_id']}",
+        "owner": "external-domain:foundry",
+        "objective": intent["objective"],
+        "external_domain": {
+            "descriptor_id": descriptor["descriptor_id"],
+            "adapter_id": descriptor["adapter"]["adapter_id"],
+            "intent_schema_version": descriptor["adapter"]["intent_schema_version"],
+            "domain_id": domain["domain_id"],
+            "task_id": domain["task_id"],
+            "intent_id": domain["intent_id"],
+            "ownership": _foundry_ownership(),
+            "result_policy": descriptor["result_policy"],
+        },
+        "trigger": {
+            "kind": "external_domain_descriptor",
+            "submitted_by": submitter,
+            "rationale": rationale,
+            "evidence": [
+                {"locator": ref["locator"], "sha256": ref["sha256"]}
+                for ref in resolved["evidence"]
+            ],
+        },
+        "bindings": {
+            "external_descriptor": _absolute_content_ref(
+                resolved_descriptor,
+                context="external research descriptor",
+            ),
+            "external_intent": resolved["intent_ref"],
+            "external_budget": resolved["intent_ref"],
+            "external_evidence": resolved["evidence"],
+            "task_project": project,
+            "praxist": {
+                "executable": _absolute_content_ref(
+                    executable,
+                    context="Praxist executable",
+                ),
+                "source_checkout": source_checkout,
+            },
+        },
+        "launch": {
+            "run_dir": str(normalized_run_dir),
+            "run_id": normalized_run_dir.name,
+            "daemonize": True,
+            "status_scope": "targeted_run_id",
+            "profile": profile,
+        },
+        "authority": {
+            "human_research_approval_required": True,
+            "research_start_authorized": False,
+            "external_domain_adoption_required": True,
+            "external_domain_human_apply_required": True,
+            "result_evidence_class": "simulation",
+            "external_actions_allowed": False,
+            "foundry_checkout_write_allowed": False,
+            "foundry_ledger_write_allowed": False,
+            "direct_apply_allowed": False,
+            "productzero_start_allowed": False,
+            "production_promotion_authorized": False,
+            "modification_gate_applicable": False,
+            "runtime_wiring_applicable": False,
+            "evaluation_is_learning_source": False,
+        },
+        "created_at": utc_now(),
+    }
+    payload["request_id"] = _artifact_id("research-request", payload, "request_id")
+    _validate_schema(config, payload, _EXTERNAL_REQUEST_VERSION)
+    digest = str(payload["request_id"]).partition(":")[2]
+    destination = (
+        config.paths.artifacts_root
+        / "research_control"
+        / external_task_id
+        / digest
+        / "request.json"
+    )
+    _write_immutable_artifact(
+        config=config,
+        destination=destination,
+        payload=payload,
+        expected_version=_EXTERNAL_REQUEST_VERSION,
+        identity_field="request_id",
+    )
+    return ResearchRequestResult(
+        request_id=str(payload["request_id"]),
+        request_path=destination,
+    )
+
+
+def record_external_research_handoff(
+    *,
+    config: ForgeConfig,
+    request_path: Path,
+    recorded_by: str,
+    reason: str,
+) -> ExternalResearchHandoffResult:
+    """Seal completed simulation evidence for Foundry-owned review and adoption."""
+
+    recorder = _nonempty(recorded_by, "external handoff requires a named recorder")
+    rationale = _nonempty(reason, "external handoff requires a non-empty reason")
+    request, resolved_request, request_sha256 = _load_request(config, request_path)
+    if request["schema_version"] != _EXTERNAL_REQUEST_VERSION:
+        raise ResearchControlError("only an external-domain Request can produce an external handoff")
+    _verify_request_bindings(config, request)
+    approval_record = _find_approval(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+    )
+    if approval_record is None or approval_record[0]["decision"] != "APPROVE":
+        raise ResearchControlError("external handoff requires the exact approved A0 Request")
+    approval, _, approval_sha256 = approval_record
+    events = _load_events(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_sha256=approval_sha256,
+    )
+    if not events or events[-1][0]["state"] != "RUN_COMPLETED":
+        raise ResearchControlError("external handoff requires an exact RUN_COMPLETED terminal event")
+    terminal_event, _, terminal_sha256 = events[-1]
+    run = terminal_event["run"]
+    if run is None:
+        raise ResearchControlError("RUN_COMPLETED terminal event must bind the completed run")
+
+    result_locator = request["external_domain"]["result_policy"]["result_locator"]
+    result_relative = _safe_relative_locator(result_locator, context="external result locator")
+    run_dir = _resolve_directory(Path(request["launch"]["run_dir"]), context="Praxist run directory")
+    result_path = _resolve_regular_file(
+        run_dir / Path(*result_relative.parts),
+        context="external simulation result",
+    )
+    if not result_path.is_relative_to(run_dir):
+        raise ResearchControlError("external simulation result escapes the exact run directory")
+
+    external = request["external_domain"]
+    descriptor_ref = request["bindings"]["external_descriptor"]
+    handoff: dict[str, Any] = {
+        "schema_version": _EXTERNAL_HANDOFF_VERSION,
+        "descriptor": {
+            "descriptor_id": external["descriptor_id"],
+            "artifact": descriptor_ref,
+        },
+        "request": {
+            "request_id": request["request_id"],
+            "sha256": request_sha256,
+        },
+        "approval": {
+            "approval_id": approval["approval_id"],
+            "sha256": approval_sha256,
+        },
+        "terminal_event": {
+            "event_id": terminal_event["event_id"],
+            "sha256": terminal_sha256,
+        },
+        "external_domain": {
+            "adapter_id": external["adapter_id"],
+            "domain": {
+                "domain_id": external["domain_id"],
+                "task_id": external["task_id"],
+                "intent_id": external["intent_id"],
+            },
+            "ownership": external["ownership"],
+        },
+        "run": {
+            "run_id": run["run_id"],
+            "run_dir": run["run_dir"],
+        },
+        "result": {
+            "artifact": _absolute_content_ref(
+                result_path,
+                context="external simulation result",
+            ),
+            "evidence_class": "simulation",
+            "adoption_mode": "proposal_only",
+            "market_validation_claimed": False,
+            "adoption_status": "pending_external_human_review",
+        },
+        "review": {
+            "recorded_by": recorder,
+            "reason": rationale,
+        },
+        "authority": _external_authority(),
+        "created_at": utc_now(),
+    }
+    handoff["handoff_id"] = _artifact_id(
+        "external-research-handoff",
+        handoff,
+        "handoff_id",
+    )
+    _validate_schema(
+        config,
+        handoff,
+        _EXTERNAL_HANDOFF_VERSION,
+        schema_name=EXTERNAL_SCHEMA_NAME,
+    )
+    handoff_digest = str(handoff["handoff_id"]).partition(":")[2]
+    destination = resolved_request.parent / "handoffs" / f"{handoff_digest}.json"
+    existing = sorted((resolved_request.parent / "handoffs").glob("*.json"))
+    if existing and destination not in existing:
+        raise ResearchControlError(
+            f"external Request already has an immutable handoff: {existing[0]}"
+        )
+    _write_immutable_artifact(
+        config=config,
+        destination=destination,
+        payload=handoff,
+        expected_version=_EXTERNAL_HANDOFF_VERSION,
+        identity_field="handoff_id",
+        schema_name=EXTERNAL_SCHEMA_NAME,
+    )
+    return ExternalResearchHandoffResult(
+        handoff_id=str(handoff["handoff_id"]),
+        handoff_path=destination,
+        result_path=result_path,
     )
 
 
@@ -1723,7 +2010,10 @@ def _load_request(
 ) -> tuple[dict[str, Any], Path, str]:
     resolved = _resolve_regular_file(request_path, context="research Request")
     request = read_json(resolved)
-    _validate_schema(config, request, _REQUEST_VERSION)
+    version = request.get("schema_version")
+    if version not in {_REQUEST_VERSION, _EXTERNAL_REQUEST_VERSION}:
+        raise ResearchControlError(f"unsupported research Request schema_version: {version!r}")
+    _validate_schema(config, request, str(version))
     if request["request_id"] != _artifact_id(
         "research-request",
         request,
@@ -1743,26 +2033,35 @@ def _load_request(
 
 
 def _verify_request_bindings(config: ForgeConfig, request: dict[str, Any]) -> None:
-    task_ref = request["bindings"]["research_task"]
-    task_path = _verify_content_ref(config, task_ref, context="research task manifest")
-    task = validate_research_task(config=config, task_path=task_path)
-    expected_task_fields = {
-        "task_id": task["task_id"],
-        "claim_id": task["claim_id"],
-        "owner": task["owner"],
-    }
-    for name, value in expected_task_fields.items():
-        if request[name] != value:
-            raise ResearchControlError(f"research Request {name} no longer matches its Task")
+    task: dict[str, Any] | None = None
+    if request["schema_version"] == _REQUEST_VERSION:
+        task_ref = request["bindings"]["research_task"]
+        task_path = _verify_content_ref(config, task_ref, context="research task manifest")
+        task = validate_research_task(config=config, task_path=task_path)
+        expected_task_fields = {
+            "task_id": task["task_id"],
+            "claim_id": task["claim_id"],
+            "owner": task["owner"],
+        }
+        for name, value in expected_task_fields.items():
+            if request[name] != value:
+                raise ResearchControlError(f"research Request {name} no longer matches its Task")
+    elif request["schema_version"] == _EXTERNAL_REQUEST_VERSION:
+        _verify_external_request_bindings(config, request)
+    else:  # pragma: no cover - request loading rejects unknown versions first.
+        raise ResearchControlError(
+            f"unsupported research Request schema_version: {request['schema_version']!r}"
+        )
 
     expected_project = request["bindings"]["task_project"]
     current_project = _snapshot_task_project(Path(expected_project["root"]))
     if current_project != expected_project:
         raise ResearchControlError("Praxist task project changed after Request submission")
-    if current_project["task_id"] != task["praxist"]["task_project_id"]:
-        raise ResearchControlError("Praxist task project task_id no longer matches the Task")
-    if current_project["manifest_sha256"] != task["praxist"]["task_project_manifest_sha256"]:
-        raise ResearchControlError("Praxist task project digest no longer matches the Task")
+    if task is not None:
+        if current_project["task_id"] != task["praxist"]["task_project_id"]:
+            raise ResearchControlError("Praxist task project task_id no longer matches the Task")
+        if current_project["manifest_sha256"] != task["praxist"]["task_project_manifest_sha256"]:
+            raise ResearchControlError("Praxist task project digest no longer matches the Task")
 
     executable_ref = request["bindings"]["praxist"]["executable"]
     executable = _verify_content_ref(config, executable_ref, context="Praxist executable")
@@ -1797,6 +2096,307 @@ def _verify_request_bindings(config: ForgeConfig, request: dict[str, Any]) -> No
     source_checkout = request["bindings"]["praxist"]["source_checkout"]
     if source_checkout is not None and run_dir.is_relative_to(Path(source_checkout["root"])):
         raise ResearchControlError("Praxist run output may not be inside its source checkout")
+
+
+def _load_external_descriptor(
+    config: ForgeConfig,
+    descriptor_path: Path,
+) -> tuple[dict[str, Any], Path]:
+    resolved = _resolve_regular_file(descriptor_path, context="external research descriptor")
+    descriptor = read_json(resolved)
+    _validate_schema(
+        config,
+        descriptor,
+        _EXTERNAL_DESCRIPTOR_VERSION,
+        schema_name=EXTERNAL_SCHEMA_NAME,
+    )
+    if descriptor["descriptor_id"] != _artifact_id(
+        "external-research-descriptor",
+        descriptor,
+        "descriptor_id",
+    ):
+        raise ResearchControlError(
+            "external research descriptor_id does not match its canonical payload"
+        )
+    return descriptor, resolved
+
+
+def _resolve_external_descriptor_bindings(
+    config: ForgeConfig,
+    descriptor: dict[str, Any],
+    *,
+    descriptor_path: Path,
+) -> dict[str, Any]:
+    base = descriptor_path.parent
+    raw_bindings = descriptor["bindings"]
+    if raw_bindings["intent"] != raw_bindings["budget"]:
+        raise ResearchControlError(
+            "Foundry launch budget must bind the same exact Intent via intent:/launch"
+        )
+    intent_ref = _external_absolute_ref(
+        raw_bindings["intent"],
+        base=base,
+        context="Foundry Research Lab Intent",
+    )
+    intent_path = Path(intent_ref["locator"])
+    intent = _read_json_file(intent_path, context="Foundry Research Lab Intent")
+    _validate_schema(
+        config,
+        intent,
+        "foundry-research-lab-intent.v1",
+        schema_name=EXTERNAL_SCHEMA_NAME,
+    )
+    return _finish_external_descriptor_resolution(
+        descriptor,
+        descriptor_path=descriptor_path,
+        intent=intent,
+        intent_ref=intent_ref,
+    )
+
+
+def _finish_external_descriptor_resolution(
+    descriptor: dict[str, Any],
+    *,
+    descriptor_path: Path,
+    intent: dict[str, Any],
+    intent_ref: dict[str, str],
+) -> dict[str, Any]:
+    identity_payload = {
+        key: value
+        for key, value in intent.items()
+        if key not in {"intent_id", "created_at"}
+    }
+    expected_intent_id = f"rli_{sha256_text(canonical_json(identity_payload))[:16]}"
+    if intent["intent_id"] != expected_intent_id:
+        raise ResearchControlError("Foundry Research Lab Intent content does not match intent_id")
+    domain = descriptor["domain"]
+    if domain != {
+        "domain_id": "foundry",
+        "task_id": intent["opportunity_id"],
+        "intent_id": intent["intent_id"],
+    }:
+        raise ResearchControlError("external descriptor domain does not match the Foundry Intent")
+
+    task_binding = intent["task_project"]
+    task_root = _resolve_directory(
+        Path(task_binding["root"]),
+        context="Foundry Praxist task project",
+    )
+    task_yaml = _resolve_regular_file(
+        task_root / "task.yaml",
+        context="Foundry Praxist task.yaml",
+    )
+    if _sha256_file(task_yaml, context="Foundry Praxist task.yaml") != task_binding["task_yaml_sha256"]:
+        raise ResearchControlError("Foundry Praxist task.yaml changed after Intent publication")
+    project = _snapshot_task_project(task_root)
+    if project["task_id"] != task_binding["task_id"]:
+        raise ResearchControlError("Foundry Intent task_id no longer matches Praxist task.yaml")
+
+    evidence: list[dict[str, str]] = []
+    for index, raw_ref in enumerate(intent["trigger"]["evidence_refs"]):
+        normalized = _external_absolute_ref(
+            raw_ref,
+            base=Path(intent_ref["locator"]).parent,
+            context=f"Foundry trigger evidence {index}",
+        )
+        evidence.append({**normalized, "evidence_class": raw_ref["evidence_class"]})
+
+    profile = intent["launch"]
+    _validate_launch_profile_values(
+        agent_system=profile["agent_system"],
+        runtime=profile["runtime"],
+        codex_native=profile["codex_native"],
+        model_provider=profile["model_provider"],
+        model=profile["model"],
+        strategy=profile["strategy"],
+        cohort=profile["cohort"],
+        generations=profile["generations"],
+        startup_timeout_seconds=profile["startup_timeout_seconds"],
+    )
+    control = descriptor["control"]
+    base = descriptor_path.parent
+    executable = _resolve_executable(
+        _external_path(
+            str(control["praxist_executable"]),
+            base=base,
+            context="Praxist executable",
+        )
+    )
+    run_dir = _external_path(
+        str(control["run_dir"]),
+        base=base,
+        context="Praxist run directory",
+        must_exist=False,
+    )
+    config_file = (
+        _external_absolute_ref(
+            control["config_file"],
+            base=base,
+            context="Praxist config file",
+        )
+        if control["config_file"] is not None
+        else None
+    )
+    _safe_relative_locator(
+        descriptor["result_policy"]["result_locator"],
+        context="external result locator",
+    )
+    return {
+        "intent": intent,
+        "intent_ref": intent_ref,
+        "evidence": evidence,
+        "task_project": project,
+        "executable": executable,
+        "run_dir": run_dir,
+        "config_file": config_file,
+    }
+
+
+def _verify_external_request_bindings(config: ForgeConfig, request: dict[str, Any]) -> None:
+    descriptor_path = _verify_content_ref(
+        config,
+        request["bindings"]["external_descriptor"],
+        context="external research descriptor",
+    )
+    descriptor, resolved_descriptor = _load_external_descriptor(config, descriptor_path)
+    resolved = _resolve_external_descriptor_bindings(
+        config,
+        descriptor,
+        descriptor_path=resolved_descriptor,
+    )
+    intent = resolved["intent"]
+    domain = descriptor["domain"]
+    expected_external = {
+        "descriptor_id": descriptor["descriptor_id"],
+        "adapter_id": descriptor["adapter"]["adapter_id"],
+        "intent_schema_version": descriptor["adapter"]["intent_schema_version"],
+        "domain_id": domain["domain_id"],
+        "task_id": domain["task_id"],
+        "intent_id": domain["intent_id"],
+        "ownership": _foundry_ownership(),
+        "result_policy": descriptor["result_policy"],
+    }
+    if request["external_domain"] != expected_external:
+        raise ResearchControlError("external Request no longer matches its domain descriptor")
+    expected_identity = {
+        "task_id": _external_control_task_id(domain),
+        "claim_id": f"foundry:{intent['intent_id']}",
+        "owner": "external-domain:foundry",
+        "objective": intent["objective"],
+    }
+    for name, value in expected_identity.items():
+        if request[name] != value:
+            raise ResearchControlError(
+                f"external research Request {name} no longer matches its descriptor"
+            )
+    expected_refs = {
+        "external_intent": resolved["intent_ref"],
+        "external_budget": resolved["intent_ref"],
+        "external_evidence": resolved["evidence"],
+        "task_project": resolved["task_project"],
+    }
+    for name, value in expected_refs.items():
+        if request["bindings"][name] != value:
+            raise ResearchControlError(f"external research Request {name} binding changed")
+    expected_trigger_evidence = [
+        {"locator": ref["locator"], "sha256": ref["sha256"]}
+        for ref in resolved["evidence"]
+    ]
+    if request["trigger"]["evidence"] != expected_trigger_evidence:
+        raise ResearchControlError("external research trigger evidence changed")
+    expected_profile = {"config_file": resolved["config_file"], **intent["launch"]}
+    if request["launch"]["profile"] != expected_profile:
+        raise ResearchControlError("external research launch profile changed")
+    expected_run_dir = str(_normalize_bound_run_dir(resolved["run_dir"]))
+    if request["launch"]["run_dir"] != expected_run_dir:
+        raise ResearchControlError("external research run directory changed")
+
+
+def _external_control_task_id(domain: dict[str, Any]) -> str:
+    return f"external_{sha256_text(canonical_json(domain))[:16]}"
+
+
+def _foundry_ownership() -> dict[str, str]:
+    return {
+        "research_intent": "foundry",
+        "budget": "foundry",
+        "evidence_classification": "foundry",
+        "result_adoption": "foundry",
+        "human_application": "foundry",
+    }
+
+
+def _external_authority() -> dict[str, bool]:
+    return {
+        "external_actions_allowed": False,
+        "foundry_checkout_write_allowed": False,
+        "foundry_ledger_write_allowed": False,
+        "direct_apply_allowed": False,
+        "productzero_start_allowed": False,
+        "volvence_promotion_eligible": False,
+        "modification_gate_applicable": False,
+        "runtime_wiring_applicable": False,
+    }
+
+
+def _external_absolute_ref(
+    content_ref: dict[str, Any],
+    *,
+    base: Path,
+    context: str,
+) -> dict[str, str]:
+    path = _external_path(str(content_ref["locator"]), base=base, context=context)
+    resolved = _resolve_regular_file(path, context=context)
+    actual = _sha256_file(resolved, context=context)
+    if actual != content_ref["sha256"]:
+        raise ResearchControlError(
+            f"{context} digest mismatch: declared {content_ref['sha256']}, actual {actual}"
+        )
+    return {"locator": str(resolved), "sha256": actual}
+
+
+def _external_path(
+    locator: str,
+    *,
+    base: Path,
+    context: str,
+    must_exist: bool = True,
+) -> Path:
+    candidate = Path(locator).expanduser()
+    if not candidate.is_absolute():
+        relative = _safe_relative_locator(locator, context=context)
+        candidate = base / Path(*relative.parts)
+    if candidate.is_symlink():
+        raise ResearchControlError(f"{context} may not be a symlink: {candidate}")
+    try:
+        return candidate.resolve(strict=must_exist)
+    except FileNotFoundError as exc:
+        raise ResearchControlError(f"missing {context}: {candidate}") from exc
+
+
+def _safe_relative_locator(locator: str, *, context: str) -> PurePosixPath:
+    relative = PurePosixPath(locator)
+    if (
+        not locator
+        or "\\" in locator
+        or relative.is_absolute()
+        or "." in relative.parts
+        or ".." in relative.parts
+    ):
+        raise ResearchControlError(f"unsafe {context}: {locator!r}")
+    return relative
+
+
+def _normalize_bound_run_dir(run_dir: Path) -> Path:
+    expanded = run_dir.expanduser()
+    if not expanded.is_absolute():
+        raise ResearchControlError("Praxist run directory must be absolute")
+    resolved = expanded.resolve(strict=False)
+    if not _RUN_ID_RE.fullmatch(resolved.name):
+        raise ResearchControlError(
+            "Praxist run directory basename must be a deterministic safe run_id"
+        )
+    return resolved
 
 
 def _snapshot_task_project(task_project_path: Path) -> dict[str, Any]:
@@ -2219,8 +2819,14 @@ def _artifact_id(prefix: str, payload: dict[str, Any], identity_field: str) -> s
     return f"{prefix}:{sha256_text(canonical_json(identity_payload))}"
 
 
-def _validate_schema(config: ForgeConfig, payload: dict[str, Any], expected_version: str) -> None:
-    SchemaStore(config.paths.forge_root / "schemas").validate(payload, SCHEMA_NAME)
+def _validate_schema(
+    config: ForgeConfig,
+    payload: dict[str, Any],
+    expected_version: str,
+    *,
+    schema_name: str = SCHEMA_NAME,
+) -> None:
+    SchemaStore(config.paths.forge_root / "schemas").validate(payload, schema_name)
     if payload.get("schema_version") != expected_version:
         raise ResearchControlError(
             f"expected schema_version {expected_version!r}, got {payload.get('schema_version')!r}"
@@ -2234,6 +2840,7 @@ def _write_immutable_artifact(
     payload: dict[str, Any],
     expected_version: str,
     identity_field: str,
+    schema_name: str = SCHEMA_NAME,
 ) -> None:
     artifacts_root = config.paths.artifacts_root.resolve(strict=False)
     target = destination.expanduser().resolve(strict=False)
@@ -2244,7 +2851,7 @@ def _write_immutable_artifact(
         )
     if target.exists():
         existing = read_json(target)
-        _validate_schema(config, existing, expected_version)
+        _validate_schema(config, existing, expected_version, schema_name=schema_name)
         if existing[identity_field] != payload[identity_field]:
             raise ResearchControlError(f"refusing to overwrite another immutable artifact: {target}")
         existing_body = {

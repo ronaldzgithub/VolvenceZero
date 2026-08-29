@@ -60,6 +60,12 @@ const commandCopy: Record<
   SupportedCommandAction,
   { title: string; description: string; submit: string }
 > = {
+  submit_external: {
+    title: 'Submit external descriptor',
+    description:
+      'External descriptor submission is exposed through the machine API and is not initiated from a task card.',
+    submit: 'Submit external descriptor',
+  },
   review_a0: {
     title: 'Review exact A0 scope',
     description:
@@ -71,6 +77,12 @@ const commandCopy: Record<
     description:
       'Forge will recheck approval, binding bytes, host capacity, doctor, resolve, and the global reconcile lock. A start is possible only when every owner gate passes.',
     submit: 'Run one reconcile pass',
+  },
+  record_external_handoff: {
+    title: 'Seal external simulation handoff',
+    description:
+      'Forge will bind the exact Request, A0 approval, terminal event, run, and result bytes. Foundry keeps all adoption and human-apply authority.',
+    submit: 'Seal simulation handoff',
   },
   import_candidate: {
     title: 'Seal completed Praxist handoff',
@@ -158,6 +170,10 @@ export function ResearchCommandWorkbench({
       };
       let response: ResearchLabCommandResult;
       switch (action) {
+        case 'submit_external':
+          throw new Error(
+            'External descriptor submission uses the registered-domain machine API.',
+          );
         case 'review_a0':
           response = await submitResearchLabCommand(action, session, {
             ...base,
@@ -167,6 +183,13 @@ export function ResearchCommandWorkbench({
           });
           break;
         case 'reconcile':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            artifact_id: requiredId(bindings.request),
+            artifact_sha256: requiredSha(bindings.request),
+          });
+          break;
+        case 'record_external_handoff':
           response = await submitResearchLabCommand(action, session, {
             ...base,
             artifact_id: requiredId(bindings.request),
@@ -294,6 +317,15 @@ export function ResearchCommandWorkbench({
               disabled={!commandEnabled('import_candidate')}
             >
               <PackagePlus className="size-4" /> Import exact Candidate
+            </Button>
+          )}
+          {available.has('record_external_handoff') && (
+            <Button
+              className="w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+              onClick={() => begin('record_external_handoff')}
+              disabled={!commandEnabled('record_external_handoff')}
+            >
+              <PackagePlus className="size-4" /> Seal simulation handoff
             </Button>
           )}
           {available.has('view_run') && (
@@ -622,8 +654,11 @@ function commandBindings(
   bindings: CommandBindings,
 ): ArtifactRef[] {
   switch (action) {
+    case 'submit_external':
+      return [];
     case 'review_a0':
     case 'reconcile':
+    case 'record_external_handoff':
       return bindings.request ? [bindings.request] : [];
     case 'import_candidate':
       return [bindings.task, bindings.handoff].filter(isArtifactRef);
@@ -661,8 +696,11 @@ function commandBindingsReady(
 ): boolean {
   const hasId = (binding: ArtifactRef | null) => Boolean(binding?.artifact_id);
   switch (action) {
+    case 'submit_external':
+      return false;
     case 'review_a0':
     case 'reconcile':
+    case 'record_external_handoff':
       return hasId(bindings.request);
     case 'import_candidate':
       return (
