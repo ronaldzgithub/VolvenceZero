@@ -112,6 +112,40 @@ export interface ResearchLabSnapshot {
   warnings: PortalWarning[];
 }
 
+export type SupportedCommandAction = 'review_a0' | 'reconcile';
+
+export interface ResearchLabSession {
+  schema_version: 'volvence-research-lab-session.v1';
+  mutations_enabled: boolean;
+  csrf_token: string | null;
+  supported_actions: SupportedCommandAction[];
+}
+
+export interface ResearchLabCommandPayload {
+  snapshot_revision: string;
+  task_id: string;
+  artifact_id: string;
+  artifact_sha256: string;
+  actor: string;
+  reason: string;
+  decision?: 'approve' | 'reject';
+}
+
+export interface ResearchLabCommandResult {
+  schema_version: 'volvence-research-lab-command-result.v1';
+  action: SupportedCommandAction;
+  task_id: string;
+  outcome: string;
+  message: string;
+  previous_revision: string;
+  current_revision: string;
+  binding: {
+    kind: string;
+    artifact_id: string;
+    sha256: string;
+  };
+}
+
 export async function fetchResearchLabSnapshot(
   signal?: AbortSignal,
 ): Promise<ResearchLabSnapshot> {
@@ -128,6 +162,61 @@ export async function fetchResearchLabSnapshot(
     throw new Error('Research Lab API returned an incompatible snapshot');
   }
   return payload;
+}
+
+export async function fetchResearchLabSession(
+  signal?: AbortSignal,
+): Promise<ResearchLabSession> {
+  const response = await fetch('/api/v1/session', {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Research Lab session returned HTTP ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  if (!isSession(payload)) {
+    throw new Error('Research Lab API returned an incompatible session');
+  }
+  return payload;
+}
+
+export async function submitResearchLabCommand(
+  action: SupportedCommandAction,
+  session: ResearchLabSession,
+  payload: ResearchLabCommandPayload,
+): Promise<ResearchLabCommandResult> {
+  if (!session.mutations_enabled || !session.csrf_token) {
+    throw new Error('Controlled mutations are disabled on the local API');
+  }
+  if (!session.supported_actions.includes(action)) {
+    throw new Error(`${action} is not enabled by the local API session`);
+  }
+  const endpoint =
+    action === 'review_a0' ? '/api/v1/a0/review' : '/api/v1/reconcile';
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Research-Lab-CSRF': session.csrf_token,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body: unknown = await response.json();
+  if (!response.ok) {
+    const message =
+      isRecord(body) && typeof body.message === 'string'
+        ? body.message
+        : `Research Lab command returned HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  if (!isCommandResult(body)) {
+    throw new Error('Research Lab API returned an incompatible command result');
+  }
+  return body;
 }
 
 function isSnapshot(value: unknown): value is ResearchLabSnapshot {
@@ -147,6 +236,36 @@ function isSnapshot(value: unknown): value is ResearchLabSnapshot {
     typeof value.summary.active_runs === 'number' &&
     typeof value.summary.awaiting_human === 'number' &&
     typeof value.summary.production_active === 'number'
+  );
+}
+
+function isSession(value: unknown): value is ResearchLabSession {
+  if (!isRecord(value)) return false;
+  return (
+    value.schema_version === 'volvence-research-lab-session.v1' &&
+    typeof value.mutations_enabled === 'boolean' &&
+    (typeof value.csrf_token === 'string' || value.csrf_token === null) &&
+    Array.isArray(value.supported_actions) &&
+    value.supported_actions.every(
+      (action) => action === 'review_a0' || action === 'reconcile',
+    )
+  );
+}
+
+function isCommandResult(value: unknown): value is ResearchLabCommandResult {
+  if (!isRecord(value)) return false;
+  return (
+    value.schema_version === 'volvence-research-lab-command-result.v1' &&
+    (value.action === 'review_a0' || value.action === 'reconcile') &&
+    typeof value.task_id === 'string' &&
+    typeof value.outcome === 'string' &&
+    typeof value.message === 'string' &&
+    typeof value.previous_revision === 'string' &&
+    typeof value.current_revision === 'string' &&
+    isRecord(value.binding) &&
+    typeof value.binding.kind === 'string' &&
+    typeof value.binding.artifact_id === 'string' &&
+    typeof value.binding.sha256 === 'string'
   );
 }
 

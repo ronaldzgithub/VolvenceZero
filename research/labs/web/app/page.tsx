@@ -39,6 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { PromotionReadiness } from '@/components/promotion-readiness';
+import { ResearchCommandWorkbench } from '@/components/research-command-workbench';
 import { useResearchLab } from '@/hooks/use-research-lab';
 import type {
   LifecycleStage,
@@ -129,7 +131,15 @@ function StageNode({ stage, index }: { stage: StageNodeData; index: number }) {
 }
 
 export default function Home() {
-  const { snapshot, connection, error, refreshing, refresh } = useResearchLab();
+  const {
+    snapshot,
+    session,
+    connection,
+    error,
+    sessionError,
+    refreshing,
+    refresh,
+  } = useResearchLab();
   const primaryItem = snapshot?.items[0] ?? null;
   const stages = buildStages(primaryItem);
   const navItems = [
@@ -148,7 +158,7 @@ export default function Home() {
     { label: 'System', icon: Cpu },
   ] as const;
   const metrics = buildMetrics(snapshot, primaryItem);
-  const systemChecks = buildSystemChecks(snapshot);
+  const systemChecks = buildSystemChecks(snapshot, session?.mutations_enabled);
   const inspectorFacts = buildInspectorFacts(primaryItem);
 
   return (
@@ -378,39 +388,10 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
             <Card className="border-0 bg-card/80 ring-white/[0.07]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-200">
-                  <Database className="size-4 text-rose-300" /> Development
-                  evidence
-                </CardTitle>
-                <CardDescription>
-                  Public replay v2 · never treated as formal validation
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Context ratio</span>
-                    <span className="font-mono text-rose-300">
-                      0.1233 / 0.1000 max
-                    </span>
-                  </div>
-                  <Progress
-                    value={100}
-                    className="[&_[data-slot=progress-indicator]]:bg-rose-400"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-4">
-                  <EvidenceMetric value="0.9720" label="recalled retention" />
-                  <EvidenceMetric value="0.9846" label="failed retention" />
-                  <EvidenceMetric
-                    value="0.0"
-                    label="strict budget pass"
-                    alert
-                  />
-                </div>
+              <CardContent>
+                <PromotionReadiness item={primaryItem} />
               </CardContent>
             </Card>
 
@@ -522,15 +503,39 @@ export default function Home() {
                 text={`Formal validation: ${primaryItem?.authority.formal_validation_status ?? 'unknown'}`}
               />
               <AuthorityLine
+                allowed={
+                  primaryItem?.authority.modification_gate_decision === 'allow'
+                }
+                text={`ModificationGate: ${primaryItem?.authority.modification_gate_decision ?? 'unknown'}`}
+              />
+              <AuthorityLine
+                allowed={['shadow', 'active'].includes(
+                  primaryItem?.authority.authorized_wiring ?? '',
+                )}
+                text={`A1 authorization: ${primaryItem?.authority.authorized_wiring ?? 'unknown'}`}
+              />
+              <AuthorityLine
                 allowed={primaryItem?.authority.runtime_wiring === 'shadow'}
-                text={`Runtime SHADOW: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
+                text={`SHADOW applied: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
+              />
+              <AuthorityLine
+                allowed={primaryItem?.authority.authorized_wiring === 'active'}
+                text={`A2 authorization: ${primaryItem?.authority.authorized_wiring ?? 'unknown'}`}
               />
               <AuthorityLine
                 allowed={primaryItem?.authority.runtime_wiring === 'active'}
-                text={`Runtime ACTIVE: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
+                text={`ACTIVE applied: ${primaryItem?.authority.runtime_wiring ?? 'unknown'}`}
               />
             </ul>
           </div>
+
+          <ResearchCommandWorkbench
+            item={primaryItem}
+            snapshot={snapshot}
+            session={session}
+            sessionError={sessionError}
+            onRefresh={refresh}
+          />
 
           <Button
             className="mt-5 w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
@@ -540,7 +545,7 @@ export default function Home() {
             Refresh exact state <RefreshCw className="size-4" />
           </Button>
           <p className="mt-2 text-center text-[10px] text-slate-700">
-            Read-only live view · mutation gates remain separate
+            Commands delegate to owner gates · no direct runtime wiring
           </p>
         </aside>
       </div>
@@ -720,27 +725,6 @@ function ConnectionBadge({
   );
 }
 
-function EvidenceMetric({
-  value,
-  label,
-  alert = false,
-}: {
-  value: string;
-  label: string;
-  alert?: boolean;
-}) {
-  return (
-    <div>
-      <p
-        className={`font-mono text-sm ${alert ? 'text-rose-300' : 'text-slate-200'}`}
-      >
-        {value}
-      </p>
-      <p className="text-[10px] text-slate-600">{label}</p>
-    </div>
-  );
-}
-
 function AuthorityLine({ allowed, text }: { allowed: boolean; text: string }) {
   return (
     <li className="flex gap-2">
@@ -842,13 +826,16 @@ function buildMetrics(
   ];
 }
 
-function buildSystemChecks(snapshot: ResearchLabSnapshot | null) {
+function buildSystemChecks(
+  snapshot: ResearchLabSnapshot | null,
+  mutationsEnabled: boolean | undefined,
+) {
   const health = (source: string) =>
     snapshot?.source_health.find((value) => value.source === source);
   return [
     {
-      label: 'Forge artifacts',
-      state: health('opportunities')?.status ?? 'unavailable',
+      label: 'Forge control',
+      state: health('control')?.status ?? 'unavailable',
     },
     {
       label: 'Praxist status',
@@ -859,6 +846,10 @@ function buildSystemChecks(snapshot: ResearchLabSnapshot | null) {
       state: health('promotion')?.artifacts_seen
         ? (health('promotion')?.status ?? 'unavailable')
         : 'empty',
+    },
+    {
+      label: 'Portal commands',
+      state: mutationsEnabled ? 'controlled' : 'read-only',
     },
     { label: 'Target adapter', state: 'not wired' },
   ];
@@ -884,6 +875,8 @@ function buildInspectorFacts(
     ],
     ['Runtime', stripNamespace(item?.run?.runtime)],
     ['Model', item?.run?.model ?? '—'],
+    ['Authorized', item?.authority.authorized_wiring ?? '—'],
+    ['Runtime wiring', item?.authority.runtime_wiring ?? '—'],
   ];
 }
 
@@ -916,13 +909,13 @@ function stageBadge(stage: LifecycleStage | undefined): string {
 }
 
 function healthDot(state: string): string {
-  if (state === 'healthy') return 'bg-emerald-300';
+  if (state === 'healthy' || state === 'controlled') return 'bg-emerald-300';
   if (state === 'degraded') return 'bg-amber-300';
   return 'bg-slate-600';
 }
 
 function healthText(state: string): string {
-  if (state === 'healthy') return 'text-emerald-300';
+  if (state === 'healthy' || state === 'controlled') return 'text-emerald-300';
   if (state === 'degraded') return 'text-amber-300';
   return 'text-slate-600';
 }
