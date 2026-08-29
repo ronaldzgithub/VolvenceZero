@@ -863,11 +863,19 @@ function buildInspectorFacts(
   const request = binding('research request');
   const approval = binding('research approval');
   const task = binding('task');
+  const candidate = binding('candidate');
+  const validation = binding('validation');
+  const gate = binding('gate');
+  const receipt = binding('receipt');
   return [
     ['Request', shorten(request?.artifact_id)],
     ['Request SHA', shorten(request?.sha256)],
     ['Approval', shorten(approval?.artifact_id)],
     ['Task SHA', shorten(task?.sha256)],
+    ['Candidate', shorten(candidate?.artifact_id)],
+    ['Validation SHA', shorten(validation?.sha256)],
+    ['Gate SHA', shorten(gate?.sha256)],
+    ['Receipt', shorten(receipt?.artifact_id)],
     ['Run id', shorten(item?.run?.run_id, 28)],
     [
       'PID / state',

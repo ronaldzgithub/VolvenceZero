@@ -6,7 +6,9 @@ import {
   AlertTriangle,
   Check,
   CircleOff,
+  PackagePlus,
   Play,
+  RotateCcw,
   ShieldCheck,
   UserRoundCheck,
 } from 'lucide-react';
@@ -26,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   submitResearchLabCommand,
+  type ArtifactRef,
   type ResearchLabCommandResult,
   type ResearchLabItem,
   type ResearchLabSession,
@@ -41,7 +44,59 @@ interface ResearchCommandWorkbenchProps {
   onRefresh: () => void;
 }
 
+interface CommandBindings {
+  request: ArtifactRef | null;
+  task: ArtifactRef | null;
+  handoff: ArtifactRef | null;
+  candidate: ArtifactRef | null;
+  validation: ArtifactRef | null;
+  gate: ArtifactRef | null;
+  receipt: ArtifactRef | null;
+}
+
 type ReviewDecision = 'approve' | 'reject';
+
+const commandCopy: Record<
+  SupportedCommandAction,
+  { title: string; description: string; submit: string }
+> = {
+  review_a0: {
+    title: 'Review exact A0 scope',
+    description:
+      'This writes one immutable APPROVE or REJECT decision for the frozen ResearchRequest. It does not authorize formal validation or production wiring.',
+    submit: 'Submit exact A0 review',
+  },
+  reconcile: {
+    title: 'Run one bounded reconciliation',
+    description:
+      'Forge will recheck approval, binding bytes, host capacity, doctor, resolve, and the global reconcile lock. A start is possible only when every owner gate passes.',
+    submit: 'Run one reconcile pass',
+  },
+  import_candidate: {
+    title: 'Seal completed Praxist handoff',
+    description:
+      'Forge will revalidate the exact Task, run root, generation boundary, result summary, and every candidate byte. The resulting Candidate remains DISABLED.',
+    submit: 'Import exact Candidate',
+  },
+  authorize_shadow: {
+    title: 'Authorize A1 SHADOW boundary',
+    description:
+      'This issues an exact Forge authorization receipt from loop-external formal evidence and ModificationGate review. Target-owned SHADOW apply is still separate.',
+    submit: 'Authorize exact SHADOW',
+  },
+  authorize_active: {
+    title: 'Authorize A2 ACTIVE boundary',
+    description:
+      'This requires fresh formal/canary evidence, a fresh Gate review, and the exact previous SHADOW receipt. Target-owned ACTIVE apply remains separate.',
+    submit: 'Authorize exact ACTIVE',
+  },
+  rollback: {
+    title: 'Authorize adjacent rollback',
+    description:
+      'Forge derives the only legal downgrade from the current receipt: ACTIVE to SHADOW or SHADOW to DISABLED. This cannot increase runtime authority.',
+    submit: 'Authorize exact rollback',
+  },
+};
 
 export function ResearchCommandWorkbench({
   item,
@@ -59,8 +114,16 @@ export function ResearchCommandWorkbench({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResearchLabCommandResult | null>(null);
 
-  const request = useMemo(
-    () => item?.bindings.find((binding) => binding.kind === 'research request'),
+  const bindings = useMemo(
+    () => ({
+      request: findBinding(item, 'research request'),
+      task: findBinding(item, 'task'),
+      handoff: findBinding(item, 'praxist handoff'),
+      candidate: findBinding(item, 'candidate'),
+      validation: findBinding(item, 'validation'),
+      gate: findBinding(item, 'gate'),
+      receipt: findBinding(item, 'receipt'),
+    }),
     [item],
   );
   const mutationsReady = Boolean(
@@ -80,22 +143,71 @@ export function ResearchCommandWorkbench({
 
   const submit = async () => {
     if (!action || !item || !snapshot || !session) return;
-    if (!request?.artifact_id) {
-      setError('The current snapshot has no exact ResearchRequest identity.');
+    if (!commandBindingsReady(action, item, bindings)) {
+      setError('The current snapshot is missing an exact command binding.');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const response = await submitResearchLabCommand(action, session, {
+      const base = {
         snapshot_revision: snapshot.revision,
         task_id: item.task_id,
-        artifact_id: request.artifact_id,
-        artifact_sha256: request.sha256,
         actor: actor.trim(),
         reason: reason.trim(),
-        ...(action === 'review_a0' ? { decision } : {}),
-      });
+      };
+      let response: ResearchLabCommandResult;
+      switch (action) {
+        case 'review_a0':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            artifact_id: requiredId(bindings.request),
+            artifact_sha256: requiredSha(bindings.request),
+            decision,
+          });
+          break;
+        case 'reconcile':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            artifact_id: requiredId(bindings.request),
+            artifact_sha256: requiredSha(bindings.request),
+          });
+          break;
+        case 'import_candidate':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            task_artifact_id: requiredId(bindings.task),
+            task_sha256: requiredSha(bindings.task),
+            handoff_sha256: requiredSha(bindings.handoff),
+            run_id: item.run?.run_id ?? '',
+          });
+          break;
+        case 'authorize_shadow': {
+          const previous =
+            item.authority.target_adapter_apply_required &&
+            item.authority.authorized_wiring === 'disabled'
+              ? bindings.receipt
+              : null;
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            ...authorizationPayload(bindings, previous),
+          });
+          break;
+        }
+        case 'authorize_active':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            ...authorizationPayload(bindings, bindings.receipt),
+          });
+          break;
+        case 'rollback':
+          response = await submitResearchLabCommand(action, session, {
+            ...base,
+            receipt_id: requiredId(bindings.receipt),
+            receipt_sha256: requiredSha(bindings.receipt),
+          });
+          break;
+      }
       setResult(response);
       onRefresh();
     } catch (cause) {
@@ -111,9 +223,20 @@ export function ResearchCommandWorkbench({
 
   const canSubmit =
     mutationsReady &&
-    Boolean(action && request?.artifact_id && actor.trim() && reason.trim()) &&
+    Boolean(
+      action &&
+      session?.supported_actions.includes(action) &&
+      item &&
+      commandBindingsReady(action, item, bindings) &&
+      actor.trim() &&
+      reason.trim(),
+    ) &&
     !submitting &&
     !result;
+  const exactBindings = action ? commandBindings(action, item, bindings) : [];
+  const copy = action ? commandCopy[action] : null;
+  const commandEnabled = (value: SupportedCommandAction) =>
+    mutationsReady && (session?.supported_actions.includes(value) ?? false);
 
   return (
     <>
@@ -150,7 +273,7 @@ export function ResearchCommandWorkbench({
             <Button
               className="w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
               onClick={() => begin('review_a0')}
-              disabled={!mutationsReady}
+              disabled={!commandEnabled('review_a0')}
             >
               <UserRoundCheck className="size-4" /> Review exact A0
             </Button>
@@ -159,9 +282,18 @@ export function ResearchCommandWorkbench({
             <Button
               className="w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
               onClick={() => begin('reconcile')}
-              disabled={!mutationsReady}
+              disabled={!commandEnabled('reconcile')}
             >
               <Play className="size-4" /> Run one reconcile pass
+            </Button>
+          )}
+          {available.has('import_candidate') && (
+            <Button
+              className="w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+              onClick={() => begin('import_candidate')}
+              disabled={!commandEnabled('import_candidate')}
+            >
+              <PackagePlus className="size-4" /> Import exact Candidate
             </Button>
           )}
           {available.has('view_run') && (
@@ -173,17 +305,62 @@ export function ResearchCommandWorkbench({
             />
           )}
           {available.has('authorize_shadow') && (
-            <ActionNotice
-              icon={CircleOff}
-              title="A1 authorization is not connected"
-              detail="The portal needs exact formal validation and ModificationGate bindings before this owner seam can be enabled."
-            />
+            <Button
+              className="w-full bg-violet-300 text-slate-950 hover:bg-violet-200"
+              onClick={() => begin('authorize_shadow')}
+              disabled={!commandEnabled('authorize_shadow')}
+            >
+              <ShieldCheck className="size-4" /> Authorize exact SHADOW
+            </Button>
           )}
           {available.has('authorize_active') && (
+            <Button
+              className="w-full bg-emerald-300 text-slate-950 hover:bg-emerald-200"
+              onClick={() => begin('authorize_active')}
+              disabled={!commandEnabled('authorize_active')}
+            >
+              <ShieldCheck className="size-4" /> Authorize exact ACTIVE
+            </Button>
+          )}
+          {available.has('rollback') && (
+            <Button
+              variant="outline"
+              className="w-full border-amber-300/25 bg-amber-300/[0.05] text-amber-100 hover:bg-amber-300/10 hover:text-amber-50"
+              onClick={() => begin('rollback')}
+              disabled={!commandEnabled('rollback')}
+            >
+              <RotateCcw className="size-4" /> Authorize adjacent rollback
+            </Button>
+          )}
+          {available.has('run_formal_validation') && (
             <ActionNotice
               icon={CircleOff}
-              title="A2 authorization is not connected"
-              detail="SHADOW observation, canary evidence, and target-owned apply receipts remain mandatory."
+              title="Formal validator is external"
+              detail="The task-owned sealed validator must publish exact evidence before the Portal can expose A1."
+            />
+          )}
+          {available.has('view_formal_evidence') && (
+            <ActionNotice
+              icon={AlertTriangle}
+              title="Gate review is still required"
+              detail="Formal evidence is visible, but no exact ModificationGate artifact binds this validation round."
+            />
+          )}
+          {available.has('inspect_handoff') && (
+            <ActionNotice
+              icon={AlertTriangle}
+              title="Committed handoff is missing"
+              detail="The completed process is visible, but Candidate import stays closed until the task-local exporter publishes the canonical handoff."
+            />
+          )}
+          {available.has('inspect_blocker') && (
+            <ActionNotice
+              icon={AlertTriangle}
+              title="Owner gate blocked this transition"
+              detail={
+                item?.lifecycle.blocking_reason ??
+                'Inspect the exact negative artifact before producing fresh evidence.'
+              }
             />
           )}
           {!item && (
@@ -206,15 +383,9 @@ export function ResearchCommandWorkbench({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="border border-white/10 bg-slate-950 text-slate-100 shadow-2xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {action === 'review_a0'
-                ? 'Review exact A0 scope'
-                : 'Run one bounded reconciliation'}
-            </DialogTitle>
+            <DialogTitle>{copy?.title ?? 'Review exact command'}</DialogTitle>
             <DialogDescription className="leading-relaxed text-slate-500">
-              {action === 'review_a0'
-                ? 'This writes one immutable APPROVE or REJECT decision for the frozen ResearchRequest. It does not authorize formal validation or production wiring.'
-                : 'Forge will recheck approval, binding bytes, host capacity, doctor, resolve, and the global reconcile lock. A start is possible only when every owner gate passes.'}
+              {copy?.description}
             </DialogDescription>
           </DialogHeader>
 
@@ -222,12 +393,32 @@ export function ResearchCommandWorkbench({
             <p className="text-[10px] uppercase tracking-[0.16em] text-slate-600">
               Exact binding
             </p>
-            <p className="mt-2 break-all font-mono text-[10px] text-slate-400">
-              {request?.artifact_id ?? 'missing request id'}
-            </p>
-            <p className="mt-1 break-all font-mono text-[9px] text-slate-700">
-              sha256:{request?.sha256 ?? 'missing'}
-            </p>
+            <div className="mt-2 space-y-2">
+              {exactBindings.length ? (
+                exactBindings.map((binding) => (
+                  <div
+                    key={`${binding.kind}:${binding.sha256}`}
+                    className="rounded-md border border-white/[0.05] bg-black/10 px-2.5 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-slate-600">
+                        {binding.kind}
+                      </span>
+                      <span className="max-w-[250px] truncate font-mono text-[9px] text-slate-400">
+                        {binding.artifact_id ?? 'content-addressed bytes'}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-all font-mono text-[8px] text-slate-700">
+                      sha256:{binding.sha256}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="font-mono text-[10px] text-rose-300">
+                  missing exact command bindings
+                </p>
+              )}
+            </div>
             <p className="mt-2 font-mono text-[9px] text-slate-700">
               snapshot:{shortRevision(snapshot?.revision)}
             </p>
@@ -303,11 +494,22 @@ export function ResearchCommandWorkbench({
             </div>
           )}
           {result && (
-            <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-3 text-xs text-emerald-100">
+            <div
+              className={`rounded-lg border px-3 py-3 text-xs ${
+                result.outcome === 'blocked'
+                  ? 'border-amber-300/20 bg-amber-300/[0.06] text-amber-100'
+                  : 'border-emerald-300/20 bg-emerald-300/[0.06] text-emerald-100'
+              }`}
+            >
               <p className="flex items-center gap-2 font-medium">
-                <Check className="size-4" /> {result.outcome}
+                {result.outcome === 'blocked' ? (
+                  <AlertTriangle className="size-4" />
+                ) : (
+                  <Check className="size-4" />
+                )}{' '}
+                {result.outcome}
               </p>
-              <p className="mt-1 text-emerald-100/60">{result.message}</p>
+              <p className="mt-1 opacity-60">{result.message}</p>
             </div>
           )}
 
@@ -324,7 +526,8 @@ export function ResearchCommandWorkbench({
                 onClick={submit}
                 disabled={!canSubmit}
                 className={
-                  action === 'review_a0' && decision === 'reject'
+                  (action === 'review_a0' && decision === 'reject') ||
+                  action === 'rollback'
                     ? 'bg-rose-300 text-slate-950 hover:bg-rose-200'
                     : 'bg-cyan-300 text-slate-950 hover:bg-cyan-200'
                 }
@@ -333,7 +536,7 @@ export function ResearchCommandWorkbench({
                   ? 'Submitting exact command…'
                   : action === 'review_a0'
                     ? `${decision === 'approve' ? 'Approve' : 'Reject'} exact A0`
-                    : 'Run one reconcile pass'}
+                    : copy?.submit}
               </Button>
             )}
           </DialogFooter>
@@ -378,4 +581,116 @@ function ActionNotice({
 
 function shortRevision(value: string | undefined): string {
   return value ? `${value.slice(0, 12)}…${value.slice(-8)}` : 'missing';
+}
+
+function findBinding(
+  item: ResearchLabItem | null,
+  kind: string,
+): ArtifactRef | null {
+  return item?.bindings.find((binding) => binding.kind === kind) ?? null;
+}
+
+function requiredId(binding: ArtifactRef | null): string {
+  if (!binding?.artifact_id) throw new Error('Missing exact artifact identity');
+  return binding.artifact_id;
+}
+
+function requiredSha(binding: ArtifactRef | null): string {
+  if (!binding?.sha256) throw new Error('Missing exact artifact digest');
+  return binding.sha256;
+}
+
+function authorizationPayload(
+  bindings: CommandBindings,
+  previous: ArtifactRef | null,
+) {
+  return {
+    task_artifact_id: requiredId(bindings.task),
+    task_sha256: requiredSha(bindings.task),
+    candidate_artifact_id: requiredId(bindings.candidate),
+    candidate_sha256: requiredSha(bindings.candidate),
+    validation_sha256: requiredSha(bindings.validation),
+    gate_sha256: requiredSha(bindings.gate),
+    previous_receipt_id: previous ? requiredId(previous) : null,
+    previous_receipt_sha256: previous ? requiredSha(previous) : null,
+  };
+}
+
+function commandBindings(
+  action: SupportedCommandAction,
+  item: ResearchLabItem | null,
+  bindings: CommandBindings,
+): ArtifactRef[] {
+  switch (action) {
+    case 'review_a0':
+    case 'reconcile':
+      return bindings.request ? [bindings.request] : [];
+    case 'import_candidate':
+      return [bindings.task, bindings.handoff].filter(isArtifactRef);
+    case 'authorize_shadow': {
+      const previous =
+        item?.authority.target_adapter_apply_required &&
+        item.authority.authorized_wiring === 'disabled'
+          ? bindings.receipt
+          : null;
+      return [
+        bindings.task,
+        bindings.candidate,
+        bindings.validation,
+        bindings.gate,
+        previous,
+      ].filter(isArtifactRef);
+    }
+    case 'authorize_active':
+      return [
+        bindings.task,
+        bindings.candidate,
+        bindings.validation,
+        bindings.gate,
+        bindings.receipt,
+      ].filter(isArtifactRef);
+    case 'rollback':
+      return bindings.receipt ? [bindings.receipt] : [];
+  }
+}
+
+function commandBindingsReady(
+  action: SupportedCommandAction,
+  item: ResearchLabItem,
+  bindings: CommandBindings,
+): boolean {
+  const hasId = (binding: ArtifactRef | null) => Boolean(binding?.artifact_id);
+  switch (action) {
+    case 'review_a0':
+    case 'reconcile':
+      return hasId(bindings.request);
+    case 'import_candidate':
+      return (
+        hasId(bindings.task) && Boolean(bindings.handoff && item.run?.run_id)
+      );
+    case 'authorize_shadow': {
+      const needsPrevious =
+        item.authority.target_adapter_apply_required &&
+        item.authority.authorized_wiring === 'disabled';
+      return (
+        hasId(bindings.task) &&
+        hasId(bindings.candidate) &&
+        Boolean(bindings.validation && bindings.gate) &&
+        (!needsPrevious || hasId(bindings.receipt))
+      );
+    }
+    case 'authorize_active':
+      return (
+        hasId(bindings.task) &&
+        hasId(bindings.candidate) &&
+        Boolean(bindings.validation && bindings.gate) &&
+        hasId(bindings.receipt)
+      );
+    case 'rollback':
+      return hasId(bindings.receipt);
+  }
+}
+
+function isArtifactRef(value: ArtifactRef | null): value is ArtifactRef {
+  return value !== null;
 }

@@ -112,7 +112,13 @@ export interface ResearchLabSnapshot {
   warnings: PortalWarning[];
 }
 
-export type SupportedCommandAction = 'review_a0' | 'reconcile';
+export type SupportedCommandAction =
+  | 'review_a0'
+  | 'reconcile'
+  | 'import_candidate'
+  | 'authorize_shadow'
+  | 'authorize_active'
+  | 'rollback';
 
 export interface ResearchLabSession {
   schema_version: 'volvence-research-lab-session.v1';
@@ -121,14 +127,54 @@ export interface ResearchLabSession {
   supported_actions: SupportedCommandAction[];
 }
 
-export interface ResearchLabCommandPayload {
+interface BaseCommandPayload {
   snapshot_revision: string;
   task_id: string;
-  artifact_id: string;
-  artifact_sha256: string;
   actor: string;
   reason: string;
-  decision?: 'approve' | 'reject';
+}
+
+export interface A0CommandPayload extends BaseCommandPayload {
+  artifact_id: string;
+  artifact_sha256: string;
+  decision: 'approve' | 'reject';
+}
+
+export interface ReconcileCommandPayload extends BaseCommandPayload {
+  artifact_id: string;
+  artifact_sha256: string;
+}
+
+export interface ImportCandidateCommandPayload extends BaseCommandPayload {
+  task_artifact_id: string;
+  task_sha256: string;
+  handoff_sha256: string;
+  run_id: string;
+}
+
+export interface AuthorizeCommandPayload extends BaseCommandPayload {
+  task_artifact_id: string;
+  task_sha256: string;
+  candidate_artifact_id: string;
+  candidate_sha256: string;
+  validation_sha256: string;
+  gate_sha256: string;
+  previous_receipt_id: string | null;
+  previous_receipt_sha256: string | null;
+}
+
+export interface RollbackCommandPayload extends BaseCommandPayload {
+  receipt_id: string;
+  receipt_sha256: string;
+}
+
+export interface ResearchLabCommandPayloadByAction {
+  review_a0: A0CommandPayload;
+  reconcile: ReconcileCommandPayload;
+  import_candidate: ImportCandidateCommandPayload;
+  authorize_shadow: AuthorizeCommandPayload;
+  authorize_active: AuthorizeCommandPayload;
+  rollback: RollbackCommandPayload;
 }
 
 export interface ResearchLabCommandResult {
@@ -141,9 +187,14 @@ export interface ResearchLabCommandResult {
   current_revision: string;
   binding: {
     kind: string;
-    artifact_id: string;
+    artifact_id: string | null;
     sha256: string;
   };
+  input_bindings: Array<{
+    kind: string;
+    artifact_id: string | null;
+    sha256: string;
+  }>;
 }
 
 export async function fetchResearchLabSnapshot(
@@ -182,10 +233,12 @@ export async function fetchResearchLabSession(
   return payload;
 }
 
-export async function submitResearchLabCommand(
-  action: SupportedCommandAction,
+export async function submitResearchLabCommand<
+  Action extends SupportedCommandAction,
+>(
+  action: Action,
   session: ResearchLabSession,
-  payload: ResearchLabCommandPayload,
+  payload: ResearchLabCommandPayloadByAction[Action],
 ): Promise<ResearchLabCommandResult> {
   if (!session.mutations_enabled || !session.csrf_token) {
     throw new Error('Controlled mutations are disabled on the local API');
@@ -193,8 +246,15 @@ export async function submitResearchLabCommand(
   if (!session.supported_actions.includes(action)) {
     throw new Error(`${action} is not enabled by the local API session`);
   }
-  const endpoint =
-    action === 'review_a0' ? '/api/v1/a0/review' : '/api/v1/reconcile';
+  const endpoints: Record<SupportedCommandAction, string> = {
+    review_a0: '/api/v1/a0/review',
+    reconcile: '/api/v1/reconcile',
+    import_candidate: '/api/v1/candidates/import',
+    authorize_shadow: '/api/v1/a1/authorize-shadow',
+    authorize_active: '/api/v1/a2/authorize-active',
+    rollback: '/api/v1/rollback',
+  };
+  const endpoint = endpoints[action];
   const response = await fetch(endpoint, {
     method: 'POST',
     cache: 'no-store',
@@ -246,9 +306,7 @@ function isSession(value: unknown): value is ResearchLabSession {
     typeof value.mutations_enabled === 'boolean' &&
     (typeof value.csrf_token === 'string' || value.csrf_token === null) &&
     Array.isArray(value.supported_actions) &&
-    value.supported_actions.every(
-      (action) => action === 'review_a0' || action === 'reconcile',
-    )
+    value.supported_actions.every(isSupportedCommandAction)
   );
 }
 
@@ -256,16 +314,37 @@ function isCommandResult(value: unknown): value is ResearchLabCommandResult {
   if (!isRecord(value)) return false;
   return (
     value.schema_version === 'volvence-research-lab-command-result.v1' &&
-    (value.action === 'review_a0' || value.action === 'reconcile') &&
+    isSupportedCommandAction(value.action) &&
     typeof value.task_id === 'string' &&
     typeof value.outcome === 'string' &&
     typeof value.message === 'string' &&
     typeof value.previous_revision === 'string' &&
     typeof value.current_revision === 'string' &&
-    isRecord(value.binding) &&
-    typeof value.binding.kind === 'string' &&
-    typeof value.binding.artifact_id === 'string' &&
-    typeof value.binding.sha256 === 'string'
+    isCommandBinding(value.binding) &&
+    Array.isArray(value.input_bindings) &&
+    value.input_bindings.every(isCommandBinding)
+  );
+}
+
+function isCommandBinding(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.kind === 'string' &&
+    (typeof value.artifact_id === 'string' || value.artifact_id === null) &&
+    typeof value.sha256 === 'string'
+  );
+}
+
+function isSupportedCommandAction(
+  value: unknown,
+): value is SupportedCommandAction {
+  return (
+    value === 'review_a0' ||
+    value === 'reconcile' ||
+    value === 'import_candidate' ||
+    value === 'authorize_shadow' ||
+    value === 'authorize_active' ||
+    value === 'rollback'
   );
 }
 

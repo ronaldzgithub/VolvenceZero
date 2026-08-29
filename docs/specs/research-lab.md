@@ -1,6 +1,6 @@
 # Research Lab：Forge → Praxist → SHADOW → ACTIVE 统一控制台
 
-> Status: v1.3 architecture freeze；exact-bound aggregation + local promotion delegation implemented
+> Status: v1.4 architecture freeze；exact-bound aggregation + local promotion workbench implemented
 > Last updated: 2026-08-29
 > Owner: `volvence_labs.portal`（read-only aggregation and command delegation only）
 > Upstream contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`research-control-plane.md`](./research-control-plane.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
@@ -203,12 +203,12 @@ controlled local mode；它只启动 API 与 Web、检查端口和依赖、在�
 1. **Foundation**：冻结 Forge/Praxist pilot 与 control-plane contracts；不含 UI。
 2. **Read-only Lab**：Sites web shell + `ResearchLabSnapshot` collector + local GET API；不含 mutation。
 3. **A0 operations**：exact review/reconcile；只能到 Praxist research lifecycle。**已实现。**
-4. **Promotion operations**：candidate import 与 A1/A2/rollback backend 已实现；Web action consumer 待接。缺
-   validator/adapter 时仍只显示 blocker。
+4. **Promotion operations**：candidate import 与 A1/A2/rollback backend/Web consumer 已实现；每个 dialog 展示
+   本次命令的全部 exact id/hash，合法负 receipt 单独显示 BLOCKED。缺 validator/adapter 时仍只显示 blocker。
 5. **Remote/read-only mirror**：可选；不扩本地控制权限。
 
-根目录 launcher 已实现；第 4 包现已接入 Forge mutation seam，但不会生成 formal/gate evidence，也不会替 target
-adapter apply wiring。
+根目录 launcher 已实现；第 4 包现已接入 Forge mutation seam 与本地 Web workbench，但不会生成 formal/gate evidence，
+也不会替 target adapter apply wiring。运行中的 Praxist Task 仍只显示 `view_run`，不会暴露第二次 start/reconcile。
 
 每包独立提交、测试和回滚。共享 snapshot shape 先冻结，writer/collector 与 web consumer 分开提交。
 
