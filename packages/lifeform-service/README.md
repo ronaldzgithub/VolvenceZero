@@ -48,6 +48,28 @@ Closed-alpha coding sessions use the existing identity-scoped memory root, so a
 new session for the same user can recall prior outcomes. The service retains
 only bounded live idempotency lineage; Memory remains the cognitive owner.
 
+## Venture Brain API
+
+Sessions created with `vertical="venture"` expose:
+
+```text
+POST /v1/sessions/{session_id}/venture/context-packs
+POST /v1/sessions/{session_id}/venture/outcomes
+```
+
+The request and outcome bodies must include `venture-context-request.v1` and
+`venture-outcome-report.v1` respectively. Unknown fields, evidence-class/role
+violations, illegal evidence-class/outcome-kind pairs, inconsistent net value,
+unknown or cross-session Context Packs, and historical writes fail closed.
+
+The Context Pack is ACTIVE and content-addressed. Its nested Advice is always
+SHADOW with `applied=false` and never appears in `rendered_context`. Only a
+Foundry-qualified `field_experiment_result` enters the next-turn PE lane;
+simulation, internal review, machine checks, individual field events, build or
+deployment health, advice adoption, and gross revenue never do. Full request,
+outcome, cost, evidence, idempotency, and adapter contracts are specified in
+[`docs/specs/venture-brain.md`](../../docs/specs/venture-brain.md).
+
 ## One Qwen, many tenants — substrate sharing
 
 When you deploy on a single GPU server, every session must share **one** in-memory copy of the open-weight model. The service supports this directly:

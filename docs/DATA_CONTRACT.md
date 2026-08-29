@@ -1297,6 +1297,24 @@ checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / ve
 
 ---
 
+### 2.21 Venture Brain 产品契约（lifeform-side，不新增 kernel slot）
+
+**所在 wheel**：`lifeform-domain-venture`；HTTP 投影：`lifeform-service`。完整 contract 见
+[`docs/specs/venture-brain.md`](./specs/venture-brain.md)。
+
+| 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
+|---|---|---|---|
+| `VentureContextRequest` | Foundry 提交已确认事实；`lifeform-domain-venture` 校验 schema | portfolio/cycle/decision identity、closed decision point、typed evidence refs、约束、预算/时间窗、不确定性 | 输入契约；禁止从自由文本推断 evidence class、route 或商业状态 |
+| `VentureContextPackSnapshot` | `lifeform-domain-venture.VentureBrainController` | 只读 Memory owner 的 venture-tagged `RetrievalResult` 与同拍 PE public snapshot | `ACTIVE`；content-addressed；显式发布 source entry/evidence/settlement lineage；不包含任何已应用建议 |
+| `VentureAdviceSnapshot` | 同上；候选可由注入的严格结构化 advisor 提供 | 同拍 owner readout、Context Pack source lineage、Foundry typed request | v1 固定 `SHADOW` + `applied=false`；候选不得进入 ACTIVE `rendered_context`，无 actuator |
+| `VentureOutcomeReport` / `VentureOutcomeReceipt` | report 事实、evidence class、商业 verdict 由 Foundry 提交；receipt 由 venture controller 发布 | Memory facade、semantic task event；仅 `field_experiment_result` 可额外走 typed `EnvironmentOutcome -> prediction_error` | append-only / idempotent；simulation/internal_review/machine_check 与单项 field customer/payment/cost/refund 不得成为 PE reward；毛收入、采纳、构建或部署健康不得单独晋升 |
+
+该产品面复用既有 `memory`、`execution_result`、`environment outcome`、`prediction_error` 与 credit owner，
+不注册新的 kernel slot。Venture controller 仅持有有界的 live-session idempotency/lineage；不抓取来源、
+不读写 Foundry ledger、不执行商业动作，也不访问 `runner.memory_store` 等 owner 内部对象。
+
+---
+
 ## 3. 模块快照契约
 
 ### 3.1 稳定基底层 (Substrate)
@@ -2948,6 +2966,9 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `coding_context_pack` | CodingBrainController | `lifeform-domain-coding` | CodingContextPackSnapshot | ACTIVE | 每个 coding task 请求 | coding agent host；消费 memory / prediction_error 公共 readout，不进入 kernel propagate |
 | `coding_advice` | CodingBrainController | `lifeform-domain-coding` | CodingAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | evidence / comparison only；不得进入 ACTIVE rendered context 或 actuator |
 | `coding_outcome_receipt` | CodingBrainController | `lifeform-domain-coding` | CodingOutcomeReceipt | ACTIVE（产品回执） | typed outcome 提交 | coding agent host；副作用只经 Brain/Lifeform facade 进入 memory / semantic / external-outcome owners |
+| `venture_context_pack` | VentureBrainController | `lifeform-domain-venture` | VentureContextPackSnapshot | ACTIVE | 每个 Foundry decision request | Foundry adapter；消费 venture-tagged memory / prediction_error 公共 readout，不进入 kernel propagate |
+| `venture_advice` | VentureBrainController | `lifeform-domain-venture` | VentureAdviceSnapshot | SHADOW（固定，v1） | 随 Context Pack | evidence / comparison only；不得进入 ACTIVE rendered context、Foundry gate 或 actuator |
+| `venture_outcome_receipt` | VentureBrainController | `lifeform-domain-venture` | VentureOutcomeReceipt | ACTIVE（产品回执） | Foundry typed outcome 提交 | Foundry adapter；副作用只经 Brain/Lifeform facade 进入 memory / semantic / eligible environment-outcome owners |
 
 **lifeform-side slot 不变量**：
 
