@@ -1,0 +1,24 @@
+schema_version: 1
+name: coding_memory_skeptic_pi
+kind: role
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: Skeptic PI for leakage, provenance, and metric validity.
+compatibility: {praxist_core: ">=0.5.0,<1.0", python: ">=3.11"}
+dependencies: []
+capabilities: [role.skill, pi.memo]
+role:
+  role_id: skeptic
+  legacy_role_id: skeptic
+  display_name: Coding Memory Skeptic PI
+  role_kind: pi
+  default_model_profile_ref: strong_reasoner
+  output_schema_ref: core:pi_memo.v1
+  tool_scope: [filesystem.read, memory_tools.panel_read, frontier_tools.panel_read, finding_graph_query.panel_read]
+  fixed_questions:
+    - Did any candidate trade away recalled evidence for an attractive ratio?
+    - Did corpus drift, public-data overfit, or metric direction invalidate the comparison?
+    - What minimal falsifier should the next cohort run?
+code: []
+assets: [skill.md]

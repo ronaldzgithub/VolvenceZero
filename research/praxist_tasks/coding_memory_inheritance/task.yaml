@@ -1,0 +1,389 @@
+schema_version: 1
+task_version: 0.2.0
+task_id: coding_memory_inheritance
+task_name: "Coding Memory Inheritance Policy Research"
+description_file: description.md
+capabilities:
+  - task.memory_retrieval
+  - task.context_compression
+  - task.coding_lab
+  - task.multi_metric_pareto
+
+research_direction: |
+  Improve the bounded coding-memory inheritance policy exposed as a structured
+  policy.json artifact. The public development evaluator replays eight frozen
+  Packet 2 Qwen trajectories through the real MemoryStore and Brain observer,
+  then measures whether task-relevant recalled entries survive within a smaller
+  context budget. The frozen v3 baseline has positive quality evidence but a
+  context-token ratio of 0.1059203166 against a preregistered maximum of 0.10.
+
+  Praxist owns development research and retention only. It may vary only the
+  declared policy fields; it may not modify the task, evaluator, source corpus,
+  Volvence runtime, formal validator, gate, or production wiring. Development
+  replay does not rerun the coding hand and cannot establish quality. Every
+  retained candidate still requires loop-external sealed validation,
+  ModificationGate review, SHADOW observation, canary, and a separate ACTIVE
+  approval before any runtime effect.
+
+prompt_layout:
+  base_template: prompt_base.jinja2
+  generation_template: prompt_generation.jinja2
+
+evaluation:
+  primary_metric: scaling_margin
+  direction: maximize
+  aux_metrics:
+    - context_token_ratio
+    - worst_chain_scaling_margin
+    - recalled_entry_selection_coverage
+    - failed_entry_selection_coverage
+    - recalled_entry_retention
+    - failed_entry_retention
+    - strict_budget_pass_rate
+    - mean_context_tokens
+    - evaluator_wall_seconds
+  seeds: [20260812]
+  aggregation: deterministic_chain_weighted_mean_and_worst_chain
+  maturity_policy:
+    min_effort_ratio: 1.0
+    min_coverage_ratio: 1.0
+    require_ratio_gate: true
+    complete_stage_labels: [complete]
+    preliminary_stage_labels: [preliminary]
+  constructive_peer_mix_enabled: true
+  constructive_target_ratio: 0.75
+  launch_guard:
+    enabled: true
+    estimated_heavy_eval_minutes: 18
+    estimated_close_grade_eval_minutes: 18
+    safety_factor: 1.50
+  staged_protocols:
+    - name: preliminary
+      launch_allowed: true
+      ranking_allowed: false
+      mature_allowed: false
+      parent_allowed: false
+      close_allowed: false
+      purpose: "One complete chain for wiring, schema, provenance, and failure triage only."
+    - name: complete
+      launch_allowed: true
+      ranking_allowed: true
+      mature_allowed: true
+      parent_allowed: true
+      close_allowed: true
+      purpose: "All eight public development chains; mature only for Praxist development retention."
+  diversity_dimensions:
+    - name: mechanism_family
+      description: "Budget accounting, section allocation, recall ordering, truncation, deduplication, or control."
+    - name: intervention_surface
+      description: "Exactly one structured policy surface such as section order, entry order, cap, or overflow behavior."
+    - name: intent
+      description: "Explore, exploit, bridge, repair, falsify, ablate, diagnose, or control."
+    - name: semantic_family
+      description: "Mechanistically distinct policy family rather than a renamed numeric perturbation."
+    - name: parent_lineage
+      description: "Frozen baseline, confirmed parent, incubator parent, or independent lineage."
+    - name: novelty_axis
+      description: "The exact evidence-preservation or budget invariant changed by the proposal."
+  frontier_lanes:
+    - name: confirmed
+      description: "Complete development replay that preserves selected owner evidence and clears the frozen 0.10 budget gate."
+      k: 3
+      cumulative_cap: 12
+      axes:
+        - {name: scaling_margin, direction: maximize}
+        - {name: recalled_entry_selection_coverage, direction: maximize}
+        - {name: failed_entry_selection_coverage, direction: maximize}
+        - {name: recalled_entry_retention, direction: maximize}
+        - {name: failed_entry_retention, direction: maximize}
+      optional_axes:
+        - {name: worst_chain_scaling_margin, direction: maximize}
+        - {name: mean_context_tokens, direction: minimize}
+      include_lanes: [confirmed, performance]
+      require_metrics: [scaling_margin, recalled_entry_selection_coverage, failed_entry_selection_coverage, recalled_entry_retention, failed_entry_retention]
+      require_truthy_metrics: [scored_complete, protocol_integrity_passed, retention_gate_passed, scaling_gate_passed, strict_budget_passed, promotion_eligible]
+      require_falsey_metrics: [protocol_integrity_failed, is_smoke_eval, partial, validation_only, late_after_generation_boundary, suspect_protocol, suspect_leakage]
+      min_metrics:
+        recalled_entry_selection_coverage: 0.75
+        failed_entry_selection_coverage: 0.95
+        recalled_entry_retention: 1.0
+        failed_entry_retention: 1.0
+      parent_eligible: true
+      allow_missing_tier: true
+    - name: incubator
+      description: "Complete, protocol-clean Pareto/new-high policies that preserve selected evidence but still need efficiency or robustness follow-up."
+      k: 8
+      cumulative_cap: 48
+      admit_new_high: true
+      axes:
+        - {name: scaling_margin, direction: maximize}
+        - {name: recalled_entry_selection_coverage, direction: maximize}
+        - {name: failed_entry_selection_coverage, direction: maximize}
+      optional_axes:
+        - {name: recalled_entry_retention, direction: maximize}
+        - {name: failed_entry_retention, direction: maximize}
+        - {name: worst_chain_scaling_margin, direction: maximize}
+        - {name: mean_context_tokens, direction: minimize}
+      include_lanes: [incubator, performance]
+      require_metrics: [scaling_margin, recalled_entry_selection_coverage, failed_entry_selection_coverage, recalled_entry_retention, failed_entry_retention]
+      require_truthy_metrics: [scored_complete, protocol_integrity_passed, retention_gate_passed]
+      require_falsey_metrics: [protocol_integrity_failed, is_smoke_eval, partial, scout_only, validation_only, validation_only_result, late_after_generation_boundary, suspect_protocol, suspect_leakage]
+      min_metrics:
+        recalled_entry_selection_coverage: 0.75
+        failed_entry_selection_coverage: 0.95
+        recalled_entry_retention: 1.0
+        failed_entry_retention: 1.0
+      parent_eligible: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+      allow_risk_violating: true
+    - name: task_candidate
+      description: "Preliminary or repair evidence retained only for complete replay follow-up."
+      k: 5
+      cumulative_cap: 20
+      axes:
+        - {name: scaling_margin, direction: maximize}
+        - {name: recalled_entry_retention, direction: maximize}
+      include_lanes: [task_candidate, candidate, preliminary, partial, repair]
+      require_metrics: [scaling_margin]
+      parent_eligible: false
+      allow_lower_tier: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+    - name: diagnostic
+      description: "Invalid policies, controls, falsifiers, corpus-integrity failures, and process diagnostics."
+      k: 3
+      cumulative_cap: 12
+      axes:
+        - {name: scaling_margin, direction: maximize}
+      optional_axes:
+        - {name: evaluator_wall_seconds, direction: minimize}
+      include_lanes: [diagnostic, control, process, reference, negative_control]
+      parent_eligible: false
+      allow_lower_tier: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+
+compute_budget:
+  per_experiment_gpu_hours: 0
+  max_parallel_runs_per_peer: 1
+  resource_scheduler:
+    mode: central
+    initial_concurrent_experiments: 2
+    min_concurrent_experiments: 1
+    max_concurrent_experiments: 2
+    supply_signal_enabled: true
+    supply_idle_samples: 3
+    supply_lease_seconds: 600
+    mature_supply_fraction: 0.25
+    mature_supply_redundancy: 3.0
+    mature_assessment_min_completion_probability: 0.25
+    exploration_reserve: 1
+    infrastructure_retries: 1
+    default_profile: context_replay
+    profiles:
+      context_replay:
+        accelerator: cpu
+        pressure_domains: [cpu, memory, io]
+
+toolchain:
+  framework: volvence_coding_lab_context_replay
+  entrypoint_template: assets/baseline/policy.json
+  eval_entrypoint: evaluations/context_replay/run.py
+  benchmark_entrypoint: evaluations/context_replay/run.py
+
+task_entrypoints:
+  evaluation:
+    command: evaluations/context_replay/run.py
+    output_policy: "Use --output-dir and write exactly one evaluation_summary.json beneath the caller-owned result directory."
+    purpose: "Only public development evaluator for structured memory-inheritance policies."
+
+task_assets:
+  baseline_variant: assets/baseline
+  baseline_results: assets/baselines/results.jsonl
+  dataset_protocol: assets/dataset_metadata/public_replay_manifest.json
+  resource_plan: assets/resource_plan.md
+  protocol_intent: assets/protocol_intent.md
+  research_directions: assets/literature/research_directions.md
+
+runtime_outputs:
+  root: experiments
+  gitignored: true
+  policy: "Variants, replay state, summaries, logs, and temporary files remain under task-owned or Praxist run output roots."
+
+runtime_environment:
+  cwd: task_project
+  venv: ../../../.venv
+  python: ../../../.venv/bin/python
+  require_paths: true
+  protected_child_paths:
+    - assets
+    - evaluations
+    - audit_rules
+  writable_roots:
+    - scratch
+
+generation_policy:
+  max_generations: 3
+  cohort_size: 4
+  per_generation_hours: 2.0
+  promote_top_k: 3
+  promote_criterion: multi_metric_frontier_lanes
+
+synthesis_trigger:
+  enabled: true
+  min_findings: 4
+  min_interval_minutes: 45
+  max_interval_minutes: 70
+  min_contributing_peers: 3
+  mature_quorum_fraction: 0.25
+  poll_interval_seconds: 30
+  adaptive:
+    enabled: true
+    min_evidence_units: 1.0
+    min_formal_result_peers: 1
+    drain_grace_minutes: 5
+
+research_memory:
+  enabled: true
+  rollout_phase: 2
+  evidence_pack_max_cards: 32
+  citation_coverage_min: 0.95
+  negative_evidence_ratio_min: 0.20
+  bridge_coverage_check_required: true
+
+multi_pi:
+  enabled: true
+  panel_mode_default: full
+  auto_escalate_to_high_stakes: true
+  pi_max_runtime_minutes: 10
+  chair_max_runtime_minutes: 18
+  chair_peer_budget: 4
+  shared_core_ratio_target: 0.65
+  private_kb_ratio_target: 0.35
+  fallback_to_single_pi_on_panel_failure: true
+
+dig_lite:
+  enabled: true
+  generation_scope: initial_only
+  phase: pre_code_only
+  experiments_allowed: false
+  shell_allowed: false
+  code_writes_allowed: false
+  result_writes_allowed: false
+  candidate_count: 8
+  min_mechanism_families: 4
+  min_intervention_surfaces: 3
+  max_refinement_rounds: 1
+  max_attempts: 10
+  max_total_runtime_minutes: 30
+  fallback_to_direct_on_failure: true
+  planner_allowed_tools: [Read, Grep, Glob]
+  planner_max_runtime_minutes: 10
+  strict: true
+  inject_contract_into_prompt: true
+  diversity:
+    cell_fields: [mechanism_family, intervention_surface, intent]
+    selection: best_within_lane
+    reject_near_duplicate: true
+    duplicate_threshold: 0.82
+    allow_adjacent_lane_fallback: true
+  innovation:
+    enabled: true
+    enforce_forward_slots: true
+    max_diagnostic_fraction: 0.25
+    max_diagnostic_peers: 1
+  contract:
+    require_selected_contract: true
+    require_ablation_hooks: true
+    min_rejected_alternatives: 2
+    require_forbidden_changes: true
+    require_expected_metric_signature: true
+    require_fail_fast_checks: true
+  write_gate:
+    enabled: true
+    allow_writes_only_under_dig_dir_before_unlock: true
+    block_shell_before_unlock: true
+    block_variant_dir_before_unlock: true
+    block_results_dir_before_unlock: true
+
+quality_diversity:
+  enabled: true
+  initial_generation_enabled: true
+  later_generations_enabled: true
+  max_same_diversity_cell_peers: 1
+  max_same_mechanism_family_fraction: 0.50
+  max_same_intervention_surface_fraction: 0.50
+  max_same_intent_fraction: 0.75
+
+gems:
+  enabled: false
+  selection_policy: mature_evidence_top_k
+  min_mature_eval_units: 8
+  evidence_stage_min_units:
+    complete: 8
+  max_resets: 3
+  max_gems_per_reset: 3
+  max_gems_total: 3
+  max_gems_per_family: 2
+  min_frontier_entries: 1
+  archive_ordinary_findings: true
+  prompt_max_gems: 3
+  include_lanes: [confirmed, performance, incubator]
+  result_artifact_default_lane: task_candidate
+  result_artifact_default_family: coding_memory_inheritance_policy
+  bottleneck_detector_mode: generic
+
+agent:
+  premium_mode: false
+  reasoning_effort: max
+
+baselines:
+  - {name: packet2_v3_public_scaling_margin, metric_name: scaling_margin, metric_value: -0.02333502756686079, direction: maximize}
+  - {name: packet2_v3_public_context_ratio, metric_name: context_token_ratio, metric_value: 0.1233350275668608, direction: minimize}
+  - {name: packet2_v3_public_recalled_selection, metric_name: recalled_entry_selection_coverage, metric_value: 1.0, direction: maximize}
+  - {name: packet2_v3_public_failed_selection, metric_name: failed_entry_selection_coverage, metric_value: 1.0, direction: maximize}
+  - {name: packet2_v3_public_recalled_retention, metric_name: recalled_entry_retention, metric_value: 0.972027972027972, direction: maximize}
+  - {name: packet2_v3_public_failed_retention, metric_name: failed_entry_retention, metric_value: 0.9846153846153847, direction: maximize}
+  - {name: packet2_v3_public_strict_budget_rate, metric_name: strict_budget_pass_rate, metric_value: 0.0, direction: maximize}
+
+praxist_plugins:
+  task_ref: task:coding_memory_inheritance
+  workflow:
+    stage: workflow_stage:research_loop
+  panel:
+    topology: panel_topology:coding_memory_inheritance
+    roles:
+      - task_role:peer_generalist
+      - task_role:starter
+      - task_role:solver
+      - task_role:analyst
+      - task_role:builder_pi
+      - task_role:skeptic_pi
+      - task_role:portfolio_pi
+      - task_role:external_validity_pi
+      - task_role:chair
+    optional_roles:
+      literature_scout:
+        role: task_role:literature_scout
+        tool_server_ref: tool_server:literature_lookup
+        enabled: false
+        note: "Policy only; runtime lookup is passive and may not provision new resources."
+  audit_rules:
+    - task_audit:scope_and_evidence
+  evaluations:
+    - task_evaluation:context_replay
+  tools:
+    - tool_server:evaluation_tools
+    - tool_server:frontier_tools
+    - tool_server:finding_graph_query
+    - tool_server:memory_tools
+    - tool_server:prior_work_tools
+    - tool_server:run_report
+    - tool_server:literature_lookup
+  graph_maintainers:
+    - graph_maintainer:finding_graph_mvp
+  optional_workflow_stages:
+    ideation: workflow_stage:ideation_stub
+    paper_writing: workflow_stage:paper_writing_stub
+    reviewer: workflow_stage:reviewer_stub

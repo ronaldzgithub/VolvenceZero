@@ -292,6 +292,68 @@ python scripts/forge_common_adapter_adjudicator.py \
 
 `READY` 之后仍需单独执行 substrate 的 publish 流程；Forge 不替用户执行该动作。
 
+### 类型化研究机会发现
+
+`forge mine` 产出的 `forge-failure-pattern.v3` 可以进入一个有界扫描回合：
+
+```bash
+forge research-scan 'artifacts/forge_mine_<timestamp>/failure_patterns.jsonl' \
+  --registry 'forge/research_task_registry.yaml' \
+  --once \
+  --json
+```
+
+scanner 会为每条合法 record 写 content-addressed `ResearchOpportunity`，并且只按 registry 中的 exact
+`editable_component / editable_target` 映射任务。因果 prose、标题、excerpt 和字符串相似性均不参与
+路由。无映射或 out-of-surface 的机会保留为 `NEEDS_TASK_DESIGN`；匹配项最多按 registry 的
+`max_new_requests_per_scan` 提交新 Request，超额项写 `DEFERRED_BY_SCAN_LIMIT`。
+
+当前 registry 只登记一个 exact `coding_memory_inheritance` pilot；登记本身不会创建真实研究预算。
+每条任务必须同时冻结 Volvence ResearchTask、Praxist task project、executable、run root、exact
+model/profile 与人工维护的 `binding_revision`。scanner 只提交 Request，不批准、不调用 Praxist，也不改变
+runtime wiring。完整契约见
+[`research-opportunity-discovery.md`](../docs/specs/research-opportunity-discovery.md)。
+
+### A0 自动研究启动控制面
+
+研究调度不需要仓库根目录的常驻脚本。`forge` 是唯一入口，外部 scheduler 每次调用一次有界
+reconcile；Praxist 自己托管 detached run：
+
+```bash
+forge research-submit '<task.json>' \
+  --task-project '<praxist-task-project>' \
+  --praxist-executable '<absolute-praxist-executable>' \
+  --run-dir '<absolute-new-run-dir>' \
+  --requested-by '<detector-or-human>' \
+  --reason '<typed-research-reason>' \
+  --agent-system '<claude_sdk-or-codex_sdk>' \
+  --runtime '<agent_runtime:...>' \
+  --model-provider '<model_provider:...>' \
+  --model '<exact-model>' \
+  --cohort 4 \
+  --generations 8
+
+forge research-inbox
+
+forge research-approve '<request.json>' \
+  --approved-by '<human>' \
+  --reason '<approval-reason>'
+
+forge research-reconcile --once
+```
+
+Request 会冻结 Volvence Task、Praxist task project、executable/source identity、run dir、model/profile
+与预算；批准后的调和顺序固定为 active-capacity check → doctor → resolve →
+`start --daemonize --json` → targeted status。`START_INTENT` 先于 launch create-only 落盘，worker
+中断后先按 exact `run_id` 恢复，禁止重复 start。命令不保存 provider credential 或 raw stderr。
+`--codex-native` 的 doctor/resolve/start 还会清除 API key、base URL、binary 与 model 环境覆盖，只使用
+当前主机保存的 ChatGPT 登录；非 native profile 的显式 provider 凭据行为不变。
+
+`research-submit` 是 typed scanner 与显式人工提交共用的 seam；scanner 也不会从自然语言或关键词
+发现问题。没有 runnable task project 的机会不会自动启动。`RUN_COMPLETED` 只结束研究生命周期，
+仍需下面的 Handoff、loop-external validation、ModificationGate 和两级部署审批。完整契约见
+[`research-control-plane.md`](../docs/specs/research-control-plane.md)。
+
 ### 通用研究候选上架
 
 所有 Praxist 研究任务可通过同一离线桥接面交付候选。先验证 Volvence-owned Task，再从一个

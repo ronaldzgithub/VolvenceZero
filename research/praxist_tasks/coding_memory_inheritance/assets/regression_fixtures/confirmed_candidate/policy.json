@@ -1,0 +1,13 @@
+{
+  "deduplicate_exact_lines": true,
+  "generic_section_budget_fraction": 0.0,
+  "max_context_chars": 3500,
+  "max_recalled_entries": 6,
+  "recalled_entry_order": "failures_first",
+  "schema_version": "coding-memory-inheritance-policy.v1",
+  "sections": [
+    "recalled_entries"
+  ],
+  "truncation_strategy": "whole_line",
+  "variant_id": "confirmed_fixture"
+}

@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.research-opportunity.v1",
+  "oneOf": [
+    {"$ref": "#/$defs/registry"},
+    {"$ref": "#/$defs/opportunity"},
+    {"$ref": "#/$defs/routing_receipt"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullable_string": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1}
+      ]
+    },
+    "nullable_positive_integer": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "integer", "minimum": 1}
+      ]
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "launch_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_file",
+        "agent_system",
+        "runtime",
+        "codex_native",
+        "model_provider",
+        "model",
+        "strategy",
+        "cohort",
+        "generations",
+        "startup_timeout_seconds"
+      ],
+      "properties": {
+        "config_file": {"$ref": "#/$defs/nullable_string"},
+        "agent_system": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["claude_sdk", "codex_sdk"]}
+          ]
+        },
+        "runtime": {"$ref": "#/$defs/nullable_string"},
+        "codex_native": {"type": "boolean"},
+        "model_provider": {"$ref": "#/$defs/nullable_string"},
+        "model": {"type": "string", "minLength": 1},
+        "strategy": {"enum": ["auto", "mixed", "explore", "exploit"]},
+        "cohort": {"$ref": "#/$defs/nullable_positive_integer"},
+        "generations": {"$ref": "#/$defs/nullable_positive_integer"},
+        "startup_timeout_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      }
+    },
+    "registry_mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mapping_id",
+        "binding_revision",
+        "match",
+        "task_manifest",
+        "task_project",
+        "praxist_executable",
+        "run_root",
+        "launch"
+      ],
+      "properties": {
+        "mapping_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "binding_revision": {"type": "string", "minLength": 1},
+        "match": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["editable_component", "editable_target"],
+          "properties": {
+            "editable_component": {"type": "string", "minLength": 1},
+            "editable_target": {"$ref": "#/$defs/nullable_string"}
+          }
+        },
+        "task_manifest": {"type": "string", "minLength": 1},
+        "task_project": {"type": "string", "minLength": 1},
+        "praxist_executable": {"type": "string", "minLength": 1},
+        "run_root": {"type": "string", "minLength": 1},
+        "launch": {"$ref": "#/$defs/launch_profile"}
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "policy", "mappings"],
+      "properties": {
+        "schema_version": {"const": "forge-research-task-registry.v1"},
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_new_requests_per_scan"],
+          "properties": {
+            "max_new_requests_per_scan": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            }
+          }
+        },
+        "mappings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/registry_mapping"}
+        }
+      }
+    },
+    "opportunity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "opportunity_id",
+        "opportunity_key",
+        "source",
+        "nomination",
+        "priority",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-opportunity.v1"},
+        "opportunity_id": {
+          "type": "string",
+          "pattern": "^research-opportunity:[0-9a-f]{64}$"
+        },
+        "opportunity_key": {
+          "type": "string",
+          "pattern": "^research-opportunity-key:[0-9a-f]{64}$"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "artifact",
+            "line_number",
+            "record_sha256",
+            "record"
+          ],
+          "properties": {
+            "kind": {"const": "forge_failure_pattern"},
+            "artifact": {"$ref": "#/$defs/content_ref"},
+            "line_number": {"type": "integer", "minimum": 1},
+            "record_sha256": {"$ref": "#/$defs/sha256"},
+            "record": {"$ref": "forge.failure-pattern.v3"}
+          }
+        },
+        "nomination": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "readiness",
+            "editable_component",
+            "editable_target",
+            "blocker_codes"
+          ],
+          "properties": {
+            "readiness": {"enum": ["ROUTABLE", "NEEDS_TASK_DESIGN"]},
+            "editable_component": {"$ref": "#/$defs/nullable_string"},
+            "editable_target": {"$ref": "#/$defs/nullable_string"},
+            "blocker_codes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "OUT_OF_EDITABLE_SURFACE",
+                  "MISSING_EDITABLE_COMPONENT",
+                  "MISSING_EDITABLE_TARGET"
+                ]
+              }
+            }
+          }
+        },
+        "priority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy", "occurrence_count", "occurrence_cap", "score"],
+          "properties": {
+            "policy": {"const": "typed_occurrence_count_capped.v1"},
+            "occurrence_count": {"type": "integer", "minimum": 1},
+            "occurrence_cap": {"const": 1000},
+            "score": {"type": "integer", "minimum": 1, "maximum": 1000}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nomination_only",
+            "research_start_authorized",
+            "formal_validation_performed",
+            "production_promotion_authorized",
+            "runtime_wiring_changed",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "nomination_only": {"const": true},
+            "research_start_authorized": {"const": false},
+            "formal_validation_performed": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "mapping_ref": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mapping_id",
+            "binding_sha256",
+            "task_id",
+            "owner",
+            "capability_axes"
+          ],
+          "properties": {
+            "mapping_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,63}$"
+            },
+            "binding_sha256": {"$ref": "#/$defs/sha256"},
+            "task_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,63}$"
+            },
+            "owner": {"type": "string", "minLength": 1},
+            "capability_axes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": ["appendable", "readable", "learnable", "steerable"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "request_ref": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_id", "artifact"],
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "pattern": "^research-request:[0-9a-f]{64}$"
+            },
+            "artifact": {"$ref": "#/$defs/content_ref"}
+          }
+        }
+      ]
+    },
+    "routing_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "routing_id",
+        "opportunity_id",
+        "opportunity_sha256",
+        "registry",
+        "mapping",
+        "decision",
+        "blocker_codes",
+        "request",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-opportunity-routing.v1"},
+        "routing_id": {
+          "type": "string",
+          "pattern": "^research-opportunity-routing:[0-9a-f]{64}$"
+        },
+        "opportunity_id": {
+          "type": "string",
+          "pattern": "^research-opportunity:[0-9a-f]{64}$"
+        },
+        "opportunity_sha256": {"$ref": "#/$defs/sha256"},
+        "registry": {"$ref": "#/$defs/content_ref"},
+        "mapping": {"$ref": "#/$defs/mapping_ref"},
+        "decision": {
+          "enum": [
+            "NEEDS_TASK_DESIGN",
+            "DEFERRED_BY_SCAN_LIMIT",
+            "SUBMITTED_FOR_A0"
+          ]
+        },
+        "blocker_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "OUT_OF_EDITABLE_SURFACE",
+              "MISSING_EDITABLE_COMPONENT",
+              "MISSING_EDITABLE_TARGET",
+              "NO_REGISTERED_TASK",
+              "SCAN_SUBMISSION_LIMIT_REACHED"
+            ]
+          }
+        },
+        "request": {"$ref": "#/$defs/request_ref"},
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "human_research_approval_required",
+            "research_start_authorized",
+            "formal_validation_authorized",
+            "production_promotion_authorized",
+            "runtime_wiring_changed",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "human_research_approval_required": {"const": true},
+            "research_start_authorized": {"const": false},
+            "formal_validation_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    }
+  }
+}

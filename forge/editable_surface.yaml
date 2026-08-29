@@ -33,6 +33,23 @@ editable:
         - [pytest, packages/lifeform-domain-emogpt/tests/test_runtime_playbook_overlay.py, -q]
       held_out:
         - [pytest, tests/test_domain_experience.py, -q]
+  - component: coding_memory_inheritance_policy
+    glob: research/candidate_surfaces/coding_memory_inheritance/policy.json
+    semantic_description: >-
+      Disabled research-candidate surface for the bounded policy that selects,
+      orders and truncates coding-memory owner snapshots before formal replay.
+      Praxist may optimize an isomorphic run-local policy artifact, but this
+      repository file remains inert until loop-external validation,
+      ModificationGate review and separate SHADOW/ACTIVE authorization.
+    requires_offline_gate: true
+    validation:
+      frozen_suite: research/praxist_tasks/coding_memory_inheritance/assets/harness/policy.schema.json
+      candidate:
+        - [python, -m, jsonschema, -i, "{candidate_path}", research/praxist_tasks/coding_memory_inheritance/assets/harness/policy.schema.json]
+      held_in:
+        - [python, -m, jsonschema, -i, research/praxist_tasks/coding_memory_inheritance/assets/baseline/policy.json, research/praxist_tasks/coding_memory_inheritance/assets/harness/policy.schema.json]
+      held_out:
+        - [python, -m, jsonschema, -i, research/candidate_surfaces/coding_memory_inheritance/policy.json, research/praxist_tasks/coding_memory_inheritance/assets/harness/policy.schema.json]
 
 # These surfaces remain outside the optimization loop. Entries are checked
 # before editable entries so no broad allow pattern can override protection.
@@ -62,6 +79,7 @@ read_only:
   - packages/lifeform-domain-character/src/**/evaluation/**
   - docs/specs/**
   - docs/DATA_CONTRACT.md
+  - research/praxist_tasks/**
   - artifacts/**
   - forge/src/**
   - forge/schemas/**
@@ -69,6 +87,7 @@ read_only:
   - forge/benchmark_prompts/**
   - forge/editable_surface.yaml
   - forge/ledger.jsonl
+  - forge/research_task_registry.yaml
   - forge/pyproject.toml
 
 semantic_mapping:

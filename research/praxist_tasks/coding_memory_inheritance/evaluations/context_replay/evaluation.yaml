@@ -1,0 +1,31 @@
+schema_version: 1
+name: coding_memory_context_replay
+kind: evaluation
+version: 0.2.0
+protocol_version: 1
+stability: pilot
+description: Public development replay for bounded evidence-selection and coding-memory inheritance policies.
+compatibility:
+  praxist_core: ">=0.5.0,<1.0"
+  python: ">=3.11"
+dependencies: []
+capabilities:
+  - evaluation.context_compression
+  - evaluation.memory_recall_preservation
+  - evaluation.evidence_maturity
+evaluation:
+  primary_metrics: [scaling_margin]
+  evidence_stages: [preliminary, complete]
+  staged_protocols:
+    preliminary:
+      ranking_allowed: false
+      purpose: wiring_and_failure_triage
+    complete:
+      ranking_allowed: true
+      parent_promotion_allowed: true
+      scope: development_retention_only
+agent_entrypoint: run.py
+code: [run.py]
+assets:
+  - ../../assets/harness/policy.schema.json
+  - ../../assets/dataset_metadata/public_replay_manifest.json

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -31,6 +32,17 @@ from .research_promotion import (
     import_praxist_candidate,
     rollback_research_candidate,
     validate_research_task,
+)
+from .research_control import (
+    ResearchControlStatus,
+    list_research_inbox,
+    reconcile_research_control,
+    review_research_request,
+    submit_research_request,
+)
+from .research_opportunity import (
+    ResearchOpportunityStatus,
+    scan_research_opportunities,
 )
 from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
 from .task_benchmark import run_task_benchmark
@@ -153,6 +165,83 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--human-approved-by", required=True)
     apply.add_argument("--reject", action="store_true")
     apply.add_argument("--reason")
+
+    research_submit = subparsers.add_parser(
+        "research-submit",
+        help="Seal an approval-gated request for one exact Praxist research run",
+    )
+    research_submit.add_argument("task_manifest", type=Path)
+    research_submit.add_argument("--task-project", type=Path, required=True)
+    research_submit.add_argument("--praxist-executable", type=Path, required=True)
+    research_submit.add_argument("--run-dir", type=Path, required=True)
+    research_submit.add_argument("--requested-by", required=True)
+    research_submit.add_argument("--reason", required=True)
+    research_submit.add_argument(
+        "--trigger-kind",
+        choices=("human", "forge_failure_pattern", "typed_signal"),
+        default="human",
+    )
+    research_submit.add_argument("--evidence", type=Path, action="append", default=[])
+    research_submit.add_argument("--config-file", type=Path)
+    research_submit.add_argument(
+        "--agent-system",
+        choices=("claude_sdk", "codex_sdk"),
+        required=True,
+    )
+    research_submit.add_argument("--runtime", required=True)
+    research_submit.add_argument("--codex-native", action="store_true")
+    research_submit.add_argument("--model-provider", required=True)
+    research_submit.add_argument("--model", required=True)
+    research_submit.add_argument(
+        "--strategy",
+        choices=("auto", "mixed", "explore", "exploit"),
+        default="auto",
+    )
+    research_submit.add_argument("--cohort", type=int)
+    research_submit.add_argument("--generations", type=int)
+    research_submit.add_argument("--startup-timeout", type=int, default=30)
+
+    research_scan = subparsers.add_parser(
+        "research-scan",
+        help="Nominate typed failure patterns and submit exactly registered tasks for A0 review",
+    )
+    research_scan.add_argument("failure_patterns", type=Path)
+    research_scan.add_argument("--registry", type=Path)
+    research_scan.add_argument(
+        "--once",
+        action="store_true",
+        required=True,
+        help="Acknowledge that this command performs one bounded scan and exits",
+    )
+    research_scan.add_argument("--json", action="store_true")
+
+    research_inbox = subparsers.add_parser(
+        "research-inbox",
+        help="List immutable ResearchRequest lifecycle projections",
+    )
+    research_inbox.add_argument("--json", action="store_true")
+
+    research_approve = subparsers.add_parser(
+        "research-approve",
+        help="Approve or reject the exact A0 Praxist research-start scope",
+    )
+    research_approve.add_argument("request", type=Path)
+    research_approve.add_argument("--approved-by", required=True)
+    research_approve.add_argument("--reason", required=True)
+    research_approve.add_argument("--reject", action="store_true")
+
+    research_reconcile = subparsers.add_parser(
+        "research-reconcile",
+        help="Run one bounded Research Control Plane reconciliation pass",
+    )
+    research_reconcile.add_argument(
+        "--once",
+        action="store_true",
+        required=True,
+        help="Acknowledge that this command performs one pass and then exits",
+    )
+    research_reconcile.add_argument("--request", type=Path)
+    research_reconcile.add_argument("--json", action="store_true")
 
     research_validate = subparsers.add_parser(
         "research-validate-task",
@@ -364,6 +453,63 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             print(f"{result.decision}: {result.proposal_id} → {result.target}; ledger={result.ledger_path}")
             return 0
+        if args.command == "research-submit":
+            result = submit_research_request(
+                config=config,
+                task_manifest_path=args.task_manifest,
+                task_project_path=args.task_project,
+                praxist_executable=args.praxist_executable,
+                run_dir=args.run_dir,
+                requested_by=args.requested_by,
+                reason=args.reason,
+                trigger_kind=args.trigger_kind,
+                evidence_paths=tuple(args.evidence),
+                config_file=args.config_file,
+                agent_system=args.agent_system,
+                runtime=args.runtime,
+                codex_native=args.codex_native,
+                model_provider=args.model_provider,
+                model=args.model,
+                strategy=args.strategy,
+                cohort=args.cohort,
+                generations=args.generations,
+                startup_timeout_seconds=args.startup_timeout,
+            )
+            print(
+                f"AWAITING_RESEARCH_APPROVAL: {result.request_id}; "
+                f"request={result.request_path}"
+            )
+            return 0
+        if args.command == "research-scan":
+            result = scan_research_opportunities(
+                config=config,
+                failure_patterns_path=args.failure_patterns,
+                registry_path=args.registry,
+            )
+            _print_research_scan_result(result, as_json=args.json)
+            return 0
+        if args.command == "research-inbox":
+            statuses = list_research_inbox(config=config)
+            _print_research_statuses(statuses, as_json=args.json)
+            return 0
+        if args.command == "research-approve":
+            decision = "REJECT" if args.reject else "APPROVE"
+            result = review_research_request(
+                config=config,
+                request_path=args.request,
+                reviewed_by=args.approved_by,
+                reason=args.reason,
+                decision=decision,
+            )
+            print(f"{result.decision}: {result.approval_id}; approval={result.approval_path}")
+            return 0
+        if args.command == "research-reconcile":
+            statuses = reconcile_research_control(
+                config=config,
+                request_path=args.request,
+            )
+            _print_research_statuses(statuses, as_json=args.json)
+            return 2 if any(status.state in {"BLOCKED", "RUN_FAILED"} for status in statuses) else 0
         if args.command == "research-validate-task":
             task = validate_research_task(config=config, task_path=args.task_manifest)
             print(
@@ -423,6 +569,81 @@ def _add_backend_arguments(parser: argparse.ArgumentParser, *, default: str, all
     choices = ("openai", "replay", "none") if allow_none else ("openai", "replay")
     parser.add_argument("--backend", choices=choices, default=default)
     parser.add_argument("--replay-responses", type=Path)
+
+
+def _print_research_statuses(
+    statuses: Sequence[ResearchControlStatus],
+    *,
+    as_json: bool,
+) -> None:
+    payloads = [_research_status_payload(status) for status in statuses]
+    if as_json:
+        print(json.dumps(payloads, indent=2, sort_keys=True))
+        return
+    if not payloads:
+        print("No ResearchRequest artifacts found.")
+        return
+    for payload in payloads:
+        print(
+            f"{payload['state']}: task={payload['task_id']}; "
+            f"request={payload['request_id']}; run_id={payload['run_id'] or '-'}; "
+            f"request_path={payload['request_path']}"
+        )
+
+
+def _print_research_scan_result(result, *, as_json: bool) -> None:
+    statuses = [_research_opportunity_status_payload(status) for status in result.statuses]
+    payload = {
+        "failure_patterns_path": str(result.failure_patterns_path),
+        "registry_path": str(result.registry_path),
+        "discovered_count": result.discovered_count,
+        "new_request_count": result.new_request_count,
+        "opportunities": statuses,
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    print(
+        f"discovered={result.discovered_count}; new_requests={result.new_request_count}; "
+        f"registry={result.registry_path}"
+    )
+    for status in statuses:
+        print(
+            f"{status['state']}: pattern={status['pattern_id']}; "
+            f"priority={status['priority_score']}; mapping={status['mapping_id'] or '-'}; "
+            f"opportunity={status['opportunity_path']}"
+        )
+
+
+def _research_opportunity_status_payload(
+    status: ResearchOpportunityStatus,
+) -> dict[str, object]:
+    return {
+        "opportunity_id": status.opportunity_id,
+        "pattern_id": status.pattern_id,
+        "priority_score": status.priority_score,
+        "state": status.state,
+        "blocker_codes": list(status.blocker_codes),
+        "opportunity_path": str(status.opportunity_path),
+        "routing_path": str(status.routing_path),
+        "mapping_id": status.mapping_id,
+        "request_id": status.request_id,
+        "request_path": str(status.request_path) if status.request_path else None,
+    }
+
+
+def _research_status_payload(status: ResearchControlStatus) -> dict[str, str | None]:
+    return {
+        "request_id": status.request_id,
+        "task_id": status.task_id,
+        "state": status.state,
+        "request_path": str(status.request_path),
+        "approval_path": str(status.approval_path) if status.approval_path else None,
+        "latest_event_path": str(status.latest_event_path) if status.latest_event_path else None,
+        "run_id": status.run_id,
+        "run_dir": status.run_dir,
+        "monitor_command": status.monitor_command,
+    }
 
 
 def _add_embedding_arguments(parser: argparse.ArgumentParser) -> None:

@@ -1,0 +1,22 @@
+{
+  "corpus": {
+    "brain_trajectory_bytes": 1754805,
+    "brain_trajectory_file_count": 80,
+    "brain_trajectory_tree_sha256": "20a3baa664c43e84def7c8d78228eeb75e4c09cb74bab1f852fbdd3ec20e967f",
+    "chains": [0, 1, 2, 3, 4, 5, 6, 7],
+    "episodes_per_chain": 10,
+    "relative_root": "artifacts/coding_lab/coding_lab_packet2_formal_v3_qwen3codernext_20260827",
+    "report_bytes": 291801,
+    "report_sha256": "9ad76d2f48b32ab8a40bd5288b0dfd52814f6b79970275641a960ce51ace0e42"
+  },
+  "preregistration": {
+    "bytes": 1199,
+    "declared_design_sha256": "caf9590ac4c4b86aaac936e72b7463ec66c0ace58fce95adbd0b86deedae1b83",
+    "relative_path": "artifacts/coding_lab/prereg/coding_lab_packet2_prereg_v3_20260827.json",
+    "sha256": "2ee763298a6f42e8effe7338e8af56aefa90f9cb8aacc32355aab1e14d773276"
+  },
+  "schema_version": "coding-memory-public-replay-manifest.v1",
+  "source_base_revision": "2f3d56b388f9cb2f4702aa7da2670e71fdcf5efd",
+  "visibility": "public-development-replay",
+  "warning": "The corpus is visible to Praxist and cannot serve as loop-external formal validation."
+}

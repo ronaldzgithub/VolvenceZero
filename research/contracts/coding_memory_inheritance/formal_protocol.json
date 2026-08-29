@@ -1,0 +1,55 @@
+{
+  "authority": {
+    "development_replay_can_satisfy_formal_protocol": false,
+    "formal_validation_authorized": false,
+    "production_promotion_authorized": false,
+    "runtime_wiring_authorized": false
+  },
+  "candidate_contract": {
+    "candidate_contains_executable_code": false,
+    "policy_schema": "research/praxist_tasks/coding_memory_inheritance/assets/harness/policy.schema.json",
+    "task_project_is_protected": true
+  },
+  "formal_validator_id": "volvence:coding-memory-sealed-validator.v1",
+  "protocol_id": "coding-memory-inheritance-formal-v1",
+  "required_checks": [
+    {
+      "check_id": "frozen_preregistration_binding",
+      "requirement": "Bind the candidate, coding-hand/runtime identity, dataset split and all thresholds before any sealed outcome is read."
+    },
+    {
+      "check_id": "quality_non_regression",
+      "requirement": "Rerun the coding hand on loop-external sealed chains and preserve the frozen memory and quality gates."
+    },
+    {
+      "check_id": "bounded_context_scaling",
+      "requirement": "Require context_token_ratio <= 0.10, strict byte-budget compliance and per-chain robustness telemetry."
+    },
+    {
+      "check_id": "owner_evidence_preservation",
+      "requirement": "Require task-owned recalled/failed selection floors and whole-line retention without consumer-side reconstruction."
+    },
+    {
+      "check_id": "rollback_and_shadow_readiness",
+      "requirement": "Verify exact artifact identity, adjacent rollback and target-owner SHADOW canary prerequisites before any deployment authorization."
+    }
+  ],
+  "schema_version": "volvence-coding-memory-formal-protocol.v1",
+  "separation": {
+    "public_development_corpus_is_sealed_holdout": false,
+    "praxist_frontier_is_modification_gate": false,
+    "praxist_maturity_is_production_maturity": false
+  },
+  "source_preregistration": {
+    "locator": "artifacts/coding_lab/prereg/coding_lab_packet2_prereg_v3_20260827.json",
+    "sha256": "2ee763298a6f42e8effe7338e8af56aefa90f9cb8aacc32355aab1e14d773276"
+  },
+  "status": {
+    "blockers": [
+      "candidate-aware target adapter is not implemented",
+      "sealed coding-hand validator is not implemented"
+    ],
+    "state": "BLOCKED_UNTIL_LOOP_EXTERNAL_VALIDATOR_EXISTS"
+  },
+  "task_id": "coding_memory_inheritance"
+}

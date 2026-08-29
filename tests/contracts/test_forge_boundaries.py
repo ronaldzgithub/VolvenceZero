@@ -97,6 +97,7 @@ def test_root_workspace_does_not_install_forge() -> None:
         "forge/benchmarks/task_level_held_out.v1.json",
         "forge/benchmark_prompts/task_decision.system.md",
         "forge/schemas/task_benchmark_report.schema.json",
+        "forge/research_task_registry.yaml",
     ),
 )
 def test_runtime_evaluator_and_gate_surfaces_are_not_editable(protected_target: str) -> None:

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "volvence.coding-memory-inheritance-policy.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "variant_id"],
+  "properties": {
+    "schema_version": {"const": "coding-memory-inheritance-policy.v1"},
+    "variant_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{2,63}$"},
+    "max_context_chars": {"type": "integer", "minimum": 200, "maximum": 3500},
+    "max_recalled_entries": {"type": "integer", "minimum": 1, "maximum": 8},
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": {"const": "recalled_entries"},
+      "items": {
+        "enum": [
+          "recalled_entries",
+          "memory_description",
+          "memory_durable_summary",
+          "memory_episodic_summary",
+          "prediction_error",
+          "plan_intent",
+          "open_loop",
+          "belief_assumption",
+          "execution_result",
+          "user_model"
+        ]
+      }
+    },
+    "recalled_entry_order": {
+      "enum": ["owner_order", "strongest_first", "failures_first", "recent_first"]
+    },
+    "truncation_strategy": {
+      "enum": ["legacy_tail_marker", "bounded_tail", "whole_line"]
+    },
+    "deduplicate_exact_lines": {"type": "boolean"},
+    "generic_section_budget_fraction": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  }
+}

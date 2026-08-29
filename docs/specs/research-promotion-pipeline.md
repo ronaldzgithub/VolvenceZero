@@ -294,7 +294,7 @@ composition Task 验证；禁止一个 Praxist task 同时改多个 owner 并用
 任何 research/evaluation score、LLM judge、Frontier rank 或 PI/Chair 建议直接进入 PE/credit 都是
 契约违反。
 
-## 9. v1 实现面
+## 9. v1 promotion artifact 实现面
 
 Forge CLI 提供四个纯离线入口：
 
@@ -305,10 +305,11 @@ forge research-authorize <task.json> <candidate.json> <validation.json> <gate.js
 forge research-rollback <previous-receipt.json> --to-wiring disabled|shadow
 ```
 
-v1 只生成/校验 artifact 与 authorization receipt：
+以上四个 promotion 命令只生成/校验 artifact 与 authorization receipt：
 
 - 不初始化具体 Praxist task；
-- 不启动 Praxist run；
+- 不启动 Praxist run；Praxist A0 启动由独立的
+  [`research-control-plane.md`](./research-control-plane.md) 在 exact human approval 后负责；
 - 不运行 formal evaluator；
 - 不调用 `ModificationGate`；
 - 不 apply patch、加载 artifact 或翻转 runtime wiring；
@@ -348,9 +349,12 @@ Praxist run 与收益证据；降低权限不能被研究输入的当前可用�
 ## 12. 已知限制与下一包
 
 - v1 importer 依赖 task-local exporter 提供规范化 Handoff；不会猜测任意 task 的 variant 语义；
+- companion Research Control Plane 已提供 Request/Approval/Event registry 和 host-wide 单 active-run
+  调和，但它尚未接 automatic opportunity detector，也不会从 run completion 自动生成 Handoff；
 - generic authorization 不证明 target adapter 已执行，实际部署仍需 owner-specific receipt；
 - v1 不替代组件特有统计、消融、安全、延迟和人类 anchor；required check 只统一命名与绑定；
-- 尚未建立跨 Task portfolio/dependency registry；同 owner 并发约束暂由 Task owner/运维执行；
+- 尚未建立跨 Task deployment portfolio/dependency registry；Research Control inbox 只仲裁 host 上的
+  Praxist 启动，不拥有同 owner 的候选组合或部署并发；
 - v1 receipt 形成可验证 hash chain，但尚无全局 latest-pointer/单写者 registry；target adapter 必须核对
   自己的当前 deployment receipt，不能把一条旧分支自动当成现态；
 - 尚未接入第一个真实 Praxist run，因此本包只证明机制与拒绝面，不构成任何研究或产品效果证据。
@@ -362,6 +366,7 @@ sealed heldout exporter、loop-external validator 和 memory-owner target adapte
 ## 13. 参考
 
 - [`rsi-forge.md`](./rsi-forge.md)
+- [`research-control-plane.md`](./research-control-plane.md)
 - [`evidence_program.md`](./evidence_program.md)
 - [`credit-and-self-modification.md`](./credit-and-self-modification.md)
 - [`evaluation-cascade.md`](./evaluation-cascade.md)

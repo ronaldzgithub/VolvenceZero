@@ -1,0 +1,26 @@
+schema_version: 1
+name: coding_memory_scope_and_evidence
+kind: audit_rule
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: Keep policy research inside the public development replay boundary.
+compatibility:
+  praxist_core: ">=0.5.0,<1.0"
+  python: ">=3.11"
+dependencies: []
+capabilities: [audit.scope, audit.evidence, audit.no_release_authority]
+audit:
+  checks:
+    - Candidate directories contain policy.json only; no executable code or free-form injected context.
+    - Peers do not modify task assets, evaluator, source trajectories, reports, preregistration, formal validator, gate, or runtime wiring.
+    - Preliminary results never rank, mature, parent, or satisfy normal close.
+    - Complete means eight public replay chains and development retention only.
+    - Every ranked metric preserves its configured direction and exact ratio telemetry.
+    - Public replay is never described as fresh coding quality or formal validation.
+    - Negative and mixed results retain structured valence and failure mode.
+    - Findings report actual design_dimensions; planned_dimensions remain agenda intent only.
+    - Literature context never overrides evaluator facts or triggers resource provisioning.
+    - Peers do not hand-write frontier, incubator, Gems, memory, PI packs, reports, or generation boundaries.
+code: []
+assets: []

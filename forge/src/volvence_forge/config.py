@@ -225,6 +225,7 @@ class ForgeConfig:
             "forge/src/volvence_forge/config.py",
             "forge/editable_surface.yaml",
             "forge/ledger.jsonl",
+            "forge/research_task_registry.yaml",
             "tests/contracts/test_forge_boundaries.py",
             "docs/specs/rsi-forge.md",
         )

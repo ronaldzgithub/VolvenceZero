@@ -1,0 +1,14 @@
+experiments/
+results/
+variants/
+scratch/
+logs/
+checkpoints/
+*.log
+*.tmp
+*.pyc
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*

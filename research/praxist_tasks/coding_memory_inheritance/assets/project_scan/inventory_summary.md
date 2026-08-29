@@ -1,0 +1,105 @@
+# Project Inventory Summary
+
+- root: `/Users/mengfu/Documents/GitHub/volvence`
+- files seen: 20000
+- bytes seen: 9119984052
+- truncated: True
+
+## Categories
+- code: 1000 recorded
+- data_candidates: 4 recorded
+- docs: 356 recorded
+- environment_files: 3 recorded
+- images: 5 recorded
+- pdfs: 200 recorded
+- result_log_candidates: 490 recorded
+- simulator_candidates: 16 recorded
+
+## Top Directories
+- `artifacts`: 2763
+- `research`: 380
+- `.cursor`: 3
+
+## Metric Clues
+- `SPLIT.md`: | ⑥ | Scale | pending | Repo > ~200k LoC or PR throughput is bottlenecked on CI |
+- `SPLIT.md`: watch is ① (contract stability). M3 evidence runs and metric reports under
+- `archetecture.md`: 6. benchmark/evaluation 只读 structured artifact；不得反向写 PE/reward。
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 4.013248319082369e-05,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.6931,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 0.3521943158696855,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.4529,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 0.19454300219386705,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.7865,
+- `three_path_20turn_benchmark.json`: "metric_deltas_from_baseline": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": -0.2402,
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.0934,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": -1.9940388796091847e-05,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.6435,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 0.6577962289821849,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.5092,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 0.41762914247044647,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.7412,
+- `three_path_20turn_benchmark.json`: "metric_deltas_from_baseline": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": -0.1343,
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.0977,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": -9.931214204048709e-05,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+- `three_path_20turn_benchmark.json`: "abstraction:action_family_competition_score": 0.7167,
+- `three_path_20turn_benchmark.json`: "mean_turn_score_count": 34.4,
+- `three_path_20turn_benchmark.json`: "mean_policy_objective": 0.6461255719803788,
+- `three_path_20turn_benchmark.json`: "metric_means": {
+
+## Command Clues
+- `run_learned_capacity_ladder.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `run_longitudinal_continuity.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `run_seven_day_gate.sh`: PYTHON_BIN="${PYTHON:-${REPO_ROOT}/.venv/bin/python}"
+- `run_seven_day_gate.sh`: shift
+- `run_seven_day_gate.sh`: shift 2
+- `run_seven_day_gate.sh`: shift 2
+- `run_seven_day_gate.sh`: shift 2
+- `run_seven_day_gate.sh`: shift 2
+- `run_seven_day_gate.sh`: shift
+- `SPLIT.md`: Python process with disjoint drive sets, distinct DomainExperiencePackages,
+- `SPLIT.md`: pip install -e ../VolvenceZero/packages/vz-runtime
+- `SPLIT.md`: pip install -e ../VolvenceZero/packages/vz-contracts
+- `run_learned_shadow_smoke.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `install.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `run_semantic_grounding_evidence.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `einstein.sh`: PYTHON_BIN="$(resolve_project_python)"
+- `einstein.sh`: bash scripts/figure_collect_einstein.sh
+- `einstein.sh`: ./einstein.sh --mode $MODE --skip-collect --skip-bake
+- `einstein.sh`: bash scripts/figure_bake_einstein_persona_lora.sh
+- `einstein.sh`: bash scripts/figure_verify_einstein_persona.sh
+- `run_learned_active_evidence.sh`: PYTHON_BIN="${PYTHON:-python}"
+- `README.md`: ./start_relationship_assistant.sh
+- `README.md`: bash run_seven_day_gate.sh
+- `README.md`: bash run_seven_day_gate.sh --resume \
+- `README.md`: python scripts/run_state_kv_identification.py --lane smoke
+- `README.md`: python scripts/run_state_kv_identification.py \
+- `README.md`: python scripts/bake_state_kv_projector.py \
+- `README.md`: python scripts/run_state_kv_identification.py \
+- `README.md`: shuffled controls) and the LLM-proposal dependency ablation (matched
+- `README.md`: bash run_semantic_grounding_evidence.sh
+- `README.md`: bash run_semantic_grounding_evidence.sh --lane hf --substrate-device mps
+- `README.md`: bash run_semantic_grounding_evidence.sh --lane hf --substrate-device cuda
+- `README.md`: bash run_semantic_grounding_evidence.sh --lane hf --substrate-allow-download
+- `README.md`: bash run_semantic_grounding_evidence.sh --lane all
+- `README.md`: bash run_learned_active_evidence.sh --resume --substrate-mode hf --substrate-device mps
+- `README.md`: bash run_learned_active_evidence.sh --resume --substrate-mode hf --substrate-device cuda
+- `README.md`: bash run_learned_shadow_smoke.sh
+- `README.md`: bash run_learned_shadow_soak.sh --turns 500 --substrate-mode hf --substrate-device mps
+- `README.md`: bash run_learned_capacity_ladder.sh --n-z 16,64,256 --turns 500
+- `README.md`: bash run_learned_promotion_evidence.sh --soak-artifact artifacts/.../learned_shadow_soak.json --ablation-verdict artifacts/.../verdict_p1.json

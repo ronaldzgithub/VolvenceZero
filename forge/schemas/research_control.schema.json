@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.research-control.v1",
+  "oneOf": [
+    {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/approval"},
+    {"$ref": "#/$defs/event"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullable_string": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1}
+      ]
+    },
+    "nullable_sha256": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/sha256"}
+      ]
+    },
+    "nullable_nonnegative_integer": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "integer", "minimum": 0}
+      ]
+    },
+    "nullable_positive_integer": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "integer", "minimum": 1}
+      ]
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "project_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "bytes"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "task_project_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "task_id",
+        "manifest_schema_version",
+        "manifest_sha256",
+        "snapshot_sha256",
+        "file_count",
+        "files"
+      ],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "task_id": {"type": "string", "minLength": 1},
+        "manifest_schema_version": {"const": "task_project_manifest.v1"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "snapshot_sha256": {"$ref": "#/$defs/sha256"},
+        "file_count": {"type": "integer", "minimum": 1},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/project_file"}
+        }
+      }
+    },
+    "source_checkout_snapshot": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root", "tree_sha256", "file_count"],
+          "properties": {
+            "root": {"type": "string", "minLength": 1},
+            "tree_sha256": {"$ref": "#/$defs/sha256"},
+            "file_count": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "launch_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_file",
+        "agent_system",
+        "runtime",
+        "codex_native",
+        "model_provider",
+        "model",
+        "strategy",
+        "cohort",
+        "generations",
+        "startup_timeout_seconds"
+      ],
+      "properties": {
+        "config_file": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/content_ref"}
+          ]
+        },
+        "agent_system": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["claude_sdk", "codex_sdk"]}
+          ]
+        },
+        "runtime": {"$ref": "#/$defs/nullable_string"},
+        "codex_native": {"type": "boolean"},
+        "model_provider": {"$ref": "#/$defs/nullable_string"},
+        "model": {"$ref": "#/$defs/nullable_string"},
+        "strategy": {"enum": ["auto", "mixed", "explore", "exploit"]},
+        "cohort": {"$ref": "#/$defs/nullable_positive_integer"},
+        "generations": {"$ref": "#/$defs/nullable_positive_integer"},
+        "startup_timeout_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_id",
+        "task_id",
+        "claim_id",
+        "owner",
+        "trigger",
+        "bindings",
+        "launch",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-request.v1"},
+        "request_id": {
+          "type": "string",
+          "pattern": "^research-request:[0-9a-f]{64}$"
+        },
+        "task_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "trigger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "submitted_by", "rationale", "evidence"],
+          "properties": {
+            "kind": {"enum": ["human", "forge_failure_pattern", "typed_signal"]},
+            "submitted_by": {"type": "string", "minLength": 1},
+            "rationale": {"type": "string", "minLength": 1},
+            "evidence": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/content_ref"}
+            }
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["research_task", "task_project", "praxist"],
+          "properties": {
+            "research_task": {"$ref": "#/$defs/content_ref"},
+            "task_project": {"$ref": "#/$defs/task_project_snapshot"},
+            "praxist": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["executable", "source_checkout"],
+              "properties": {
+                "executable": {"$ref": "#/$defs/content_ref"},
+                "source_checkout": {"$ref": "#/$defs/source_checkout_snapshot"}
+              }
+            }
+          }
+        },
+        "launch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_dir",
+            "run_id",
+            "daemonize",
+            "status_scope",
+            "profile"
+          ],
+          "properties": {
+            "run_dir": {"type": "string", "minLength": 1},
+            "run_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            "daemonize": {"const": true},
+            "status_scope": {"const": "targeted_run_id"},
+            "profile": {"$ref": "#/$defs/launch_profile"}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "human_research_approval_required",
+            "research_start_authorized",
+            "production_promotion_authorized",
+            "formal_validation_required_after_run",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "human_research_approval_required": {"const": true},
+            "research_start_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "formal_validation_required_after_run": {"const": true},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "approval_id",
+        "request_id",
+        "request_sha256",
+        "scope",
+        "decision",
+        "review",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-approval.v1"},
+        "approval_id": {
+          "type": "string",
+          "pattern": "^research-approval:[0-9a-f]{64}$"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^research-request:[0-9a-f]{64}$"
+        },
+        "request_sha256": {"$ref": "#/$defs/sha256"},
+        "scope": {"const": "praxist_research_start"},
+        "decision": {"enum": ["APPROVE", "REJECT"]},
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reviewed_by", "reason"],
+          "properties": {
+            "reviewed_by": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "research_start_authorized",
+            "formal_validation_authorized",
+            "production_promotion_authorized",
+            "runtime_wiring_authorized"
+          ],
+          "properties": {
+            "research_start_authorized": {"type": "boolean"},
+            "formal_validation_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_authorized": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"decision": {"const": "APPROVE"}},
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "authority": {
+                "properties": {"research_start_authorized": {"const": true}}
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "authority": {
+                "properties": {"research_start_authorized": {"const": false}}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "command_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "phase",
+            "argv",
+            "exit_code",
+            "timed_out",
+            "stdout_sha256",
+            "stderr_sha256"
+          ],
+          "properties": {
+            "phase": {"enum": ["capacity", "doctor", "resolve", "start", "status", "recovery"]},
+            "argv": {
+              "type": "array",
+              "minItems": 2,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "exit_code": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "integer"}
+              ]
+            },
+            "timed_out": {"type": "boolean"},
+            "stdout_sha256": {"$ref": "#/$defs/sha256"},
+            "stderr_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      ]
+    },
+    "run_snapshot": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_id",
+            "run_dir",
+            "pid",
+            "log_file",
+            "monitor_command",
+            "source",
+            "praxist_state",
+            "generation",
+            "findings_total",
+            "updated_at"
+          ],
+          "properties": {
+            "run_id": {"type": "string", "minLength": 1},
+            "run_dir": {"type": "string", "minLength": 1},
+            "pid": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "log_file": {"$ref": "#/$defs/nullable_string"},
+            "monitor_command": {"$ref": "#/$defs/nullable_string"},
+            "source": {"$ref": "#/$defs/nullable_string"},
+            "praxist_state": {"$ref": "#/$defs/nullable_string"},
+            "generation": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "findings_total": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "updated_at": {"$ref": "#/$defs/nullable_string"}
+          }
+        }
+      ]
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "event_id",
+        "sequence",
+        "request_id",
+        "request_sha256",
+        "approval_id",
+        "approval_sha256",
+        "previous_event_sha256",
+        "kind",
+        "state",
+        "command",
+        "run",
+        "details",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-control-event.v1"},
+        "event_id": {
+          "type": "string",
+          "pattern": "^research-control-event:[0-9a-f]{64}$"
+        },
+        "sequence": {"type": "integer", "minimum": 1},
+        "request_id": {
+          "type": "string",
+          "pattern": "^research-request:[0-9a-f]{64}$"
+        },
+        "request_sha256": {"$ref": "#/$defs/sha256"},
+        "approval_id": {
+          "type": "string",
+          "pattern": "^research-approval:[0-9a-f]{64}$"
+        },
+        "approval_sha256": {"$ref": "#/$defs/sha256"},
+        "previous_event_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "kind": {
+          "enum": [
+            "CAPACITY_OBSERVED",
+            "DOCTOR_SUCCEEDED",
+            "RESOLVE_INTENT",
+            "RESOLVE_SUCCEEDED",
+            "START_INTENT",
+            "START_CONFIRMED",
+            "STATUS_OBSERVED",
+            "CONTROL_BLOCKED"
+          ]
+        },
+        "state": {
+          "enum": [
+            "APPROVED",
+            "WAITING_FOR_CAPACITY",
+            "PREFLIGHT_RESOLVED",
+            "STARTING",
+            "RUNNING",
+            "RUN_COMPLETED",
+            "RUN_FAILED",
+            "BLOCKED"
+          ]
+        },
+        "command": {"$ref": "#/$defs/command_receipt"},
+        "run": {"$ref": "#/$defs/run_snapshot"},
+        "details": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "research_lifecycle_only",
+            "formal_validation_performed",
+            "production_promotion_authorized",
+            "runtime_wiring_changed",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "research_lifecycle_only": {"const": true},
+            "formal_validation_performed": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    }
+  }
+}

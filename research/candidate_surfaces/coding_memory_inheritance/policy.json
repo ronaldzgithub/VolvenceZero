@@ -1,0 +1,22 @@
+{
+  "deduplicate_exact_lines": false,
+  "generic_section_budget_fraction": 1.0,
+  "max_context_chars": 3500,
+  "max_recalled_entries": 8,
+  "recalled_entry_order": "owner_order",
+  "schema_version": "coding-memory-inheritance-policy.v1",
+  "sections": [
+    "recalled_entries",
+    "memory_description",
+    "memory_durable_summary",
+    "memory_episodic_summary",
+    "prediction_error",
+    "plan_intent",
+    "open_loop",
+    "belief_assumption",
+    "execution_result",
+    "user_model"
+  ],
+  "truncation_strategy": "legacy_tail_marker",
+  "variant_id": "packet2_v3_baseline"
+}

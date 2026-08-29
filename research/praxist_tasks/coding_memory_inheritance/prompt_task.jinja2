@@ -1,0 +1,46 @@
+## Task contract
+
+Create `{{ variants_dir }}/<variant_id>/policy.json` using the schema at
+`{{ task_dir }}/assets/harness/policy.schema.json`. The JSON may contain only
+declared structured fields; do not inject prose, task answers, code, or paths.
+Do not edit the baseline, task, evaluator, corpus, preregistration, or Volvence
+source.
+
+Run the synchronous preliminary path first:
+
+```bash
+"$PRAXIST_TASK_PYTHON" {{ task_dir }}/evaluations/context_replay/run.py \
+  --variant-dir {{ variants_dir }}/<variant_id> \
+  --output-dir {{ results_dir }}/<variant_id>/preliminary \
+  --mode preliminary
+```
+
+Submit complete replay through the scheduler facade with a stable semantic tag:
+
+```bash
+PYTHONPATH="$PRAXIST_WORKSPACE_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+  "$PRAXIST_RUNNER_PYTHON" -m praxist.plugins.workflow_stages.research_loop.backend.protected_pids launch \
+  --run-dir={{ run_dir }} --peer={{ peer_id }} \
+  --tag=<variant_identity> --profile=context_replay --work-class=mature --eta=120 -- \
+  "$PRAXIST_TASK_PYTHON" {{ task_dir }}/evaluations/context_replay/run.py \
+  --variant-dir {{ variants_dir }}/<variant_id> \
+  --output-dir {{ results_dir }}/<variant_id>/complete \
+  --mode complete
+```
+
+Repeated ordinary submissions are idempotent. After fixing a terminal failed or
+rejected request, retain the tag and add `--retry-terminal`; never use that flag
+for active or completed work. Do not use raw `&`, `nohup`, arbitrary
+`wait_for_file`, or runtime-private transcript size as completion evidence.
+
+Preliminary evidence is triage only. Complete evidence may rank and parent only
+inside Praxist development retention. Publish raw metrics, `effort_ratio`,
+`coverage_ratio`, actual stage, failure mode, evidence valence, policy path,
+summary path, and actual design dimensions. No result authorizes formal
+validation, candidate import, ModificationGate, SHADOW, or ACTIVE.
+
+When a non-trivial mechanism depends on external prior art not grounded in task
+assets, make 1–3 focused literature/database lookup calls. Record title,
+identifier or URL, and how the source changed the hypothesis. Do not download,
+install, acquire data, provision services, or treat literature as evaluator
+truth.

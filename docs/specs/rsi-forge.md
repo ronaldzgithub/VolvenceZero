@@ -1,6 +1,6 @@
 # RSI Forge Spec
 
-> Status: phase 3–5 contracts landed；统一研究上架流水线 v1 离线桥接已落地；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
+> Status: phase 3–5 contracts landed；typed ResearchOpportunity、统一研究上架流水线与 A0 Praxist 控制面 v1 已落地；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
 > Last updated: 2026-08-29
 > 对应需求: R8, R10, R12, R15
 
@@ -15,8 +15,10 @@
 
 - 解析后的公开 source record；
 - 三层 failure record 与语义聚类后的 failure pattern；
+- content-addressed ResearchOpportunity、exact registry routing receipt；
 - 未落盘的 proposal bundle；
-- 人审 decision ledger 与下一轮 prediction check。
+- 人审 decision ledger 与下一轮 prediction check；
+- exact-bound ResearchRequest、A0 Approval 与 append-only Praxist lifecycle event chain。
 
 它不是 `vz-*`/`lifeform-*` wheel，不注册 `docs/DATA_CONTRACT.md` runtime slot，不发布 Brain
 snapshot，也不成为 PE、credit、evaluation、gate、memory 或 temporal 的第二 owner。
@@ -32,8 +34,10 @@ snapshot，也不成为 PE、credit、evaluation、gate、memory 或 temporal �
 | `.cursor/plans/*.plan.md` | YAML frontmatter + Markdown；显式兼容历史 heading-only 文件 | 只读 | 战役上下文，不是失败真值 |
 | `forge/ledger.jsonl` | append-only event stream | Forge 只追加 | 已应用/拒绝决策与 frozen prediction |
 | `forge/editable_surface.yaml` | 启动时加载 | 只读治理 | 写面、保护面、阈值与固定验证命令 |
+| `forge/research_task_registry.yaml` | schema-bound exact mapping | 只读治理 | component/target → frozen Task/Praxist/profile；默认空，不从 prose 猜 task |
 | companion runtime overlay + frozen suite | JSON/YAML + owner validator | 单一候选写面 / suite 只读 | 只允许向既有 `strategy_playbook` owner 添加结构化规则；不拥有语义决策 |
 | Common Adapter train/evaluate/gate artifacts | content-addressed JSON | Forge 只读 | 第五阶段只核对构建请求与 `vz-substrate`/cognition 证据，不训练、不发布、不激活 |
+| Praxist task project + CLI JSON | frozen manifest / doctor / resolve / start / targeted status | A0 后只调度 | Forge 不接管 Praxist registry/Frontier，也不从日志 prose 推断状态；详见 `research-control-plane.md` |
 
 契约违反（非法 JSON/YAML、未知 schema version、path 越界、hash 不一致）必须 fail loudly。
 
@@ -225,6 +229,16 @@ Evaluation 在此只提供只读 gate evidence（R12），不会反向成为 PE 
 
 ### 统一研究上架桥接（2026-08-29）
 
+[`research-opportunity-discovery.md`](./research-opportunity-discovery.md) 把
+`forge-failure-pattern.v3` 机械转换为不可变 ResearchOpportunity，只按 exact component/target 注册表
+路由；匹配后自动提交的 ResearchRequest 仍停在 A0，未匹配机会保留为 `NEEDS_TASK_DESIGN`。priority
+只来自 typed occurrence count，不进入 PE/credit，也不从 causal prose 推断 task。
+
+[`research-control-plane.md`](./research-control-plane.md) 在候选桥接之前增加 A0 生命周期控制：冻结
+Request，经 named-human exact approval 后调用 Praxist doctor/resolve/daemonized start，并只用 targeted
+status 调和。它以 create-only event chain 处理 crash boundary；不做自然语言问题发现，不成为 Praxist
+registry owner，也不从 completion 自动进入上架。
+
 [`research-promotion-pipeline.md`](./research-promotion-pipeline.md) 把 Forge 扩展为所有研究任务可复用的
 离线候选桥接面。Praxist 可以接管一个 external task project 的开发研究循环，但其 Frontier、Gems、
 PI/Chair 议程与 evaluator 只拥有 research-retention 语义。Forge 只读取 committed generation boundary、
@@ -272,6 +286,8 @@ owner validator、frozen suite、rollback drill 和 OFFLINE gate 满足；因为
 - live mine/propose 仍依赖显式 `FORGE_LLM_API_KEY`/`FORGE_LLM_MODEL`；无凭据时只运行 replay
   契约演练，不把它宣称为真实模型晋级证据。产品 typed outcome source 已打通，但当前工作区尚无
   实际 opt-in closed-alpha outcome artifact，不能据此宣称 live prediction check 已完成。
+- ResearchOpportunity scanner 已落地，但默认 task registry 为空、尚未启动真实 Praxist run；v1 只接
+  Forge failure pattern，不自动创建/修复 task project，也不承担 GPU/resource portfolio scheduling。
 
 ## 参考
 

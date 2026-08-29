@@ -1,0 +1,69 @@
+{
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "praxist_is_research_retention_authority_only": true,
+    "production_promotion_authorized": false
+  },
+  "baseline": {
+    "locator": "research/contracts/coding_memory_inheritance/baseline.json",
+    "sha256": "f29079d39ada9562742c239e91f93a6cf6144f7543fc2a5bed1c790250eef50e"
+  },
+  "capability_axes": [
+    "appendable",
+    "readable"
+  ],
+  "claim_id": "claim:coding-memory-scaling",
+  "objective": "Research a bounded declarative policy that reduces coding-memory inheritance context below the frozen 0.10 development ratio while preserving task-owned recalled and failed evidence. Public replay ranks research candidates only; sealed coding-hand validation and deployment authorization remain loop-external.",
+  "owner": "vz-memory",
+  "praxist": {
+    "task_project_id": "coding_memory_inheritance",
+    "task_project_manifest_sha256": "093957ad09311dba58f223d454088a3373bb5fafb9dc761ba89d34b71d4e6128"
+  },
+  "release": {
+    "gate_authority": "volvence_zero.credit.gate.evaluate_gate_reasons",
+    "initial_wiring": "disabled",
+    "mode": "runtime_wiring",
+    "rollback_instructions": "Move memory_inheritance_policy through one adjacent downgrade at a time, restore the previously admitted artifact hash, and return to DISABLED if identity, quality, owner-evidence, or canary checks fail.",
+    "target": "memory_inheritance_policy"
+  },
+  "sandbox": {
+    "editable_roots": [
+      "research/candidate_surfaces/coding_memory_inheritance"
+    ],
+    "praxist_can_access_production_credentials": false,
+    "praxist_can_change_production_wiring": false,
+    "praxist_can_modify_formal_evaluator": false,
+    "praxist_can_modify_task_contract": false,
+    "praxist_can_read_sealed_holdout": false,
+    "protected_roots": [
+      "research/contracts",
+      "research/praxist_tasks",
+      "research/tasks"
+    ]
+  },
+  "schema_version": "forge-research-task.v1",
+  "source_base_revision": "2f3d56b388f9cb2f4702aa7da2670e71fdcf5efd",
+  "task_id": "coding_memory_inheritance",
+  "validation": {
+    "active_required_checks": [
+      "formal_quality_non_regression",
+      "bounded_context_scaling",
+      "owner_evidence_preservation",
+      "rollback_drill",
+      "shadow_observation",
+      "canary_health"
+    ],
+    "development_evaluator_id": "praxist:coding-memory-context-replay.v2",
+    "formal_protocol": {
+      "locator": "research/contracts/coding_memory_inheritance/formal_protocol.json",
+      "sha256": "0a966624542a99acdbe140b9f06112e4111fce0561239947e4031a9a97476120"
+    },
+    "formal_validator_id": "volvence:coding-memory-sealed-validator.v1",
+    "shadow_required_checks": [
+      "formal_quality_non_regression",
+      "bounded_context_scaling",
+      "owner_evidence_preservation",
+      "rollback_drill"
+    ]
+  }
+}
