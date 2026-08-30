@@ -50,12 +50,13 @@ def _request(
     request_id: str = "request-1",
     decision_id: str = "decision-1",
     cycle_id: str = "cycle-1",
+    portfolio_id: str = "portfolio-1",
 ) -> VentureContextRequest:
     return VentureContextRequest.from_json(
         {
             "schema_version": "venture-context-request.v1",
             "request_id": request_id,
-            "portfolio_id": "portfolio-1",
+            "portfolio_id": portfolio_id,
             "cycle_id": cycle_id,
             "venture_id": "venture-1",
             "decision_id": decision_id,
@@ -407,6 +408,50 @@ async def test_identity_scoped_outcome_is_recalled_across_sessions(tmp_path) -> 
     )
     assert receipt.memory_entry_id in recalled.source_entry_ids
     assert "rejected the renewal price" in recalled.rendered_context
+
+    other_identity = StaticIdentityProvider(identity=UserIdentity(user_id="foundry-2", scope_key="foundry-2"))
+    other_lifeform = build_venture_lifeform(config=config, identity_provider=other_identity)
+    other_session = other_lifeform.create_session(session_id="venture-session-c")
+    isolated = await VentureBrainController().build_context_pack(
+        session=other_session,
+        request=_request(request_id="request-c", decision_id="decision-c", cycle_id="cycle-c"),
+        generated_at_ms=400,
+    )
+    assert receipt.memory_entry_id not in isolated.source_entry_ids
+    assert "rejected the renewal price" not in isolated.rendered_context
+
+
+async def test_same_user_recall_never_crosses_portfolio_scope() -> None:
+    session = _session()
+    controller = VentureBrainController()
+    first = await controller.build_context_pack(
+        session=session,
+        request=_request(portfolio_id="portfolio-a"),
+        generated_at_ms=100,
+    )
+    receipt = await controller.record_outcome(
+        session=session,
+        report=_report(
+            context_pack_id=first.context_pack_id,
+            outcome_kind="internal_review_result",
+            evidence_class="internal_review",
+            role="internal_review",
+            verdict="inconclusive",
+            detail="Portfolio A internal review must remain isolated.",
+        ),
+    )
+    other = await controller.build_context_pack(
+        session=session,
+        request=_request(
+            request_id="request-portfolio-b",
+            decision_id="decision-portfolio-b",
+            cycle_id="cycle-portfolio-b",
+            portfolio_id="portfolio-b",
+        ),
+        generated_at_ms=300,
+    )
+    assert receipt.memory_entry_id not in other.source_entry_ids
+    assert "Portfolio A internal review" not in other.rendered_context
 
 
 async def test_content_position_policy_settles_exact_field_credit() -> None:

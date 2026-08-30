@@ -31,12 +31,30 @@ receipt, created = await controller.publish_outcome(
 )
 ```
 
+Foundry can pin the complete producer boundary without contacting the service:
+
+```text
+venture-foundry-contract show
+venture-foundry-contract validate pinned-contract.json
+```
+
+The packaged `venture-foundry-public-contract.v1` manifest freezes all seven
+decision points, OFF/SHADOW exposure ownership, permanent SHADOW Advice,
+the unified `/brain/*` service entry, bounded content-policy lineage, typed
+delayed outcomes, user/portfolio/venture isolation, OFF fallback, and
+candidate-only production activation. Its content SHA-256 is
+`a1767651e680ce4e350cfcaa320c664c94ffdb38fadca3b5029461f2713f69e5`.
+The CLI is read-only and never contacts Foundry or writes its ledger.
+
 HTTP projection:
 
 ```text
-POST /v1/sessions/{session_id}/venture/context-packs
-POST /v1/sessions/{session_id}/venture/outcomes
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
 ```
+
+`/venture/{context-packs|outcomes}` remains a non-authoritative compatibility
+alias for legacy clients.
 
 Foundry retains source verification, evidence classes, qualification gates,
 portfolio/budget/Accounting/ledger, approvals, state transitions, and every

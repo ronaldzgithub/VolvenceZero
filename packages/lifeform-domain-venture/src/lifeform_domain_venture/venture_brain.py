@@ -685,9 +685,27 @@ class VentureBrainController:
                 ),
                 timestamp_ms=observed_at_ms,
             )
-            venture_entries = tuple(entry for entry in retrieval.entries if "venture-brain" in entry.tags)[
-                : request.memory_limit
-            ]
+            scoped_entry_experiences = tuple(
+                (entry, _experience_from_memory(entry))
+                for entry in retrieval.entries
+                if "venture-brain" in entry.tags
+            )
+            scoped_entry_experiences = tuple(
+                (entry, experience)
+                for entry, experience in scoped_entry_experiences
+                if experience.portfolio_id == request.portfolio_id
+                and (
+                    not request.venture_id
+                    or experience.venture_id == request.venture_id
+                )
+            )[: request.memory_limit]
+            venture_entries = tuple(
+                entry for entry, _experience in scoped_entry_experiences
+            )
+            experience_by_entry_id = {
+                entry.entry_id: experience
+                for entry, experience in scoped_entry_experiences
+            }
             content_policy_decision: BoundedContentPolicyDecision | None = None
             if self._content_policy_wiring_level is WiringLevel.ACTIVE:
                 checkpoint = ledger.policy_checkpoints_by_scope[policy_scope]
@@ -706,7 +724,8 @@ class VentureBrainController:
                 content_policy_decision,
             )
             experiences = tuple(
-                _experience_from_memory(entry) for entry in positioned_entries
+                experience_by_entry_id[entry.entry_id]
+                for entry in positioned_entries
             )
             rendered, included_experiences, truncated = _render_context(
                 request=request,

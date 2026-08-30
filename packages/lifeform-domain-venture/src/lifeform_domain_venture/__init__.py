@@ -15,6 +15,14 @@ from lifeform_domain_venture.venture_brain import (
     VentureBrainReadOnlyError,
     VentureBrainSettlementPendingError,
 )
+from lifeform_domain_venture.foundry_public_contract import (
+    FOUNDRY_PUBLIC_CONTRACT_ID_PREFIX,
+    FOUNDRY_PUBLIC_CONTRACT_SCHEMA_VERSION,
+    build_foundry_public_contract,
+    load_foundry_public_contract_fixture,
+    load_foundry_public_contract_json_schema,
+    validate_foundry_public_contract,
+)
 from lifeform_domain_venture.venture_brain_contracts import (
     ADVICE_SCHEMA_VERSION,
     CONTEXT_PACK_SCHEMA_VERSION,
@@ -91,6 +99,8 @@ __all__ = (
     "CONTEXT_PACK_SCHEMA_VERSION",
     "CONTEXT_REQUEST_SCHEMA_VERSION",
     "EmptyVentureAdviceProvider",
+    "FOUNDRY_PUBLIC_CONTRACT_ID_PREFIX",
+    "FOUNDRY_PUBLIC_CONTRACT_SCHEMA_VERSION",
     "OUTCOME_RECEIPT_SCHEMA_VERSION",
     "OUTCOME_REPORT_SCHEMA_VERSION",
     "VentureAdviceCandidate",
@@ -130,6 +140,10 @@ __all__ = (
     "VentureRiskLevel",
     "VentureSettlementState",
     "VentureUncertainty",
+    "build_foundry_public_contract",
     "build_venture_lifeform",
     "build_venture_package",
+    "load_foundry_public_contract_fixture",
+    "load_foundry_public_contract_json_schema",
+    "validate_foundry_public_contract",
 )
