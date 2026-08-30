@@ -1,7 +1,7 @@
 # Coding Memory Inheritance Praxist Pilot
 
-> Status: runnable task + exact registry binding + A0 Request landed；等待 named-human approval；无有效 research run、formal validation 或 runtime wiring
-> Last updated: 2026-08-29
+> Status: runnable task + portable host registry landed；历史 macOS A0 Request 保留，WSL 尚未提交本机 Request；无有效 research run、formal validation 或 runtime wiring
+> Last updated: 2026-08-30
 > Owner: `vz-memory`（研究对象语义）；Forge（A0 生命周期与上架 artifact）
 > 对应能力轴: Appendable、Readable；不声称 Learnable / Steerable
 
@@ -120,19 +120,21 @@ research effect。
 
 ## 6. Exact Codex-native profile
 
-Registry mapping `coding_memory_inheritance_v1` 冻结：
+Registry mapping `coding_memory_inheritance_v1` 冻结 portable host policy：
 
-- Praxist executable:
-  `/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist`；
+- `praxist_executable: auto`：依次解析显式 host override、同级 PRAXIST checkout、PATH、user venv；
+- macOS 当前预期解析为同级 `PRAXIST/.venv/bin/praxist`；
+- WSL 当前实测解析为 `/home/ronald/.venvs/praxist/bin/praxist`；
 - agent/runtime: `codex_sdk / agent_runtime:codex_sdk`；
 - provider/model: `model_provider:openai_compatible / gpt-5.6-luna`；
 - auth: current host saved ChatGPT login；
 - strategy/cohort/generations: `mixed / 4 / 3`；
-- requested run root: `/Users/mengfu/.local/share/praxist/volvence_runs`。
+- requested run root: `~/.local/share/praxist/volvence_runs`，提交前展开为当前 host absolute path。
 
 Codex-native doctor/resolve/start 清除 API key、base URL、binary 与 model 环境覆盖，防止宿主变量静默
-改变冻结 profile。当前 doctor 通过；Praxist CLI 未加入 `PATH` 和 registry root 尚未预创建只是 warning，
-绝对 executable 与未来 start 可直接处理。
+改变冻结 profile。WSL Codex-native doctor 已通过；Praxist CLI 未加入 `PATH` 和 registry root 尚未预创建只是
+warning，user-venv fallback 可直接处理。Task、task project 与 registry 的 exact-bound text 已固定
+`eol=lf`，避免 Windows checkout 的 CRLF 让同一 Git revision 在 WSL 中产生不同 SHA-256。
 
 ## 7. Opportunity 与 A0 Request
 
@@ -140,7 +142,7 @@ Typed failure record `fp_c9f9e2529416e440` 只按 exact
 `coding_memory_inheritance_policy + research/candidate_surfaces/coding_memory_inheritance/policy.json` 路由。
 因果 prose、标题和 excerpt 不参与 task 选择。
 
-当前不可变 artifact：
+portable-host-v1 之前的 macOS 不可变 artifact 保留为历史 host binding：
 
 - Opportunity:
   `research-opportunity:6c829987868be6872a8da3fb7035111743ceb8439d008e980eda9fbaa09f7d13`；
@@ -148,12 +150,13 @@ Typed failure record `fp_c9f9e2529416e440` 只按 exact
   `research-request:8f44be1d4cdeab1b9a3c34ea4f3f84b292521fac390dc3d79fb6a6dd88ae6be9`；
 - requested run:
   `run_6c829987868be6872a8d_8335931713ec`；
-- state: `AWAITING_RESEARCH_APPROVAL`；
+- historical state: `AWAITING_RESEARCH_APPROVAL`；
 - approval/event: none；
 - `research_start_authorized=false`、`production_promotion_authorized=false`。
 
-下一合法动作只能是 named human 对 exact Request 做 A0 approve/reject。A0 只授权一次 Praxist development
-lifecycle；仍不授权 formal validation、candidate admission、SHADOW 或 ACTIVE。
+该 Request 只可在其冻结的 macOS path/bytes 上继续 A0，不得搬到 WSL。portable-host-v1 下每台机器的下一
+合法动作是重新扫描形成该 host 自己的 exact Request，再由 named human A0 approve/reject。A0 仍只授权一次
+Praxist development lifecycle；不授权 formal validation、candidate admission、SHADOW 或 ACTIVE。
 
 ## 8. Out-of-band launch incident
 
@@ -198,8 +201,8 @@ reject Request 或不审批；run 中断走 Praxist stop/resume，不能改用�
 - host-level direct CLI bypass 只能检测和排除，尚无 OS-level admission enforcement；
 - formal validation、ModificationGate、SHADOW 与 ACTIVE 均未授权。
 
-下一收敛包只能在用户明确审阅并批准当前 Request 后，启动 frozen run
-`run_6c829987868be6872a8d_8335931713ec`，观察 generation 0 到合法 boundary，并生成 committed Handoff。
+下一收敛包只能在用户明确审阅并批准所选 host 的 fresh exact Request 后，启动该 Request 冻结的 run，
+观察 generation 0 到合法 boundary，并生成 committed Handoff。
 不得复用已停止的 out-of-band run，也不得同时登记第二个 owner。
 
 ## 11. 参考

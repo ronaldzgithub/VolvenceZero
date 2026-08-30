@@ -103,8 +103,16 @@
         },
         "task_manifest": {"type": "string", "minLength": 1},
         "task_project": {"type": "string", "minLength": 1},
-        "praxist_executable": {"type": "string", "minLength": 1},
-        "run_root": {"type": "string", "minLength": 1},
+        "praxist_executable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path or the reserved auto token; auto is resolved to one exact host executable before Request submission."
+        },
+        "run_root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Host path; user-home expansion is allowed before the exact run directory is frozen."
+        },
         "launch": {"$ref": "#/$defs/launch_profile"}
       }
     },

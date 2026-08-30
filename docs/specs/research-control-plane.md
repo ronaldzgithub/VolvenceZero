@@ -95,6 +95,11 @@ Task snapshot 只排除 Praxist manifest v1 明确排除的 cache/data/runtime-o
 出现 symlink 直接拒绝。Request 创建后，审批和启动前都会重算所有内容绑定。任何 byte、executable、
 config 或可识别 Praxist source tree 漂移都 fail closed。
 
+上游 task registry 可以用 `auto` 在每台 host 上发现 Praxist，但该 token 不进入 Request。Forge 必须在
+Request 提交前把它解析为当前 host 的 absolute executable，并连同 byte SHA-256/source checkout identity
+冻结；`~` run root 同样先展开成 absolute `run_dir`。因此 macOS 与 WSL 可以共享 registry policy，却不能
+共享或搬运一张已经绑定另一台 host 路径的 A0 Request。
+
 非 Codex-native Request 禁止依赖 credential-presence 驱动的 provider/model mutable default；四项运行选择
 必须显式给出。Codex-native 会把 agent/runtime/provider 规范化为 native OpenAI 路径，但 exact model 仍
 必须由提交者指定并由 `doctor` 校验 catalog。真实 subprocess 遇到 `--codex-native` 时必须删除

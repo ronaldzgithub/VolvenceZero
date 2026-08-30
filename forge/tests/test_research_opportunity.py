@@ -331,6 +331,124 @@ def test_exact_mapping_submits_request_but_never_approves_or_starts(tmp_path: Pa
     ]
 
 
+def test_auto_praxist_executable_freezes_explicit_host_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    patterns = _write_patterns(fixture.config, [_pattern(marker="b")])
+    mapping = _mapping(fixture)
+    mapping["praxist_executable"] = "auto"
+    registry = _write_registry(fixture, mappings=[mapping])
+    monkeypatch.setenv("FORGE_PRAXIST_EXECUTABLE", str(fixture.executable.resolve()))
+    monkeypatch.delenv("RESEARCH_LAB_PRAXIST", raising=False)
+
+    result = scan_research_opportunities(
+        config=fixture.config,
+        failure_patterns_path=patterns,
+        registry_path=registry,
+    )
+
+    request_path = result.statuses[0].request_path
+    assert request_path is not None
+    request = validate_research_request(config=fixture.config, request_path=request_path)
+    assert request["bindings"]["praxist"]["executable"]["locator"] == str(
+        fixture.executable.resolve()
+    )
+
+
+def test_auto_praxist_executable_detects_sibling_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    sibling_executable = (
+        fixture.config.paths.repo_root.parent
+        / "PRAXIST"
+        / ".venv"
+        / "bin"
+        / "praxist"
+    )
+    sibling_executable.parent.mkdir(parents=True)
+    sibling_executable.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    sibling_executable.chmod(0o755)
+    patterns = _write_patterns(fixture.config, [_pattern(marker="c")])
+    mapping = _mapping(fixture)
+    mapping["praxist_executable"] = "auto"
+    registry = _write_registry(fixture, mappings=[mapping])
+    monkeypatch.delenv("FORGE_PRAXIST_EXECUTABLE", raising=False)
+    monkeypatch.delenv("RESEARCH_LAB_PRAXIST", raising=False)
+    monkeypatch.setenv("PATH", "")
+
+    result = scan_research_opportunities(
+        config=fixture.config,
+        failure_patterns_path=patterns,
+        registry_path=registry,
+    )
+
+    request_path = result.statuses[0].request_path
+    assert request_path is not None
+    request = validate_research_request(config=fixture.config, request_path=request_path)
+    assert request["bindings"]["praxist"]["executable"]["locator"] == str(
+        sibling_executable.resolve()
+    )
+
+
+def test_auto_praxist_executable_detects_user_venv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    host_home = tmp_path / "host-home"
+    user_executable = host_home / ".venvs" / "praxist" / "bin" / "praxist"
+    user_executable.parent.mkdir(parents=True)
+    user_executable.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    user_executable.chmod(0o755)
+    patterns = _write_patterns(fixture.config, [_pattern(marker="e")])
+    mapping = _mapping(fixture)
+    mapping["praxist_executable"] = "auto"
+    registry = _write_registry(fixture, mappings=[mapping])
+    monkeypatch.delenv("FORGE_PRAXIST_EXECUTABLE", raising=False)
+    monkeypatch.delenv("RESEARCH_LAB_PRAXIST", raising=False)
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(Path, "home", classmethod(lambda _path_type: host_home))
+
+    result = scan_research_opportunities(
+        config=fixture.config,
+        failure_patterns_path=patterns,
+        registry_path=registry,
+    )
+
+    request_path = result.statuses[0].request_path
+    assert request_path is not None
+    request = validate_research_request(config=fixture.config, request_path=request_path)
+    assert request["bindings"]["praxist"]["executable"]["locator"] == str(
+        user_executable.resolve()
+    )
+
+
+def test_auto_praxist_executable_rejects_invalid_host_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    patterns = _write_patterns(fixture.config, [_pattern(marker="d")])
+    mapping = _mapping(fixture)
+    mapping["praxist_executable"] = "auto"
+    registry = _write_registry(fixture, mappings=[mapping])
+    monkeypatch.setenv(
+        "FORGE_PRAXIST_EXECUTABLE",
+        str((tmp_path / "missing" / "praxist").resolve()),
+    )
+
+    with pytest.raises(ResearchOpportunityError, match="invalid FORGE_PRAXIST_EXECUTABLE override"):
+        scan_research_opportunities(
+            config=fixture.config,
+            failure_patterns_path=patterns,
+            registry_path=registry,
+        )
+
+
 def test_scan_recovers_request_when_route_write_was_interrupted(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     patterns = _write_patterns(fixture.config, [_pattern()])

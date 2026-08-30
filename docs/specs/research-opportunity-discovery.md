@@ -81,6 +81,25 @@ v1 只接受逐行通过 `failure_pattern.schema.json` 验证且 schema version 
 与同 component 的 target-specific mapping 不得并存，以免隐藏优先级。重复 id、重复 match 或任何重叠
 都 fail loudly。
 
+`praxist_executable` 兼容显式路径和保留值 `auto`。`auto` 只负责当前主机的启动前发现，固定顺序为：
+
+1. `FORGE_PRAXIST_EXECUTABLE`；
+2. 兼容既有 launcher 的 `RESEARCH_LAB_PRAXIST`；
+3. 仓库同级 `PRAXIST/.venv/bin/praxist`；
+4. 当前 `PATH` 中的 `praxist`；
+5. `~/.venvs/praxist/bin/praxist`。
+
+显式环境覆盖存在但无效时必须 fail loudly，不得静默改用其他安装。自动发现结果必须是 non-symlink、
+regular、executable file。`run_root` 允许 `~` 展开，因此 registry 可以使用
+`~/.local/share/praxist/volvence_runs` 同时服务 macOS 与 WSL。发现只发生在 registry→binding 边界；
+归一化 binding、Request 和 A0 仍冻结当前主机的 absolute executable locator、文件 SHA-256、absolute
+run directory 与完整 profile。跨主机已有 Request 不可移植或原地改写；另一主机必须重新扫描并形成自己的
+exact-bound Request/A0。
+
+由于 Task、task project、registry 都进入 raw-byte identity，本 pilot 对这些 exact-bound text roots 在
+`.gitattributes` 中固定 `eol=lf`。这不是放宽 hash，而是确保相同 Git revision 在 macOS 与承载于 Windows
+工作树的 WSL 中物化为相同 bytes；未列入固定面的数据仍按各自 owner contract 处理。
+
 `binding_revision` 不是 hash 的替代品。scanner 同时绑定 Task bytes、Task 声明的 task-project manifest
 digest、Praxist executable bytes、config bytes 与完整 profile；当 source checkout、外部依赖、dataset/
 simulator identity 等不在这些 bytes 中的运行前提变化时，operator 必须显式提升 `binding_revision`。
