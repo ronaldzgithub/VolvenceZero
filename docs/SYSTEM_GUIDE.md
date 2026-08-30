@@ -1151,8 +1151,8 @@ VolvenceZero/packages/
 | 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
 | 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
 | 编译私域顾问 vertical | `build_growth_advisor_lifeform(profile)` | `lifeform-domain-growth-advisor` |
-| 给 coding host 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/coding/context-packs` / `POST /v1/sessions/{session_id}/coding/outcomes` | `lifeform-domain-coding` + `lifeform-service` |
-| 给 Foundry 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/venture/context-packs` / `POST /v1/sessions/{session_id}/venture/outcomes` | `lifeform-domain-venture` + `lifeform-service` |
+| 给 coding host 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/brain/context-packs` / `POST /v1/sessions/{session_id}/brain/outcomes`（`/coding/*` 仅兼容旧客户端） | `lifeform-domain-coding` + `lifeform-service` |
+| 给 Foundry 取 Context Pack / 回报 outcome | `POST /v1/sessions/{session_id}/brain/context-packs` / `POST /v1/sessions/{session_id}/brain/outcomes`（`/venture/*` 仅兼容旧客户端） | `lifeform-domain-venture` + `lifeform-service` |
 
 ### 7.4 当前默认路径（2026-08-30）
 

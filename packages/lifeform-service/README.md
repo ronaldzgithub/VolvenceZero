@@ -12,12 +12,16 @@ Run it via the `lifeform-serve` console script.
 
 ## Coding Brain API
 
-Sessions created with `vertical="coding"` expose two additional routes:
+Sessions created with `vertical="coding"` use the shared Brain routes:
 
 ```text
-POST /v1/sessions/{session_id}/coding/context-packs
-POST /v1/sessions/{session_id}/coding/outcomes
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
 ```
+
+`/coding/context-packs` and `/coding/outcomes` remain compatibility aliases for
+old clients; new callers must use `/brain/*`. The session's frozen vertical
+selects the Coding adapter, so the shared transport does not own Coding state.
 
 The first returns an ACTIVE memory-first Context Pack plus a separately marked
 SHADOW advisor. The second accepts only the frozen test/review/merge enums from
@@ -28,7 +32,7 @@ publication returns `201`; reusing an id with different content returns `409`.
 Example request sequence:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8080/v1/sessions/coding-1/coding/context-packs \
+curl -sS -X POST http://127.0.0.1:8080/v1/sessions/coding-1/brain/context-packs \
   -H 'Content-Type: application/json' \
   -d '{
     "request_id":"req-1",
@@ -50,12 +54,15 @@ only bounded live idempotency lineage; Memory remains the cognitive owner.
 
 ## Venture Brain API
 
-Sessions created with `vertical="venture"` expose:
+Sessions created with `vertical="venture"` use the same shared Brain routes:
 
 ```text
-POST /v1/sessions/{session_id}/venture/context-packs
-POST /v1/sessions/{session_id}/venture/outcomes
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
 ```
+
+`/venture/context-packs` and `/venture/outcomes` remain compatibility aliases;
+Foundry and other new consumers use `/brain/*`.
 
 The request and outcome bodies must include `venture-context-request.v1` and
 `venture-outcome-report.v1` respectively. Unknown fields, evidence-class/role
@@ -72,12 +79,15 @@ outcome, cost, evidence, idempotency, and adapter contracts are specified in
 
 ## Operations Brain API
 
-Sessions created with `vertical="operations"` expose:
+Sessions created with `vertical="operations"` also use the shared Brain routes:
 
 ```text
-POST /v1/sessions/{session_id}/operations/context-packs
-POST /v1/sessions/{session_id}/operations/outcomes
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
 ```
+
+`/operations/context-packs` and `/operations/outcomes` remain compatibility
+aliases; AutoCompany and other new consumers use `/brain/*`.
 
 The Context Pack is ACTIVE and memory-first; its nested policy Advice defaults
 to SHADOW and is constrained to AutoCompany-provided division/action-catalog
