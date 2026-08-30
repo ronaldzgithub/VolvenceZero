@@ -31,7 +31,9 @@ Options:
 Optional environment:
   RESEARCH_LAB_PYTHON     Python >=3.11 executable (default: .venv/bin/python).
   RESEARCH_LAB_NODE       Node >=22.13 executable (Codex native is auto-detected).
-  RESEARCH_LAB_PRAXIST    Praxist executable (sibling PRAXIST checkout is auto-detected).
+  FORGE_PRAXIST_EXECUTABLE
+                          Shared Forge/Lab Praxist executable override (highest priority).
+  RESEARCH_LAB_PRAXIST    Compatible lab-only override when the shared override is unset.
   RESEARCH_LAB_FOUNDRY_ROOT  Read-only Foundry descriptor root (sibling checkout is auto-detected).
   RESEARCH_LAB_API_PORT   API port override.
   RESEARCH_LAB_WEB_PORT   Web port override.
@@ -182,14 +184,18 @@ if [[ ! -x "${RESEARCH_LAB_NPM_BIN}" ]]; then
   fi
 fi
 
-if [[ -n "${RESEARCH_LAB_PRAXIST:-}" ]]; then
+if [[ -n "${FORGE_PRAXIST_EXECUTABLE:-}" ]]; then
+  RESEARCH_LAB_PRAXIST_BIN="${FORGE_PRAXIST_EXECUTABLE}"
+elif [[ -n "${RESEARCH_LAB_PRAXIST:-}" ]]; then
   RESEARCH_LAB_PRAXIST_BIN="${RESEARCH_LAB_PRAXIST}"
 elif [[ -x "${RESEARCH_LAB_ROOT}/../PRAXIST/.venv/bin/praxist" ]]; then
   RESEARCH_LAB_PRAXIST_BIN="${RESEARCH_LAB_ROOT}/../PRAXIST/.venv/bin/praxist"
 elif command -v praxist >/dev/null 2>&1; then
   RESEARCH_LAB_PRAXIST_BIN="$(command -v praxist)"
+elif [[ -x "${HOME}/.venvs/praxist/bin/praxist" ]]; then
+  RESEARCH_LAB_PRAXIST_BIN="${HOME}/.venvs/praxist/bin/praxist"
 else
-  echo "Praxist executable was not found. Set RESEARCH_LAB_PRAXIST." >&2
+  echo "Praxist executable was not found. Set FORGE_PRAXIST_EXECUTABLE or RESEARCH_LAB_PRAXIST." >&2
   exit 1
 fi
 if [[ ! -x "${RESEARCH_LAB_PRAXIST_BIN}" ]]; then

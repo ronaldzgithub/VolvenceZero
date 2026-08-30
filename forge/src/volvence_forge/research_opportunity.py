@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import shutil
 from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -43,6 +44,11 @@ _ROUTING_VERSION = "forge-research-opportunity-routing.v1"
 _PATTERN_VERSION = "forge-failure-pattern.v3"
 _SCANNER_ID = "forge:research-opportunity-scanner.v1"
 _OCCURRENCE_CAP = 1000
+_AUTO_PRAXIST_EXECUTABLE = "auto"
+_PRAXIST_EXECUTABLE_ENV_VARS = (
+    "FORGE_PRAXIST_EXECUTABLE",
+    "RESEARCH_LAB_PRAXIST",
+)
 
 
 class ResearchOpportunityError(ForgeError):
@@ -596,7 +602,11 @@ def _resolve_mapping_record(
     base = registry_path.parent
     task_manifest = _resolve_registry_file(base, mapping["task_manifest"], "research task manifest")
     task_project = _resolve_registry_directory(base, mapping["task_project"], "Praxist task project")
-    executable = _resolve_registry_file(base, mapping["praxist_executable"], "Praxist executable")
+    executable = _resolve_registry_executable(
+        config=config,
+        base=base,
+        value=mapping["praxist_executable"],
+    )
     run_root = _resolve_registry_output_root(base, mapping["run_root"])
     launch = mapping["launch"]
     config_file = (
@@ -1016,6 +1026,57 @@ def _status(
 def _resolve_registry_file(base: Path, value: Any, context: str) -> Path:
     path = _registry_path(base, value, context)
     return _resolve_regular_file(path, context=context)
+
+
+def _resolve_registry_executable(
+    *,
+    config: ForgeConfig,
+    base: Path,
+    value: Any,
+) -> Path:
+    if value != _AUTO_PRAXIST_EXECUTABLE:
+        return _require_executable(
+            _resolve_registry_file(base, value, "Praxist executable")
+        )
+
+    for name in _PRAXIST_EXECUTABLE_ENV_VARS:
+        override = os.environ.get(name)
+        if override is None:
+            continue
+        if not override.strip():
+            raise ResearchOpportunityError(f"{name} must not be empty when set")
+        path = Path(override).expanduser()
+        if not path.is_absolute():
+            raise ResearchOpportunityError(f"{name} must contain an absolute Praxist executable path")
+        try:
+            return _require_executable(
+                _resolve_regular_file(path, context=f"Praxist executable from {name}")
+            )
+        except ResearchOpportunityError as exc:
+            raise ResearchOpportunityError(f"invalid {name} override: {exc}") from exc
+
+    path_candidate = shutil.which("praxist")
+    candidates = (
+        config.paths.repo_root.parent / "PRAXIST" / ".venv" / "bin" / "praxist",
+        *((Path(path_candidate),) if path_candidate is not None else ()),
+        Path.home() / ".venvs" / "praxist" / "bin" / "praxist",
+    )
+    for candidate in candidates:
+        if candidate.is_symlink() or not candidate.is_file():
+            continue
+        if os.access(candidate, os.X_OK):
+            return candidate.resolve(strict=True)
+    attempted = ", ".join(str(candidate) for candidate in candidates)
+    raise ResearchOpportunityError(
+        "Praxist executable auto-discovery failed; set FORGE_PRAXIST_EXECUTABLE "
+        f"to an absolute executable path (checked: {attempted})"
+    )
+
+
+def _require_executable(path: Path) -> Path:
+    if not os.access(path, os.X_OK):
+        raise ResearchOpportunityError(f"Praxist executable is not executable: {path}")
+    return path
 
 
 def _resolve_registry_directory(base: Path, value: Any, context: str) -> Path:

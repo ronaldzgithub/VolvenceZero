@@ -245,6 +245,11 @@ Binding/A0 Approval、直接调用任意 `praxist start`、自动 import Candida
 `RESEARCH_LAB_AUTO_RESEARCH=0` 关闭 worker；`--read-only` 同时关闭 worker 和全部 POST delegation。端口已被占用时
 launcher 必须拒绝启动，不能复用或覆盖未知进程。
 
+launcher 的 Praxist host 发现顺序与 Forge registry `auto` 保持一致：共享
+`FORGE_PRAXIST_EXECUTABLE`、兼容的 lab-only `RESEARCH_LAB_PRAXIST`、同级 PRAXIST checkout、`PATH`、
+`~/.venvs/praxist/bin/praxist`。这允许 macOS source checkout 与 WSL user venv 共用同一仓库配置；实际传给
+Lab/Forge 的仍是已验证 executable path，不新增跨 OS shell bridge。
+
 launcher 可只读检测 sibling Foundry checkout，并注册 `foundry=<root>` ingress；这不扫描、不提交、不审批 Intent，
 也不写 Foundry。未注册 root 时 external POST fail closed，现有 Volvence UI/CLI 不受影响。
 

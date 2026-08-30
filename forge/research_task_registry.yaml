@@ -5,14 +5,14 @@ policy:
 
 mappings:
   - mapping_id: coding_memory_inheritance_v1
-    binding_revision: packet2-v3-public-replay-v2-codex-native-20260829
+    binding_revision: packet2-v3-public-replay-v2-portable-host-v1-20260830
     match:
       editable_component: coding_memory_inheritance_policy
       editable_target: research/candidate_surfaces/coding_memory_inheritance/policy.json
     task_manifest: ../research/tasks/coding_memory_inheritance/task.json
     task_project: ../research/praxist_tasks/coding_memory_inheritance
-    praxist_executable: /Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist
-    run_root: /Users/mengfu/.local/share/praxist/volvence_runs
+    praxist_executable: auto
+    run_root: ~/.local/share/praxist/volvence_runs
     launch:
       config_file: null
       agent_system: codex_sdk

@@ -314,6 +314,12 @@ model/profile 与人工维护的 `binding_revision`。scanner 只提交 Request�
 runtime wiring。完整契约见
 [`research-opportunity-discovery.md`](../docs/specs/research-opportunity-discovery.md)。
 
+共享 registry 使用 `praxist_executable: auto` 与 `run_root: ~/.local/share/praxist/volvence_runs`。Mac 的同级
+`PRAXIST/.venv/bin/praxist`、WSL 的 `~/.venvs/praxist/bin/praxist` 和 PATH 安装都会按固定顺序发现；自定义
+安装可在两端统一设置 `FORGE_PRAXIST_EXECUTABLE=/absolute/path/to/praxist`。`auto` 只消除 registry 中的
+用户名/主目录硬编码，生成 Request 前仍会冻结当前机器的绝对路径和 executable hash，不能拿 Mac Request
+直接在 WSL 启动，反之亦然。
+
 当前 pilot 已生成一个 `AWAITING_RESEARCH_APPROVAL` Request；它不是批准。拥有主机 shell 权限的其他
 终端仍可绕过 Forge 直接调用 Praxist，此类 run 因 id/dir/Approval 不匹配而必须停止并排除，不能冒充
 控制面启动的研究。

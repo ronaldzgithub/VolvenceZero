@@ -6,6 +6,13 @@ install.sh text eol=lf
 # PowerShell is CRLF-native.
 *.ps1 text eol=crlf
 
+# Forge hashes these research-control inputs as raw bytes. Keep the shared
+# registry and the complete pilot snapshot identical on macOS and WSL/Windows.
+forge/research_task_registry.yaml text eol=lf
+research/contracts/coding_memory_inheritance/** text eol=lf
+research/tasks/coding_memory_inheritance/** text eol=lf
+research/praxist_tasks/coding_memory_inheritance/** text eol=lf
+
 # This reviewed evidence source is raw-byte pinned and must materialize identically
 # on Windows and POSIX checkouts before the same-buffer launcher hashes it.
 packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1 text eol=lf
