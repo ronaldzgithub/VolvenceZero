@@ -43,10 +43,13 @@ _EXTERNAL_REQUEST_VERSION = "forge-external-research-request.v1"
 _EXTERNAL_HANDOFF_VERSION = "forge-foundry-research-handoff.v1"
 _FOUNDRY_SEAM_VERSION = "foundry-research-lab-seam.v1"
 _APPROVAL_VERSION = "forge-research-approval.v1"
+_DIRECTIVE_VERSION = "forge-research-control-directive.v1"
 _EVENT_VERSION = "forge-research-control-event.v1"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
-_TERMINAL_STATES = frozenset({"RUN_COMPLETED", "RUN_FAILED", "BLOCKED"})
+_TERMINAL_STATES = frozenset(
+    {"RUN_COMPLETED", "RUN_FAILED", "BLOCKED", "PAUSED", "CANCELLED"}
+)
 _LIVE_STATES = frozenset({"running", "starting", "status_inconsistent"})
 _FAILED_STATES = frozenset({"failed", "stopped", "stale"})
 
@@ -100,6 +103,13 @@ class ResearchApprovalResult:
 
 
 @dataclass(frozen=True)
+class ResearchDirectiveResult:
+    directive_id: str
+    directive_path: Path
+    action: str
+
+
+@dataclass(frozen=True)
 class ExternalResearchHandoffResult:
     handoff_id: str
     handoff_path: Path
@@ -117,6 +127,7 @@ class ResearchControlStatus:
     run_id: str | None
     run_dir: str | None
     monitor_command: str | None
+    latest_event_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +139,18 @@ class CommandExecution:
     stdout: str
     stderr: str
     timed_out: bool = False
+
+
+@dataclass(frozen=True)
+class CapacityObservation:
+    execution: CommandExecution
+    active_rows: tuple[dict[str, Any], ...]
+    details: tuple[str, ...]
+    blockers: tuple[str, ...]
+
+    @property
+    def available(self) -> bool:
+        return not self.blockers
 
 
 class PraxistCommandRunner(Protocol):
@@ -669,6 +692,8 @@ def review_research_request(
     reviewed_by: str,
     reason: str,
     decision: str = "APPROVE",
+    portfolio_path: Path | None = None,
+    portfolio_study_id: str | None = None,
 ) -> ResearchApprovalResult:
     """Write the single exact-bound A0 approval or rejection for a Request."""
 
@@ -676,8 +701,27 @@ def review_research_request(
     review_reason = _nonempty(reason, "research review requires a non-empty reason")
     if decision not in {"APPROVE", "REJECT"}:
         raise ResearchControlError("research review decision must be APPROVE or REJECT")
+    if (portfolio_path is None) != (portfolio_study_id is None):
+        raise ResearchControlError(
+            "portfolio-bound A0 requires both portfolio_path and portfolio_study_id"
+        )
+    if decision == "REJECT" and portfolio_path is not None:
+        raise ResearchControlError(
+            "a rejected A0 may not grant a portfolio execution policy"
+        )
     request, resolved_request, request_sha256 = _load_request(config, request_path)
     _verify_request_bindings(config, request)
+
+    execution_policy: dict[str, Any] | None = None
+    if portfolio_path is not None and portfolio_study_id is not None:
+        from .research_portfolio import build_research_execution_policy
+
+        execution_policy = build_research_execution_policy(
+            config=config,
+            portfolio_path=portfolio_path,
+            study_id=portfolio_study_id,
+            request_path=resolved_request,
+        )
 
     approval: dict[str, Any] = {
         "schema_version": _APPROVAL_VERSION,
@@ -697,6 +741,8 @@ def review_research_request(
         },
         "created_at": utc_now(),
     }
+    if execution_policy is not None:
+        approval["execution_policy"] = execution_policy
     approval["approval_id"] = _artifact_id(
         "research-approval",
         approval,
@@ -722,6 +768,145 @@ def review_research_request(
         approval_id=str(approval["approval_id"]),
         approval_path=destination,
         decision=decision,
+    )
+
+
+def issue_research_control_directive(
+    *,
+    config: ForgeConfig,
+    request_path: Path,
+    action: str,
+    expected_event_sha256: str,
+    requested_by: str,
+    reason: str,
+    grace_seconds: int = 300,
+) -> ResearchDirectiveResult:
+    """Seal one revision-bound PAUSE, RESUME, or CANCEL lifecycle action."""
+
+    normalized_action = action.upper()
+    if normalized_action not in {"PAUSE", "RESUME", "CANCEL"}:
+        raise ResearchControlError(
+            "research control action must be PAUSE, RESUME, or CANCEL"
+        )
+    actor = _nonempty(
+        requested_by,
+        "research control directive requires a named operator",
+    )
+    rationale = _nonempty(
+        reason,
+        "research control directive requires a non-empty reason",
+    )
+    if (
+        not isinstance(grace_seconds, int)
+        or isinstance(grace_seconds, bool)
+        or not 1 <= grace_seconds <= 600
+    ):
+        raise ResearchControlError("stop grace_seconds must be an integer from 1 to 600")
+
+    request, resolved_request, request_sha256 = _load_request(config, request_path)
+    approval_record = _find_approval(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+    )
+    if approval_record is None or approval_record[0]["decision"] != "APPROVE":
+        raise ResearchControlError(
+            "research lifecycle directives require an exact APPROVE A0 artifact"
+        )
+    approval, approval_path, approval_sha256 = approval_record
+    events = _load_events(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_sha256=approval_sha256,
+    )
+    if not events or _latest_event(events, "START_CONFIRMED") is None:
+        raise ResearchControlError(
+            "research lifecycle directives require an already started exact run"
+        )
+    if expected_event_sha256 != events[-1][2]:
+        raise ResearchControlError(
+            "research control directive event revision is stale"
+        )
+    pending = _pending_directive(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_sha256=approval_sha256,
+        events=events,
+    )
+    if pending is not None:
+        raise ResearchControlError(
+            f"research Request already has a pending directive: {pending[0]['directive_id']}"
+        )
+    state = str(events[-1][0]["state"])
+    allowed_states = {
+        "PAUSE": {"STARTING", "RUNNING"},
+        "RESUME": {"PAUSED", "RUN_FAILED"},
+        "CANCEL": {"STARTING", "RUNNING", "PAUSED", "RUN_FAILED"},
+    }
+    if state not in allowed_states[normalized_action]:
+        raise ResearchControlError(
+            f"cannot {normalized_action} a research Request in state {state}"
+        )
+    if normalized_action == "RESUME":
+        _verify_request_bindings(config, request)
+        run_dir = Path(request["launch"]["run_dir"])
+        if not run_dir.is_dir() or run_dir.is_symlink():
+            raise ResearchControlError(
+                f"resume requires the exact existing non-symlink run_dir: {run_dir}"
+            )
+
+    directive: dict[str, Any] = {
+        "schema_version": _DIRECTIVE_VERSION,
+        "request_id": request["request_id"],
+        "request_sha256": request_sha256,
+        "approval_id": approval["approval_id"],
+        "approval_sha256": approval_sha256,
+        "expected_event_sha256": expected_event_sha256,
+        "action": normalized_action,
+        "parameters": {
+            "grace_seconds": grace_seconds,
+            "resume_policy": "completed_generation",
+        },
+        "review": {"requested_by": actor, "reason": rationale},
+        "authority": {
+            "named_operator_action": True,
+            "research_lifecycle_only": True,
+            "new_research_start_authorized": False,
+            "force_resume_authorized": False,
+            "artifact_cropping_authorized": False,
+            "formal_validation_authorized": False,
+            "production_promotion_authorized": False,
+            "runtime_wiring_changed": False,
+        },
+        "created_at": utc_now(),
+    }
+    directive["directive_id"] = _artifact_id(
+        "research-control-directive",
+        directive,
+        "directive_id",
+    )
+    _validate_schema(config, directive, _DIRECTIVE_VERSION)
+    digest = str(directive["directive_id"]).partition(":")[2]
+    destination = resolved_request.parent / "directives" / f"{digest}.json"
+    _write_immutable_artifact(
+        config=config,
+        destination=destination,
+        payload=directive,
+        expected_version=_DIRECTIVE_VERSION,
+        identity_field="directive_id",
+    )
+    del approval_path
+    return ResearchDirectiveResult(
+        directive_id=str(directive["directive_id"]),
+        directive_path=destination,
+        action=normalized_action,
     )
 
 
@@ -764,8 +949,19 @@ def inspect_research_request(
     if approval["decision"] == "REJECT":
         if events:
             raise ResearchControlError("a rejected Request may not have lifecycle events")
+        if _directive_paths(resolved_request):
+            raise ResearchControlError("a rejected Request may not have control directives")
         state = "REJECTED"
     else:
+        _pending_directive(
+            config=config,
+            request=request,
+            request_path=resolved_request,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_sha256=approval_sha256,
+            events=events,
+        )
         state = str(events[-1][0]["state"]) if events else "APPROVED"
     return _status_from_parts(request, resolved_request, approval_path, events, state)
 
@@ -820,6 +1016,35 @@ def _reconcile_one(
             approval=approval,
             approval_sha256=approval_sha256,
         )
+        pending_directive = _pending_directive(
+            config=config,
+            request=request,
+            request_path=resolved_request,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_sha256=approval_sha256,
+            events=events,
+        )
+        if pending_directive is not None:
+            events = _reconcile_directive(
+                config=config,
+                request=request,
+                request_path=resolved_request,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                directive=pending_directive[0],
+                runner=runner,
+            )
+            return _status_from_parts(
+                request,
+                resolved_request,
+                approval_path,
+                events,
+                str(events[-1][0]["state"]),
+            )
         if events and events[-1][0]["state"] in _TERMINAL_STATES:
             return _status_from_parts(
                 request,
@@ -898,8 +1123,8 @@ def _reconcile_one(
                 "BLOCKED",
             )
 
-        capacity = _run_capacity_check(request, runner)
-        if not _command_succeeded(capacity):
+        capacity = _run_capacity_check(config, request, approval, runner)
+        if not _command_succeeded(capacity.execution):
             events = _append_event(
                 config=config,
                 request=request,
@@ -911,9 +1136,11 @@ def _reconcile_one(
                 events=events,
                 kind="CONTROL_BLOCKED",
                 state="BLOCKED",
-                command=_command_receipt("capacity", capacity),
+                command=_command_receipt("capacity", capacity.execution),
                 run=None,
-                details=[_command_failure_detail("capacity check", capacity)],
+                details=[
+                    _command_failure_detail("capacity check", capacity.execution)
+                ],
             )
             return _status_from_parts(
                 request,
@@ -922,9 +1149,9 @@ def _reconcile_one(
                 events,
                 "BLOCKED",
             )
-        active_rows = _parse_json_array(capacity, context="Praxist active status")
-        active_details = _active_run_details(active_rows)
-        capacity_state = "WAITING_FOR_CAPACITY" if active_rows else "APPROVED"
+        capacity_state = (
+            "WAITING_FOR_CAPACITY" if not capacity.available else "APPROVED"
+        )
         events = _append_observation_if_changed(
             config=config,
             request=request,
@@ -936,11 +1163,11 @@ def _reconcile_one(
             events=events,
             kind="CAPACITY_OBSERVED",
             state=capacity_state,
-            command=_command_receipt("capacity", capacity),
+            command=_command_receipt("capacity", capacity.execution),
             run=None,
-            details=active_details,
+            details=list(capacity.details),
         )
-        if active_rows:
+        if not capacity.available:
             return _status_from_parts(
                 request,
                 resolved_request,
@@ -1051,6 +1278,543 @@ def _reconcile_one(
             events,
             str(events[-1][0]["state"]),
         )
+
+
+def _reconcile_directive(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_path: Path,
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+    directive: dict[str, Any],
+    runner: PraxistCommandRunner,
+) -> tuple[tuple[dict[str, Any], Path, str], ...]:
+    if directive["action"] == "RESUME":
+        return _reconcile_resume_directive(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            directive=directive,
+            runner=runner,
+        )
+    return _reconcile_stop_directive(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        directive=directive,
+        runner=runner,
+    )
+
+
+def _reconcile_stop_directive(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_path: Path,
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+    directive: dict[str, Any],
+    runner: PraxistCommandRunner,
+) -> tuple[tuple[dict[str, Any], Path, str], ...]:
+    directive_id = str(directive["directive_id"])
+    action = str(directive["action"])
+    current_state = str(events[-1][0]["state"])
+    if action == "CANCEL" and current_state in {"PAUSED", "RUN_FAILED"}:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="STOP_CONFIRMED",
+            state="CANCELLED",
+            command=None,
+            run=_stopped_run_snapshot(request, _latest_run(events)),
+            details=["cancelled an already non-live exact run without a process command"],
+            directive_id=directive_id,
+        )
+
+    status = _run_target_status(request, runner)
+    if not _command_succeeded(status):
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="RUNNING" if current_state == "STOPPING" else current_state,
+            command=_command_receipt("status", status),
+            run=_latest_run(events),
+            details=[_command_failure_detail("pre-stop targeted status", status)],
+            directive_id=directive_id,
+        )
+    try:
+        rows = _parse_json_array(status, context="Praxist pre-stop targeted status")
+        observed_run = _exact_status_run(request, rows)
+    except ResearchControlError as exc:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="RUNNING" if current_state == "STOPPING" else current_state,
+            command=_command_receipt("status", status),
+            run=_latest_run(events),
+            details=[str(exc)],
+            directive_id=directive_id,
+        )
+
+    if observed_run is not None:
+        observed_state = _control_state_for_run(observed_run)
+        if observed_state == "RUN_COMPLETED":
+            return _append_event(
+                config=config,
+                request=request,
+                request_path=request_path,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                kind="CONTROL_BLOCKED",
+                state="RUN_COMPLETED",
+                command=_command_receipt("status", status),
+                run=observed_run,
+                details=[f"exact run completed before {action.lower()} could be applied"],
+                directive_id=directive_id,
+            )
+        if observed_state == "RUN_FAILED":
+            return _append_stop_confirmed(
+                config=config,
+                request=request,
+                request_path=request_path,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                directive=directive,
+                command=_command_receipt("status", status),
+                run=observed_run,
+                detail="exact run was already non-live at the stop boundary",
+            )
+    else:
+        return _append_stop_confirmed(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            directive=directive,
+            command=_command_receipt("status", status),
+            run=_latest_run(events),
+            detail="targeted status confirmed that the exact run is no longer registered",
+        )
+
+    if _directive_event(events, directive_id, "STOP_INTENT") is None:
+        events = _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="STOP_INTENT",
+            state="STOPPING",
+            command=None,
+            run=observed_run,
+            details=[f"durable {action.lower()} boundary recorded before Praxist stop"],
+            directive_id=directive_id,
+        )
+
+    stop = _run_stop(request, directive, runner)
+    stop_detail = "Praxist stop returned a successful exact receipt"
+    if _command_succeeded(stop):
+        try:
+            _validate_stop_result(request, _parse_json_object(stop, context="Praxist stop"))
+        except ResearchControlError as exc:
+            stop_detail = str(exc)
+    else:
+        stop_detail = _command_failure_detail("Praxist stop", stop)
+
+    recovery = _run_target_status(request, runner)
+    if not _command_succeeded(recovery):
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="RUNNING",
+            command=_command_receipt("stop", stop),
+            run=observed_run,
+            details=[stop_detail, _command_failure_detail("post-stop targeted status", recovery)],
+            directive_id=directive_id,
+        )
+    try:
+        recovered_rows = _parse_json_array(
+            recovery,
+            context="Praxist post-stop targeted status",
+        )
+        recovered_run = _exact_status_run(request, recovered_rows)
+    except ResearchControlError as exc:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="RUNNING",
+            command=_command_receipt("stop", stop),
+            run=observed_run,
+            details=[stop_detail, str(exc)],
+            directive_id=directive_id,
+        )
+    if recovered_run is None or _control_state_for_run(recovered_run) == "RUN_FAILED":
+        return _append_stop_confirmed(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            directive=directive,
+            command=_command_receipt("stop", stop),
+            run=recovered_run or observed_run,
+            detail=stop_detail,
+        )
+    if _control_state_for_run(recovered_run) == "RUN_COMPLETED":
+        blocked_state = "RUN_COMPLETED"
+        detail = f"exact run completed while {action.lower()} was being applied"
+    else:
+        blocked_state = "RUNNING"
+        detail = "exact run remained live after the bounded stop command"
+    return _append_event(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        kind="CONTROL_BLOCKED",
+        state=blocked_state,
+        command=_command_receipt("stop", stop),
+        run=recovered_run,
+        details=[stop_detail, detail],
+        directive_id=directive_id,
+    )
+
+
+def _append_stop_confirmed(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_path: Path,
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+    directive: dict[str, Any],
+    command: dict[str, Any] | None,
+    run: dict[str, Any] | None,
+    detail: str,
+) -> tuple[tuple[dict[str, Any], Path, str], ...]:
+    action = str(directive["action"])
+    return _append_event(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        kind="STOP_CONFIRMED",
+        state="CANCELLED" if action == "CANCEL" else "PAUSED",
+        command=command,
+        run=_stopped_run_snapshot(request, run),
+        details=[detail],
+        directive_id=str(directive["directive_id"]),
+    )
+
+
+def _reconcile_resume_directive(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_path: Path,
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+    directive: dict[str, Any],
+    runner: PraxistCommandRunner,
+) -> tuple[tuple[dict[str, Any], Path, str], ...]:
+    directive_id = str(directive["directive_id"])
+    try:
+        _verify_request_bindings(config, request)
+        run_dir = Path(request["launch"]["run_dir"])
+        if not run_dir.is_dir() or run_dir.is_symlink():
+            raise ResearchControlError(
+                f"resume requires the exact existing non-symlink run_dir: {run_dir}"
+            )
+    except ResearchControlError as exc:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="PAUSED",
+            command=None,
+            run=_latest_run(events),
+            details=[str(exc)],
+            directive_id=directive_id,
+        )
+
+    status = _run_target_status(request, runner)
+    if not _command_succeeded(status):
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="PAUSED",
+            command=_command_receipt("status", status),
+            run=_latest_run(events),
+            details=[_command_failure_detail("pre-resume targeted status", status)],
+            directive_id=directive_id,
+        )
+    try:
+        rows = _parse_json_array(status, context="Praxist pre-resume targeted status")
+        observed_run = _exact_status_run(request, rows)
+    except ResearchControlError as exc:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="PAUSED",
+            command=_command_receipt("status", status),
+            run=_latest_run(events),
+            details=[str(exc)],
+            directive_id=directive_id,
+        )
+    if observed_run is not None:
+        observed_state = _control_state_for_run(observed_run)
+        if observed_state in {"STARTING", "RUNNING"}:
+            return _append_event(
+                config=config,
+                request=request,
+                request_path=request_path,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                kind="RESUME_CONFIRMED",
+                state=observed_state,
+                command=_command_receipt("status", status),
+                run=observed_run,
+                details=["recovered an already-live exact run without repeating resume"],
+                directive_id=directive_id,
+            )
+        if observed_state == "RUN_COMPLETED":
+            return _append_event(
+                config=config,
+                request=request,
+                request_path=request_path,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                kind="CONTROL_BLOCKED",
+                state="RUN_COMPLETED",
+                command=_command_receipt("status", status),
+                run=observed_run,
+                details=["completed exact run cannot be resumed"],
+                directive_id=directive_id,
+            )
+
+    if _directive_event(events, directive_id, "RESUME_INTENT") is not None:
+        return _append_event(
+            config=config,
+            request=request,
+            request_path=request_path,
+            request_sha256=request_sha256,
+            approval=approval,
+            approval_path=approval_path,
+            approval_sha256=approval_sha256,
+            events=events,
+            kind="CONTROL_BLOCKED",
+            state="PAUSED",
+            command=_command_receipt("status", status),
+            run=observed_run or _latest_run(events),
+            details=[
+                "ambiguous resume boundary: no live run after durable RESUME_INTENT; "
+                "a new revision-bound directive is required"
+            ],
+            directive_id=directive_id,
+        )
+
+    events = _append_event(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        kind="RESUME_INTENT",
+        state="RESUMING",
+        command=None,
+        run=_resuming_run_snapshot(request, observed_run or _latest_run(events)),
+        details=["durable resume boundary recorded before Praxist resume"],
+        directive_id=directive_id,
+    )
+    resume = _run_resume(request, directive, runner)
+    resumed_run: dict[str, Any] | None = None
+    resume_detail: str
+    if _command_succeeded(resume):
+        try:
+            resumed_run = _normalize_start_result(
+                request,
+                _parse_json_object(resume, context="Praxist resume"),
+            )
+            resume_detail = "Praxist resume returned an exact registry entry"
+        except ResearchControlError as exc:
+            resume_detail = str(exc)
+    else:
+        resume_detail = _command_failure_detail("Praxist resume", resume)
+    if resumed_run is None:
+        recovery = _run_target_status(request, runner)
+        if _command_succeeded(recovery):
+            try:
+                recovery_rows = _parse_json_array(
+                    recovery,
+                    context="Praxist targeted status after resume",
+                )
+                recovered_run = _exact_status_run(request, recovery_rows)
+                if recovered_run is not None and _control_state_for_run(recovered_run) in {
+                    "STARTING",
+                    "RUNNING",
+                }:
+                    resumed_run = recovered_run
+                    resume_detail = (
+                        f"{resume_detail}; exact run recovered through targeted status"
+                    )
+            except ResearchControlError as exc:
+                resume_detail = f"{resume_detail}; {exc}"
+        if resumed_run is None:
+            return _append_event(
+                config=config,
+                request=request,
+                request_path=request_path,
+                request_sha256=request_sha256,
+                approval=approval,
+                approval_path=approval_path,
+                approval_sha256=approval_sha256,
+                events=events,
+                kind="CONTROL_BLOCKED",
+                state="PAUSED",
+                command=_command_receipt("resume", resume),
+                run=observed_run or _latest_run(events),
+                details=[resume_detail],
+                directive_id=directive_id,
+            )
+    events = _append_event(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        kind="RESUME_CONFIRMED",
+        state=_control_state_for_run(resumed_run),
+        command=_command_receipt("resume", resume),
+        run=resumed_run,
+        details=[resume_detail],
+        directive_id=directive_id,
+    )
+    if events[-1][0]["state"] in {"RUN_COMPLETED", "RUN_FAILED"}:
+        return events
+    return _poll_started_run(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_path=approval_path,
+        approval_sha256=approval_sha256,
+        events=events,
+        runner=runner,
+    )
 
 
 def _ensure_resolved(
@@ -1201,8 +1965,8 @@ def _start_after_resolve(
     events: tuple[tuple[dict[str, Any], Path, str], ...],
     runner: PraxistCommandRunner,
 ) -> tuple[tuple[dict[str, Any], Path, str], ...]:
-    capacity = _run_capacity_check(request, runner)
-    if not _command_succeeded(capacity):
+    capacity = _run_capacity_check(config, request, approval, runner)
+    if not _command_succeeded(capacity.execution):
         return _append_event(
             config=config,
             request=request,
@@ -1214,12 +1978,18 @@ def _start_after_resolve(
             events=events,
             kind="CONTROL_BLOCKED",
             state="BLOCKED",
-            command=_command_receipt("capacity", capacity),
+            command=_command_receipt("capacity", capacity.execution),
             run=None,
-            details=[_command_failure_detail("pre-start capacity check", capacity)],
+            details=[
+                _command_failure_detail(
+                    "pre-start capacity check",
+                    capacity.execution,
+                )
+            ],
         )
-    active_rows = _parse_json_array(capacity, context="Praxist pre-start active status")
-    capacity_state = "WAITING_FOR_CAPACITY" if active_rows else "PREFLIGHT_RESOLVED"
+    capacity_state = (
+        "WAITING_FOR_CAPACITY" if not capacity.available else "PREFLIGHT_RESOLVED"
+    )
     events = _append_observation_if_changed(
         config=config,
         request=request,
@@ -1231,11 +2001,11 @@ def _start_after_resolve(
         events=events,
         kind="CAPACITY_OBSERVED",
         state=capacity_state,
-        command=_command_receipt("capacity", capacity),
+        command=_command_receipt("capacity", capacity.execution),
         run=None,
-        details=["pre-start recheck", *_active_run_details(active_rows)],
+        details=["pre-start recheck", *capacity.details],
     )
-    if active_rows:
+    if not capacity.available:
         return events
     if _latest_event(events, "START_INTENT") is None:
         events = _append_event(
@@ -1510,15 +2280,122 @@ def _poll_started_run(
 
 
 def _run_capacity_check(
+    config: ForgeConfig,
     request: dict[str, Any],
+    approval: dict[str, Any],
     runner: PraxistCommandRunner,
-) -> CommandExecution:
+) -> CapacityObservation:
     executable = _request_executable(request)
-    return runner.run(
+    execution = runner.run(
         (str(executable), "status", "--active", "--json"),
         cwd=Path(request["bindings"]["task_project"]["root"]),
         timeout_seconds=30,
     )
+    if not _command_succeeded(execution):
+        return CapacityObservation(execution, (), (), ("capacity_status_failed",))
+    raw_rows = _parse_json_array(execution, context="Praxist active status")
+    details = _active_run_details(raw_rows)
+    rows = tuple(raw_rows)
+    policy = approval.get("execution_policy")
+    if policy is None:
+        blockers = ("legacy_host_wide_active_run_limit",) if rows else ()
+        return CapacityObservation(
+            execution=execution,
+            active_rows=rows,
+            details=tuple(["capacity_policy=host_wide_serial", *details, *blockers]),
+            blockers=blockers,
+        )
+
+    known: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    unknown_ids: list[str] = []
+    for row in rows:
+        active_policy = _active_run_execution_policy(config, row)
+        if (
+            active_policy is None
+            or active_policy["portfolio"] != policy["portfolio"]
+        ):
+            unknown_ids.append(str(row.get("run_id") or "<unidentified>"))
+            continue
+        known.append((row, active_policy))
+
+    lane = str(policy["concurrency_lane"])
+    lane_count = sum(
+        active_policy["concurrency_lane"] == lane
+        for _, active_policy in known
+    )
+    global_count = len(known)
+    blocker_list: list[str] = []
+    if unknown_ids:
+        blocker_list.append(f"unknown_active_run_ids={','.join(sorted(unknown_ids))}")
+    if global_count >= int(policy["max_active_runs_global"]):
+        blocker_list.append(
+            "portfolio_global_limit_reached="
+            f"{global_count}/{policy['max_active_runs_global']}"
+        )
+    if lane_count >= int(policy["max_active_runs_lane"]):
+        blocker_list.append(
+            f"portfolio_lane_limit_reached={lane}:{lane_count}/"
+            f"{policy['max_active_runs_lane']}"
+        )
+    policy_details = [
+        f"capacity_policy=portfolio:{policy['portfolio']['artifact_id']}",
+        f"portfolio_active_run_count={global_count}",
+        f"portfolio_lane_active_run_count={lane}:{lane_count}",
+    ]
+    return CapacityObservation(
+        execution=execution,
+        active_rows=rows,
+        details=tuple([*policy_details, *details, *blocker_list]),
+        blockers=tuple(blocker_list),
+    )
+
+
+def _active_run_execution_policy(
+    config: ForgeConfig,
+    row: dict[str, Any],
+) -> dict[str, Any] | None:
+    run_id = row.get("run_id")
+    run_dir = row.get("run_dir")
+    if not isinstance(run_id, str) or not run_id:
+        return None
+    if not isinstance(run_dir, str) or not run_dir:
+        return None
+    matches: list[dict[str, Any]] = []
+    for request_path in _request_paths(config):
+        candidate, resolved, request_sha256 = _load_request(config, request_path)
+        if candidate["launch"]["run_id"] != run_id:
+            continue
+        if _normalized_path(run_dir, context="active Praxist run_dir") != candidate["launch"]["run_dir"]:
+            continue
+        approval_record = _find_approval(
+            config=config,
+            request=candidate,
+            request_path=resolved,
+            request_sha256=request_sha256,
+        )
+        if approval_record is None or approval_record[0]["decision"] != "APPROVE":
+            continue
+        candidate_approval, _, approval_sha256 = approval_record
+        events = _load_events(
+            config=config,
+            request=candidate,
+            request_path=resolved,
+            request_sha256=request_sha256,
+            approval=candidate_approval,
+            approval_sha256=approval_sha256,
+        )
+        if _latest_event(events, "START_CONFIRMED") is None or not events:
+            continue
+        if events[-1][0]["state"] not in {"STARTING", "RUNNING", "RESUMING"}:
+            continue
+        candidate_policy = candidate_approval.get("execution_policy")
+        if candidate_policy is not None:
+            matches.append(candidate_policy)
+    if len(matches) > 1:
+        raise ResearchControlError(
+            f"active Praxist run maps to multiple Forge execution policies: {run_id}"
+        )
+    return matches[0] if matches else None
 
 
 def _run_doctor(
@@ -1577,6 +2454,54 @@ def _run_start(
     )
 
 
+def _run_stop(
+    request: dict[str, Any],
+    directive: dict[str, Any],
+    runner: PraxistCommandRunner,
+) -> CommandExecution:
+    executable = _request_executable(request)
+    task_root = Path(request["bindings"]["task_project"]["root"])
+    return runner.run(
+        (
+            str(executable),
+            "stop",
+            request["launch"]["run_id"],
+            "--grace",
+            str(directive["parameters"]["grace_seconds"]),
+            "--json",
+        ),
+        cwd=task_root,
+        timeout_seconds=float(directive["parameters"]["grace_seconds"] + 30),
+    )
+
+
+def _run_resume(
+    request: dict[str, Any],
+    directive: dict[str, Any],
+    runner: PraxistCommandRunner,
+) -> CommandExecution:
+    executable = _request_executable(request)
+    task_root = Path(request["bindings"]["task_project"]["root"])
+    profile = request["launch"]["profile"]
+    argv = [
+        str(executable),
+        "resume",
+        request["launch"]["run_dir"],
+        "--daemonize",
+        "--json",
+        "--resume-policy",
+        directive["parameters"]["resume_policy"],
+        "--startup-timeout",
+        str(profile["startup_timeout_seconds"]),
+    ]
+    argv.extend(_profile_argv(request, command="resume"))
+    return runner.run(
+        argv,
+        cwd=task_root,
+        timeout_seconds=float(profile["startup_timeout_seconds"] + 30),
+    )
+
+
 def _run_target_status(
     request: dict[str, Any],
     runner: PraxistCommandRunner,
@@ -1604,7 +2529,7 @@ def _profile_argv(request: dict[str, Any], *, command: str) -> list[str]:
         argv.extend(("--config-file", str(_content_ref_path(config_ref))))
     if profile["agent_system"] is not None:
         argv.extend(("--agent-system", profile["agent_system"]))
-    if command in {"resolve", "start"} and profile["runtime"] is not None:
+    if command in {"resolve", "start", "resume"} and profile["runtime"] is not None:
         argv.extend(("--runtime", profile["runtime"]))
     if profile["codex_native"] is True:
         argv.append("--codex-native")
@@ -1612,7 +2537,7 @@ def _profile_argv(request: dict[str, Any], *, command: str) -> list[str]:
         argv.extend(("--model-provider", profile["model_provider"]))
     if profile["model"] is not None:
         argv.extend(("--model", profile["model"]))
-    if command == "start":
+    if command in {"start", "resume"}:
         argv.extend(("--strategy", profile["strategy"]))
         if profile["cohort"] is not None:
             argv.extend(("--cohort", str(profile["cohort"])))
@@ -1731,6 +2656,33 @@ def _normalize_start_result(
     }
 
 
+def _validate_stop_result(request: dict[str, Any], result: dict[str, Any]) -> None:
+    if result.get("run_id") != request["launch"]["run_id"]:
+        raise ResearchControlError("Praxist stop returned a different run_id")
+    if result.get("dry_run") is not False:
+        raise ResearchControlError("Praxist stop did not confirm dry_run=false")
+    for field in (
+        "matched_pids",
+        "descendant_pids",
+        "terminated_pids",
+        "killed_pids",
+        "remaining_pids",
+    ):
+        values = result.get(field)
+        if not isinstance(values, list) or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values
+        ):
+            raise ResearchControlError(f"Praxist stop returned invalid {field}")
+    failed_run_ids = result.get("failed_run_ids")
+    if not isinstance(failed_run_ids, list) or any(
+        not isinstance(value, str) or not value for value in failed_run_ids
+    ):
+        raise ResearchControlError("Praxist stop returned invalid failed_run_ids")
+    if result["remaining_pids"] or failed_run_ids:
+        raise ResearchControlError("Praxist stop left the exact run partially active")
+
+
 def _exact_status_run(
     request: dict[str, Any],
     rows: list[Any],
@@ -1827,6 +2779,36 @@ def _request_run_snapshot(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _stopped_run_snapshot(
+    request: dict[str, Any],
+    run: dict[str, Any] | None,
+) -> dict[str, Any]:
+    snapshot = dict(run or _request_run_snapshot(request))
+    snapshot.update(
+        {
+            "pid": 0,
+            "praxist_state": "stopped",
+            "updated_at": utc_now(),
+        }
+    )
+    return snapshot
+
+
+def _resuming_run_snapshot(
+    request: dict[str, Any],
+    run: dict[str, Any] | None,
+) -> dict[str, Any]:
+    snapshot = dict(run or _request_run_snapshot(request))
+    snapshot.update(
+        {
+            "pid": None,
+            "praxist_state": "starting",
+            "updated_at": utc_now(),
+        }
+    )
+    return snapshot
+
+
 def _append_observation_if_changed(
     *,
     config: ForgeConfig,
@@ -1884,6 +2866,7 @@ def _append_event(
     command: dict[str, Any] | None,
     run: dict[str, Any] | None,
     details: list[str],
+    directive_id: str | None = None,
 ) -> tuple[tuple[dict[str, Any], Path, str], ...]:
     del approval_path
     sequence = len(events) + 1
@@ -1909,6 +2892,8 @@ def _append_event(
         },
         "created_at": utc_now(),
     }
+    if directive_id is not None:
+        event["directive_id"] = directive_id
     event["event_id"] = _artifact_id(
         "research-control-event",
         event,
@@ -1964,6 +2949,157 @@ def _load_events(
     return tuple(loaded)
 
 
+def _pending_directive(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+) -> tuple[dict[str, Any], Path, str] | None:
+    directives = _load_directives(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        approval=approval,
+        approval_sha256=approval_sha256,
+        events=events,
+    )
+    completed_ids = {
+        str(event["directive_id"])
+        for event, _, _ in events
+        if event.get("directive_id") is not None
+        and event["kind"] in {"STOP_CONFIRMED", "RESUME_CONFIRMED", "CONTROL_BLOCKED"}
+    }
+    pending = [
+        directive
+        for directive in directives
+        if str(directive[0]["directive_id"]) not in completed_ids
+    ]
+    if len(pending) > 1:
+        raise ResearchControlError(
+            f"research Request has {len(pending)} concurrent pending directives"
+        )
+    return pending[0] if pending else None
+
+
+def _load_directives(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    approval: dict[str, Any],
+    approval_sha256: str,
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+) -> tuple[tuple[dict[str, Any], Path, str], ...]:
+    event_positions = {digest: index for index, (_, _, digest) in enumerate(events)}
+    loaded: list[tuple[dict[str, Any], Path, str]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for path in _directive_paths(request_path):
+        directive = read_json(path)
+        _validate_schema(config, directive, _DIRECTIVE_VERSION)
+        if directive["directive_id"] != _artifact_id(
+            "research-control-directive",
+            directive,
+            "directive_id",
+        ):
+            raise ResearchControlError(
+                f"research control directive identity is invalid: {path}"
+            )
+        directive_id = str(directive["directive_id"])
+        if directive_id in by_id:
+            raise ResearchControlError(
+                f"research control directive is duplicated: {directive_id}"
+            )
+        if directive["request_id"] != request["request_id"]:
+            raise ResearchControlError(
+                f"research control directive belongs to another Request: {path}"
+            )
+        if directive["request_sha256"] != request_sha256:
+            raise ResearchControlError(
+                f"research control directive Request digest mismatch: {path}"
+            )
+        if directive["approval_id"] != approval["approval_id"]:
+            raise ResearchControlError(
+                f"research control directive belongs to another Approval: {path}"
+            )
+        if directive["approval_sha256"] != approval_sha256:
+            raise ResearchControlError(
+                f"research control directive Approval digest mismatch: {path}"
+            )
+        expected_revision = str(directive["expected_event_sha256"])
+        if expected_revision not in event_positions:
+            raise ResearchControlError(
+                f"research control directive references an unknown event revision: {path}"
+            )
+        expected_name = directive_id.partition(":")[2] + ".json"
+        if path.name != expected_name:
+            raise ResearchControlError(
+                f"research control directive filename is not canonical: {path}"
+            )
+        file_sha256 = _sha256_file(path, context="research control directive")
+        loaded.append((directive, path, file_sha256))
+        by_id[directive_id] = directive
+
+    associated: dict[str, list[tuple[dict[str, Any], int]]] = {
+        directive_id: [] for directive_id in by_id
+    }
+    for position, (event, path, _) in enumerate(events):
+        directive_id = event.get("directive_id")
+        if directive_id is None:
+            continue
+        if directive_id not in by_id:
+            raise ResearchControlError(
+                f"research control event references an unknown directive: {path}"
+            )
+        associated[str(directive_id)].append((event, position))
+
+    for directive, path, _ in loaded:
+        directive_id = str(directive["directive_id"])
+        expected_position = event_positions[str(directive["expected_event_sha256"])]
+        action = str(directive["action"])
+        allowed_kinds = (
+            {"STOP_INTENT", "STOP_CONFIRMED", "CONTROL_BLOCKED"}
+            if action in {"PAUSE", "CANCEL"}
+            else {"RESUME_INTENT", "RESUME_CONFIRMED", "CONTROL_BLOCKED"}
+        )
+        action_events = associated[directive_id]
+        for event, position in action_events:
+            if position <= expected_position:
+                raise ResearchControlError(
+                    f"research control directive event precedes its expected revision: {path}"
+                )
+            if event["kind"] not in allowed_kinds:
+                raise ResearchControlError(
+                    f"research control directive has an incompatible event kind: {path}"
+                )
+        intent_count = sum(
+            event["kind"] in {"STOP_INTENT", "RESUME_INTENT"}
+            for event, _ in action_events
+        )
+        completion_count = sum(
+            event["kind"] in {"STOP_CONFIRMED", "RESUME_CONFIRMED", "CONTROL_BLOCKED"}
+            for event, _ in action_events
+        )
+        if intent_count > 1 or completion_count > 1:
+            raise ResearchControlError(
+                f"research control directive has a non-canonical event sequence: {path}"
+            )
+        if completion_count and action_events[-1][0]["kind"] not in {
+            "STOP_CONFIRMED",
+            "RESUME_CONFIRMED",
+            "CONTROL_BLOCKED",
+        }:
+            raise ResearchControlError(
+                f"research control directive has events after completion: {path}"
+            )
+    return tuple(loaded)
+
+
 def _find_approval(
     *,
     config: ForgeConfig,
@@ -1989,6 +3125,19 @@ def _find_approval(
         raise ResearchControlError("research approval belongs to a different Request")
     if approval["request_sha256"] != request_sha256:
         raise ResearchControlError("research approval Request digest mismatch")
+    if "execution_policy" in approval:
+        from .research_portfolio import validate_research_execution_policy
+
+        try:
+            validate_research_execution_policy(
+                config=config,
+                execution_policy=approval["execution_policy"],
+                request=request,
+            )
+        except ForgeError as exc:
+            raise ResearchControlError(
+                f"research approval execution policy is invalid: {exc}"
+            ) from exc
     expected_name = str(approval["approval_id"]).partition(":")[2] + ".json"
     if path.name != expected_name:
         raise ResearchControlError(f"research approval filename is not canonical: {path}")
@@ -2010,6 +3159,7 @@ def _status_from_parts(
         request_path=request_path,
         approval_path=approval_path,
         latest_event_path=events[-1][1] if events else None,
+        latest_event_sha256=events[-1][2] if events else None,
         run_id=str(run["run_id"]) if run is not None else None,
         run_dir=str(run["run_dir"]) if run is not None else None,
         monitor_command=(
@@ -2035,6 +3185,17 @@ def _latest_event(
 ) -> dict[str, Any] | None:
     for event, _, _ in reversed(events):
         if event["kind"] == kind:
+            return event
+    return None
+
+
+def _directive_event(
+    events: tuple[tuple[dict[str, Any], Path, str], ...],
+    directive_id: str,
+    kind: str,
+) -> dict[str, Any] | None:
+    for event, _, _ in reversed(events):
+        if event.get("directive_id") == directive_id and event["kind"] == kind:
             return event
     return None
 
@@ -2992,6 +4153,10 @@ def _request_paths(config: ForgeConfig) -> tuple[Path, ...]:
 
 def _event_paths(request_path: Path) -> tuple[Path, ...]:
     return tuple(sorted((request_path.parent / "events").glob("*.json")))
+
+
+def _directive_paths(request_path: Path) -> tuple[Path, ...]:
+    return tuple(sorted((request_path.parent / "directives").glob("*.json")))
 
 
 def _sha256_file(path: Path, *, context: str) -> str:

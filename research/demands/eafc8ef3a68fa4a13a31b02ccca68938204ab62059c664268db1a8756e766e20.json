@@ -1,0 +1,74 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "capability_axes": [
+    "steerable"
+  ],
+  "claim_id": "claim:per-instance-layer-dose-headroom",
+  "created_at": "2026-08-30T22:00:38+08:00",
+  "demand_id": "research-demand:eafc8ef3a68fa4a13a31b02ccca68938204ab62059c664268db1a8756e766e20",
+  "discovery": {
+    "max_source_bytes": 524288,
+    "max_source_files": 8,
+    "max_topics": 3,
+    "source_roots": [
+      "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "research/steering-2026-08/04_HEADROOM_AUDIT.md",
+      "research/steering-2026-08/10_GATING_HEADROOM_AUDIT.md"
+    ]
+  },
+  "evidence": [
+    {
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    },
+    {
+      "locator": "research/steering-2026-08/04_HEADROOM_AUDIT.md",
+      "sha256": "070d0342da7d59b773a82fff97af7d5a2d755e8b32f27d4a7ab8986ee4cfcdf6"
+    },
+    {
+      "locator": "research/steering-2026-08/10_GATING_HEADROOM_AUDIT.md",
+      "sha256": "a3c4e965264cc194cd0c5f4ebbce6fb88502db9a6ac0d5e17f9c74629448d7bf"
+    }
+  ],
+  "need": {
+    "current_gap": "The current control artifact uses fixed layer, direction, and dose; expanding the action schema is unjustified until an oracle-per-instance arm shows headroom and a deployable bounded ranker recovers it on held-out inputs.",
+    "falsification_criteria": [
+      "The oracle schedule has no meaningful lift over the fixed executor, so the action schema remains fixed.",
+      "Oracle headroom exists but no bounded ranker recovers it, so the result remains research-only.",
+      "Any lift disappears against random-layer, sensor-off, dose, latency, or capability-tax controls."
+    ],
+    "protected_boundaries": [
+      "This Demand cannot run until substrate control authority has a named-human PROCEED outcome and a separate runnable task is designed.",
+      "The scheduler may act only in bounded controller z_t space; no base-model or token-space RL update is authorized.",
+      "Evaluation and human judgments remain read-only validation anchors and never become learning reward."
+    ],
+    "required_outcome": "Compare fixed executor, matched ReFT challenger, per-instance oracle subset, prompt-only ranker, random layer subset, and sensor-off unconditional controls under equal norm, compute, and evaluation budgets.",
+    "success_criteria": [
+      "The oracle per-instance schedule has preregistered lift over the best fixed schedule on target effect and damage-adjusted utility.",
+      "A bounded ranker recovers the required fraction of oracle lift on held-out inputs while reducing reverse effects or already-correct damage.",
+      "Checkpoint round-trip preserves exact schedule decisions and artifact lineage."
+    ]
+  },
+  "objective": "Determine whether a per-instance layer/dose scheduler has material held-out headroom over a fixed global residual executor and whether a bounded ranker can recover that oracle headroom without increasing reverse effects or capability damage.",
+  "owner": "vz-temporal",
+  "routing": {
+    "requested_mapping_id": null
+  },
+  "schema_version": "forge-volvence-research-demand.v1",
+  "status": "OPEN",
+  "title": "Measure per-instance layer and dose scheduling headroom"
+}

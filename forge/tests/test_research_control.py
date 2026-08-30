@@ -18,6 +18,7 @@ from volvence_forge.research_control import (
     ResearchControlError,
     SubprocessPraxistRunner,
     inspect_research_request,
+    issue_research_control_directive,
     list_research_inbox,
     record_external_research_handoff,
     reconcile_research_control,
@@ -115,11 +116,14 @@ class FakePraxistRunner:
         self.started = False
         self.state = "running"
         self.external_active = False
+        self.known_active_rows: list[dict[str, Any]] = []
         self.activate_external_after_resolve = False
         self.corrupt_resolved_manifest = False
         self.fail_phase: str | None = None
         self.timeout_after_launch = False
         self.start_count = 0
+        self.stop_count = 0
+        self.resume_count = 0
 
     def run(
         self,
@@ -200,20 +204,54 @@ class FakePraxistRunner:
                     timed_out=True,
                 )
             return self._success(command, self._start_payload(run_dir))
+        if phase == "stop":
+            self.stop_count += 1
+            if self.fail_phase == phase:
+                return self._failure(command, "stop failed: secret-value-must-not-persist")
+            self.started = False
+            self.state = "stopped"
+            return self._success(
+                command,
+                {
+                    "run_id": self.fixture.run_dir.name,
+                    "matched_pids": [4242],
+                    "descendant_pids": [],
+                    "terminated_pids": [4242],
+                    "killed_pids": [],
+                    "remaining_pids": [],
+                    "failed_run_ids": [],
+                    "monitor_sessions": [],
+                    "monitor_stopped_sessions": [],
+                    "dry_run": False,
+                    "warnings": [],
+                },
+            )
+        if phase == "resume":
+            self.resume_count += 1
+            if self.fail_phase == phase:
+                return self._failure(command, "resume failed: secret-value-must-not-persist")
+            run_dir = Path(command[2])
+            self.started = True
+            self.state = "running"
+            return self._success(command, self._start_payload(run_dir))
         raise AssertionError(f"unexpected fake Praxist command: {command}")
 
     def _status(self, command: tuple[str, ...]) -> CommandExecution:
         rows: list[dict[str, Any]] = []
-        if "--active" in command and self.external_active:
-            rows.append(
-                {
-                    "run_id": "external-run",
-                    "run_dir": "/tmp/external-run",
-                    "pid": 999,
-                    "source": "registry",
-                    "state": "running",
-                }
-            )
+        if "--active" in command:
+            rows.extend(self.known_active_rows)
+            if self.external_active:
+                rows.append(
+                    {
+                        "run_id": "external-run",
+                        "run_dir": "/tmp/external-run",
+                        "pid": 999,
+                        "source": "registry",
+                        "state": "running",
+                    }
+                )
+            if self.started and self.state in {"running", "starting"}:
+                rows.append(self._status_row())
         elif self.started:
             rows.append(self._status_row())
         return self._success(command, rows)
@@ -391,9 +429,243 @@ def _fixture(tmp_path: Path) -> ControlFixture:
     )
 
 
+def _identity(prefix: str, payload: dict[str, Any], field: str) -> str:
+    body = {
+        key: value
+        for key, value in payload.items()
+        if key not in {field, "created_at"}
+    }
+    return f"{prefix}:{sha256_text(canonical_json(body))}"
+
+
+def _clone_fixture(fixture: ControlFixture) -> ControlFixture:
+    repo = fixture.config.paths.repo_root
+    task_project = repo / "research/praxist_tasks/memory_inheritance_project_b"
+    task_project.mkdir(parents=True)
+    (task_project / "task.yaml").write_text(
+        "\n".join(
+            (
+                "schema_version: 1",
+                "task_id: memory_inheritance_project_b",
+                "praxist_plugins:",
+                "  task_ref: task:memory_inheritance_project_b",
+                "  workflow:",
+                "    stage: workflow_stage:research_loop",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    manifest = _project_manifest(task_project)
+    task = json.loads(fixture.task_manifest.read_text(encoding="utf-8"))
+    task.update(
+        {
+            "task_id": "memory_inheritance_b",
+            "claim_id": "claim:memory-inheritance-b",
+            "objective": "Improve a second bounded inheritance mechanism.",
+        }
+    )
+    task["praxist"] = {
+        "task_project_id": "memory_inheritance_project_b",
+        "task_project_manifest_sha256": manifest["sha256"],
+    }
+    task["release"] = {**task["release"], "target": "memory_inheritance_policy_b"}
+    task_manifest = _write_json(
+        repo / "research/tasks/memory_inheritance_b/task.json",
+        task,
+    )
+    return ControlFixture(
+        config=fixture.config,
+        task_manifest=task_manifest,
+        task_project=task_project,
+        executable=fixture.executable,
+        run_dir=(fixture.run_dir.parent / "run_memory_002").resolve(),
+    )
+
+
+def _portfolio_for_fixtures(
+    first: ControlFixture,
+    second: ControlFixture,
+    *,
+    max_active_runs: int = 2,
+) -> tuple[Path, Path, Path]:
+    config = first.config
+    repo = config.paths.repo_root
+    fixtures = (first, second)
+    study_ids = ("memory_reader_a", "memory_reader_b")
+    mapping_ids = ("memory_reader_a_v1", "memory_reader_b_v1")
+    demands: list[Path] = []
+    mappings: list[dict[str, Any]] = []
+    studies: list[dict[str, Any]] = []
+    study_authority = {
+        "registration_only": True,
+        "human_topic_binding_required": True,
+        "human_a0_required": True,
+        "human_outcome_decision_required": True,
+        "research_start_authorized": False,
+        "production_promotion_authorized": False,
+        "runtime_wiring_changed": False,
+        "evaluation_is_learning_source": False,
+    }
+    for index, (fixture, study_id, mapping_id) in enumerate(
+        zip(fixtures, study_ids, mapping_ids, strict=True)
+    ):
+        task = json.loads(fixture.task_manifest.read_text(encoding="utf-8"))
+        source = repo / f"research/sources/{study_id}.md"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(f"Frozen evidence for {study_id}.\n", encoding="utf-8")
+        demand: dict[str, Any] = {
+            "schema_version": "forge-volvence-research-demand.v1",
+            "claim_id": task["claim_id"],
+            "title": f"Research {study_id}",
+            "objective": f"Resolve the bounded {study_id} research gap.",
+            "owner": task["owner"],
+            "capability_axes": task["capability_axes"],
+            "need": {
+                "current_gap": "The current mechanism lacks decisive evidence.",
+                "required_outcome": "Produce a bounded falsifiable result.",
+                "success_criteria": ["The preregistered primary gate passes."],
+                "falsification_criteria": ["Matched controls explain the result."],
+                "protected_boundaries": [
+                    "Evaluation is not a learning source.",
+                    "No production wiring changes are authorized.",
+                ],
+            },
+            "evidence": [_ref(source, root=repo)],
+            "discovery": {
+                "source_roots": [source.relative_to(repo).as_posix()],
+                "max_source_files": 2,
+                "max_source_bytes": 4096,
+                "max_topics": 1,
+            },
+            "routing": {"requested_mapping_id": mapping_id},
+            "status": "OPEN",
+            "authority": {
+                "discovery_only": True,
+                "human_topic_binding_required": True,
+                "human_a0_required": True,
+                "research_start_authorized": False,
+                "formal_validation_performed": False,
+                "production_promotion_authorized": False,
+                "runtime_wiring_changed": False,
+                "evaluation_is_learning_source": False,
+            },
+            "created_at": "2026-08-30T00:00:00Z",
+        }
+        demand["demand_id"] = _identity("research-demand", demand, "demand_id")
+        demand_path = _write_json(repo / f"research/demands/{study_id}.json", demand)
+        demands.append(demand_path)
+        mappings.append(
+            {
+                "mapping_id": mapping_id,
+                "binding_revision": f"test-{index}",
+                "match": {
+                    "editable_component": f"test_component_{index}",
+                    "editable_target": f"research/candidate_{index}.json",
+                },
+                "task_manifest": str(fixture.task_manifest),
+                "task_project": str(fixture.task_project),
+                "praxist_executable": str(fixture.executable),
+                "run_root": str(fixture.run_dir.parent),
+                "launch": {
+                    "config_file": None,
+                    "agent_system": "claude_sdk",
+                    "runtime": "agent_runtime:claude_sdk",
+                    "codex_native": False,
+                    "model_provider": "model_provider:fake",
+                    "model": "fake-model",
+                    "strategy": "auto",
+                    "cohort": 2,
+                    "generations": 3,
+                    "startup_timeout_seconds": 30,
+                },
+            }
+        )
+        studies.append(
+            {
+                "study_id": study_id,
+                "title": f"Study {study_id}",
+                "objective": demand["objective"],
+                "claim_id": task["claim_id"],
+                "owner": task["owner"],
+                "capability_axes": task["capability_axes"],
+                "priority": 10 + index,
+                "depends_on": [],
+                "concurrency_lane": "bounded_parallel",
+                "demand": {
+                    "artifact_id": demand["demand_id"],
+                    "artifact": _ref(demand_path, root=repo),
+                },
+                "mapping_id": mapping_id,
+                "task_id": task["task_id"],
+                "readiness": "RUNNABLE_MAPPING",
+                "required_completion_decision": "PROCEED",
+                "authority": study_authority,
+            }
+        )
+    _write_json(
+        config.paths.forge_root / "research_task_registry.yaml",
+        {
+            "schema_version": "forge-research-task-registry.v1",
+            "policy": {"max_new_requests_per_scan": 2},
+            "mappings": mappings,
+        },
+    )
+    portfolio: dict[str, Any] = {
+        "schema_version": "forge-research-portfolio.v1",
+        "title": "Bounded parallel test portfolio",
+        "objective": "Run two independent exact studies under one bounded budget.",
+        "owner": "volvence-research-program",
+        "scheduling": {
+            "ordering_strategy": "dependency_then_priority",
+            "max_active_runs_global": max_active_runs,
+            "unknown_active_run_policy": "BLOCK",
+            "dependency_gate": "NAMED_HUMAN_OUTCOME",
+            "resume_policy": "completed_generation",
+            "lanes": [
+                {
+                    "name": "bounded_parallel",
+                    "max_active_runs": max_active_runs,
+                }
+            ],
+        },
+        "studies": studies,
+        "authority": {
+            "portfolio_scheduling_only": True,
+            "automatic_human_gates_authorized": False,
+            "automatic_candidate_import_authorized": False,
+            "production_promotion_authorized": False,
+            "runtime_wiring_changed": False,
+            "evaluation_is_learning_source": False,
+        },
+        "created_at": "2026-08-30T00:00:00Z",
+    }
+    portfolio["portfolio_id"] = _identity(
+        "research-portfolio",
+        portfolio,
+        "portfolio_id",
+    )
+    portfolio_path = _write_json(
+        repo / "research/portfolios/bounded_parallel.json",
+        portfolio,
+    )
+    return portfolio_path, demands[0], demands[1]
+
+
 def _project_manifest(task_project: Path) -> dict[str, Any]:
     task_yaml = task_project / "task.yaml"
     content = task_yaml.read_bytes()
+    lines = task_yaml.read_text(encoding="utf-8").splitlines()
+    task_id = next(
+        line.partition(":")[2].strip()
+        for line in lines
+        if line.startswith("task_id:")
+    )
+    task_ref = next(
+        line.partition(":")[2].strip()
+        for line in lines
+        if line.strip().startswith("task_ref:")
+    )
     digest = hashlib.sha256()
     digest.update(b"task.yaml\0")
     digest.update(content)
@@ -401,8 +673,8 @@ def _project_manifest(task_project: Path) -> dict[str, Any]:
     return {
         "schema_version": "task_project_manifest.v1",
         "source": "external_task_project",
-        "task_id": "memory_inheritance_project",
-        "task_ref": "task:memory_inheritance_project",
+        "task_id": task_id,
+        "task_ref": task_ref,
         "path": str(task_project),
         "descriptor_path": str(task_yaml),
         "sha256": digest.hexdigest(),
@@ -690,6 +962,150 @@ def test_approved_request_starts_once_and_polls_exact_run(tmp_path: Path) -> Non
     assert len(list((result.request_path.parent / "events").glob("*.json"))) == event_count
 
 
+def test_control_directive_rejects_a_stale_event_revision(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    result = _submit(fixture)
+    _approve(fixture, result.request_path)
+    runner = FakePraxistRunner(fixture)
+    launched = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+
+    assert launched.latest_event_sha256 is not None
+    with pytest.raises(ResearchControlError, match="event revision is stale"):
+        issue_research_control_directive(
+            config=fixture.config,
+            request_path=result.request_path,
+            action="PAUSE",
+            expected_event_sha256="0" * 64,
+            requested_by="human@example.com",
+            reason="This old browser revision must not control the current run.",
+        )
+
+
+def test_pause_and_resume_use_exact_run_and_completed_generation_checkpoint(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    result = _submit(
+        fixture,
+        codex_native=True,
+        agent_system=None,
+        runtime=None,
+        model_provider=None,
+    )
+    _approve(fixture, result.request_path)
+    runner = FakePraxistRunner(fixture)
+    launched = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert launched.latest_event_sha256 is not None
+
+    pause = issue_research_control_directive(
+        config=fixture.config,
+        request_path=result.request_path,
+        action="PAUSE",
+        expected_event_sha256=launched.latest_event_sha256,
+        requested_by="human@example.com",
+        reason="Pause at a durable generation boundary.",
+        grace_seconds=42,
+    )
+    paused = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert pause.action == "PAUSE"
+    assert paused.state == "PAUSED"
+    assert paused.latest_event_sha256 is not None
+    stop_command = next(call for call in runner.calls if call[1] == "stop")
+    assert stop_command == (
+        str(fixture.executable),
+        "stop",
+        fixture.run_dir.name,
+        "--grace",
+        "42",
+        "--json",
+    )
+
+    resume = issue_research_control_directive(
+        config=fixture.config,
+        request_path=result.request_path,
+        action="RESUME",
+        expected_event_sha256=paused.latest_event_sha256,
+        requested_by="human@example.com",
+        reason="Continue from the last completed generation.",
+    )
+    running = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert resume.action == "RESUME"
+    assert running.state == "RUNNING"
+    assert runner.resume_count == 1
+    resume_command = next(call for call in runner.calls if call[1] == "resume")
+    assert resume_command[2] == str(fixture.run_dir)
+    assert _option(resume_command, "--resume-policy") == "completed_generation"
+    assert "--codex-native" in resume_command
+    assert "--force" not in resume_command
+
+    reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )
+    assert runner.resume_count == 1
+
+
+def test_cancel_from_paused_is_terminal_without_a_second_stop(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    result = _submit(fixture)
+    _approve(fixture, result.request_path)
+    runner = FakePraxistRunner(fixture)
+    launched = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert launched.latest_event_sha256 is not None
+    issue_research_control_directive(
+        config=fixture.config,
+        request_path=result.request_path,
+        action="PAUSE",
+        expected_event_sha256=launched.latest_event_sha256,
+        requested_by="human@example.com",
+        reason="Pause before deciding whether to cancel.",
+    )
+    paused = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert paused.latest_event_sha256 is not None
+    assert runner.stop_count == 1
+
+    issue_research_control_directive(
+        config=fixture.config,
+        request_path=result.request_path,
+        action="CANCEL",
+        expected_event_sha256=paused.latest_event_sha256,
+        requested_by="human@example.com",
+        reason="Close the paused research run without promotion.",
+    )
+    cancelled = reconcile_research_control(
+        config=fixture.config,
+        request_path=result.request_path,
+        runner=runner,
+    )[0]
+    assert cancelled.state == "CANCELLED"
+    assert runner.stop_count == 1
+
+
 def test_running_request_reaches_terminal_completion_without_promotion_authority(
     tmp_path: Path,
 ) -> None:
@@ -969,6 +1385,103 @@ def test_active_host_capacity_queues_approved_request(tmp_path: Path) -> None:
     )[0]
     assert launched.state == "RUNNING"
     assert runner.start_count == 1
+
+
+def test_portfolio_a0_allows_known_bounded_parallel_runs(tmp_path: Path) -> None:
+    first = _fixture(tmp_path)
+    second = _clone_fixture(first)
+    portfolio, first_demand, second_demand = _portfolio_for_fixtures(first, second)
+    first_request = _submit(first, evidence_paths=(first_demand,))
+    second_request = _submit(second, evidence_paths=(second_demand,))
+    review_research_request(
+        config=first.config,
+        request_path=first_request.request_path,
+        reviewed_by="human@example.com",
+        reason="Approve study A under the exact portfolio capacity budget.",
+        portfolio_path=portfolio,
+        portfolio_study_id="memory_reader_a",
+    )
+    review_research_request(
+        config=second.config,
+        request_path=second_request.request_path,
+        reviewed_by="human@example.com",
+        reason="Approve study B under the exact portfolio capacity budget.",
+        portfolio_path=portfolio,
+        portfolio_study_id="memory_reader_b",
+    )
+
+    first_runner = FakePraxistRunner(first)
+    first_status = reconcile_research_control(
+        config=first.config,
+        request_path=first_request.request_path,
+        runner=first_runner,
+    )[0]
+    assert first_status.state == "RUNNING"
+
+    second_runner = FakePraxistRunner(second)
+    second_runner.known_active_rows = [first_runner._status_row()]
+    second_status = reconcile_research_control(
+        config=second.config,
+        request_path=second_request.request_path,
+        runner=second_runner,
+    )[0]
+    assert second_status.state == "RUNNING"
+    assert second_runner.start_count == 1
+    capacity_events = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(
+            (second_request.request_path.parent / "events").glob("*.json")
+        )
+        if json.loads(path.read_text(encoding="utf-8"))["kind"]
+        == "CAPACITY_OBSERVED"
+    ]
+    assert any(
+        "portfolio_active_run_count=1" in event["details"]
+        for event in capacity_events
+    )
+
+
+def test_portfolio_a0_enforces_exact_global_and_lane_limit(tmp_path: Path) -> None:
+    first = _fixture(tmp_path)
+    second = _clone_fixture(first)
+    portfolio, first_demand, second_demand = _portfolio_for_fixtures(
+        first,
+        second,
+        max_active_runs=1,
+    )
+    first_request = _submit(first, evidence_paths=(first_demand,))
+    second_request = _submit(second, evidence_paths=(second_demand,))
+    for fixture, request, study_id in (
+        (first, first_request, "memory_reader_a"),
+        (second, second_request, "memory_reader_b"),
+    ):
+        review_research_request(
+            config=fixture.config,
+            request_path=request.request_path,
+            reviewed_by="human@example.com",
+            reason="Approve only the exact single-run portfolio capacity.",
+            portfolio_path=portfolio,
+            portfolio_study_id=study_id,
+        )
+
+    first_runner = FakePraxistRunner(first)
+    reconcile_research_control(
+        config=first.config,
+        request_path=first_request.request_path,
+        runner=first_runner,
+    )
+    second_runner = FakePraxistRunner(second)
+    second_runner.known_active_rows = [first_runner._status_row()]
+    waiting = reconcile_research_control(
+        config=second.config,
+        request_path=second_request.request_path,
+        runner=second_runner,
+    )[0]
+    assert waiting.state == "WAITING_FOR_CAPACITY"
+    assert second_runner.start_count == 0
+    event = json.loads(waiting.latest_event_path.read_text(encoding="utf-8"))
+    assert "portfolio_global_limit_reached=1/1" in event["details"]
+    assert "portfolio_lane_limit_reached=bounded_parallel:1/1" in event["details"]
 
 
 def test_capacity_is_rechecked_after_resolve_before_start(tmp_path: Path) -> None:

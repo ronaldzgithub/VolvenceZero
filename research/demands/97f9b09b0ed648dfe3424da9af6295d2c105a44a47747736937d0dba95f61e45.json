@@ -1,0 +1,73 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "capability_axes": [
+    "steerable"
+  ],
+  "claim_id": "claim:substrate-control-authority",
+  "created_at": "2026-08-30T22:00:38+08:00",
+  "demand_id": "research-demand:97f9b09b0ed648dfe3424da9af6295d2c105a44a47747736937d0dba95f61e45",
+  "discovery": {
+    "max_source_bytes": 524288,
+    "max_source_files": 8,
+    "max_topics": 3,
+    "source_roots": [
+      "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "research/steering-2026-08/03_STEERABILITY_PRECHECK.md",
+      "research/steering-2026-08/06_CONFLICT_INSTRUMENT_VALIDITY.md"
+    ]
+  },
+  "evidence": [
+    {
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    },
+    {
+      "locator": "research/steering-2026-08/03_STEERABILITY_PRECHECK.md",
+      "sha256": "6ce117b563f4eebf0f3659df037c8a7903e096dbffc5bec9c0f54ae29fceef34"
+    },
+    {
+      "locator": "research/steering-2026-08/06_CONFLICT_INSTRUMENT_VALIDITY.md",
+      "sha256": "81abdf3aefea372d4040aa8718a4a64b82f7dd89bfc7fb642754d3f2454e51a9"
+    }
+  ],
+  "need": {
+    "current_gap": "Prior disclosed-policy evidence produced no pair flips, so learned scheduling or memory coupling would have no causal meaning unless a bounded activation path can first alter the target action without unacceptable damage.",
+    "falsification_criteria": [
+      "The direct-state upper-bound arm also has no reliable target-action effect, establishing a substrate control floor for this model/layer/action decoder.",
+      "Any apparent lift is explained by prompt disclosure, unmatched generation settings, random directions, or unacceptable already-correct damage."
+    ],
+    "protected_boundaries": [
+      "This Demand remains NEEDS_TASK_DESIGN until a runnable task, exact model, evaluator, controls, and resource profile exist.",
+      "No token-space RL, online base-model update, evaluation-derived credit, or production wiring is authorized.",
+      "A development effect cannot bypass formal validation, ModificationGate, SHADOW, canary, ACTIVE, or rollback review."
+    ],
+    "required_outcome": "Freeze matched oracle/noop/text/residual/direct-patch arms and establish target-action probability, paired flip, dose, strict-noop, already-correct damage, and capability-tax evidence on a runnable local substrate.",
+    "success_criteria": [
+      "A bounded learned residual or direct-state arm produces stable signed target-action lift over strict noop on held-out cases.",
+      "Strict noop is behaviorally identical and intervention norm, reverse effects, and already-correct damage remain within frozen limits.",
+      "The direct-state upper bound distinguishes executor insufficiency from a substrate control floor."
+    ]
+  },
+  "objective": "Measure whether the frozen target substrate can convert an oracle-known relationship condition into a reliable user-visible action change under bounded residual intervention, compared with strict noop, disclosed text policy, learned executor, and direct-state upper-bound arms.",
+  "owner": "vz-substrate",
+  "routing": {
+    "requested_mapping_id": null
+  },
+  "schema_version": "forge-volvence-research-demand.v1",
+  "status": "OPEN",
+  "title": "Establish bounded substrate control authority before gate learning"
+}

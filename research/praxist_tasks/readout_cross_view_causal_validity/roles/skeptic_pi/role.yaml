@@ -1,0 +1,24 @@
+schema_version: 1
+name: readout_skeptic_pi
+kind: role
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: Skeptic PI for leakage, controls, and metric validity.
+compatibility: {praxist_core: ">=0.5.0,<1.0", python: ">=3.11"}
+dependencies: []
+capabilities: [role.skill, pi.memo]
+role:
+  role_id: skeptic
+  legacy_role_id: skeptic
+  display_name: Readout Skeptic PI
+  role_kind: pi
+  default_model_profile_ref: strong_reasoner
+  output_schema_ref: core:pi_memo.v1
+  tool_scope: [filesystem.read, memory_tools.panel_read, frontier_tools.panel_read, finding_graph_query.panel_read]
+  fixed_questions:
+    - Did a candidate exploit the visible corpus, label mapping, or output preparation rather than the relationship condition?
+    - Does the random control or reverse-effect rate invalidate the claimed causal direction?
+    - What minimal falsifier should the next cohort run before any formal nomination?
+code: []
+assets: [skill.md]

@@ -188,6 +188,7 @@ def run_demand_research_loop_once(
     max_new_requests: int = 8,
     max_reconciles: int = 8,
     runner: PraxistCommandRunner | None = None,
+    allowed_demand_ids: frozenset[str] | None = None,
 ) -> ResearchLoopResult:
     """Run one serialized discovery, submission, and approved reconcile pass."""
 
@@ -212,7 +213,28 @@ def run_demand_research_loop_once(
             demand_root=selected_root,
             max_demands=max_demands,
         )
+        if allowed_demand_ids is not None:
+            known_demand_ids = {
+                str(demand["demand_id"]) for demand, _ in demand_records
+            }
+            unknown = allowed_demand_ids - known_demand_ids
+            if unknown:
+                raise ResearchLoopError(
+                    "allowed Demand set contains identities outside the validated "
+                    f"Demand root: {sorted(unknown)}"
+                )
+            demand_records = tuple(
+                (demand, path)
+                for demand, path in demand_records
+                if demand["demand_id"] in allowed_demand_ids
+            )
         binding_records = _load_bindings(config=config)
+        if allowed_demand_ids is not None:
+            binding_records = tuple(
+                (binding, path)
+                for binding, path in binding_records
+                if binding["demand"]["artifact_id"] in allowed_demand_ids
+            )
 
         discoveries: list[ResearchLoopDiscovery] = []
         new_discoveries = 0

@@ -1,0 +1,39 @@
+## Task contract
+
+Create `{{ variants_dir }}/<variant_id>/reader.json` using
+`{{ task_dir }}/assets/harness/reader.schema.json`. The directory may contain
+only that JSON file. Do not add code, prompt text, paths, model material, labels,
+or undeclared fields.
+
+Run preliminary synchronously:
+
+```bash
+"$PRAXIST_TASK_PYTHON" {{ task_dir }}/evaluations/cross_view/run.py \
+  --variant-dir {{ variants_dir }}/<variant_id> \
+  --output-dir {{ results_dir }}/<variant_id>/preliminary \
+  --mode preliminary
+```
+
+Submit complete evaluation through the scheduler with a stable semantic tag:
+
+```bash
+PYTHONPATH="$PRAXIST_WORKSPACE_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+  "$PRAXIST_RUNNER_PYTHON" -m praxist.plugins.workflow_stages.research_loop.backend.protected_pids launch \
+  --run-dir={{ run_dir }} --peer={{ peer_id }} \
+  --tag=<variant_identity> --profile=mps_readout --work-class=mature --eta=60 -- \
+  "$PRAXIST_TASK_PYTHON" {{ task_dir }}/evaluations/cross_view/run.py \
+  --variant-dir {{ variants_dir }}/<variant_id> \
+  --output-dir {{ results_dir }}/<variant_id>/complete \
+  --mode complete
+```
+
+Repeated ordinary submissions are idempotent. After repairing a terminal
+failed or rejected request, keep the tag and add `--retry-terminal`; never use
+that flag for active or completed work. Do not use raw background processes,
+`nohup`, arbitrary polling, or private transcript size as completion evidence.
+
+Publish summary path, actual metrics, exit classification, effort/coverage,
+failure mode, evidence valence, and actual design dimensions. A development
+PASS only nominates a loop-external formal validation; it never authorizes
+candidate import, owner publication, PE/credit, ModificationGate, SHADOW, or
+ACTIVE.

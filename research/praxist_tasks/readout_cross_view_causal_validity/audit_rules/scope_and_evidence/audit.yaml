@@ -1,0 +1,26 @@
+schema_version: 1
+name: readout_cross_view_scope_and_evidence
+kind: audit_rule
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: Keep residual-reader research inside the frozen development boundary.
+compatibility:
+  praxist_core: ">=0.5.0,<1.0"
+  python: ">=3.11"
+dependencies: []
+capabilities: [audit.scope, audit.evidence, audit.no_release_authority]
+audit:
+  checks:
+    - Candidate directories contain reader.json only; no code, prose injection, paths, or model material.
+    - Peers do not modify task assets, evaluator, corpus, thresholds, model binding, formal protocol, Volvence source, gates, or runtime wiring.
+    - Preliminary results never rank, mature, parent, or satisfy normal close.
+    - Complete means all eight held-out semantic groups and all six frozen views.
+    - The primary score is the minimum normalized gate margin; metric directions and per-view rows remain visible.
+    - DOMAIN_LOCAL is not described as cross-view validity and may only remain as repair evidence.
+    - J-lens-like is described as a frozen future-token unembedding proxy, not a full thought decoder.
+    - Random controls, negative findings, reverse effects, and calibration failures remain durable diagnostic evidence.
+    - Development evidence never becomes PE, credit, a semantic owner snapshot, formal qualification, ModificationGate, SHADOW, ACTIVE, or production authority.
+    - Peers do not hand-write frontier, incubator, Gems, memory, PI packs, reports, or generation boundaries.
+code: []
+assets: []

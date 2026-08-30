@@ -1,0 +1,32 @@
+schema_version: 1
+name: readout_cross_view_causal_validity
+kind: evaluation
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: Frozen public-development cross-view residual readout and causal-patch evaluator.
+compatibility:
+  praxist_core: ">=0.5.0,<1.0"
+  python: ">=3.11"
+dependencies: []
+capabilities:
+  - evaluation.residual_readout
+  - evaluation.cross_view_validity
+  - evaluation.causal_patch
+  - evaluation.evidence_maturity
+evaluation:
+  primary_metrics: [qualification_margin]
+  evidence_stages: [preliminary, complete]
+  staged_protocols:
+    preliminary:
+      ranking_allowed: false
+      purpose: wiring_schema_and_failure_triage
+    complete:
+      ranking_allowed: true
+      parent_promotion_allowed: true
+      scope: public_development_retention_only
+agent_entrypoint: run.py
+code: [run.py]
+assets:
+  - ../../assets/harness/reader.schema.json
+  - ../../assets/dataset_metadata/development_corpus.json

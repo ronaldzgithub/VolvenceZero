@@ -36,6 +36,7 @@ from .research_promotion import (
 )
 from .research_control import (
     ResearchControlStatus,
+    issue_research_control_directive,
     list_research_inbox,
     record_external_research_handoff,
     reconcile_research_control,
@@ -57,6 +58,13 @@ from .research_loop import run_demand_research_loop_once
 from .research_opportunity import (
     ResearchOpportunityStatus,
     scan_research_opportunities,
+)
+from .research_portfolio import (
+    inspect_research_portfolio,
+    review_research_study_outcome,
+    run_research_portfolio_once,
+    seal_research_portfolio,
+    validate_research_portfolio,
 )
 from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
 from .task_benchmark import run_task_benchmark
@@ -346,6 +354,81 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop.add_argument("--max-reconciles", type=int, default=8)
     research_loop.add_argument("--json", action="store_true")
 
+    portfolio_seal = subparsers.add_parser(
+        "research-portfolio-seal",
+        help="Seal one human-authored Portfolio draft into the exact registry",
+    )
+    portfolio_seal.add_argument("draft", type=Path)
+    portfolio_seal.add_argument("--output", type=Path)
+    portfolio_seal.add_argument("--json", action="store_true")
+
+    portfolio_validate = subparsers.add_parser(
+        "research-portfolio-validate",
+        help="Validate one content-addressed research portfolio and its exact bindings",
+    )
+    portfolio_validate.add_argument("portfolio", type=Path)
+    portfolio_validate.add_argument("--json", action="store_true")
+
+    portfolio_status = subparsers.add_parser(
+        "research-portfolio-status",
+        help="Project dependency, A0, Praxist, and outcome state for one portfolio",
+    )
+    portfolio_status.add_argument("portfolio", type=Path)
+    portfolio_status.add_argument("--json", action="store_true")
+
+    portfolio_loop = subparsers.add_parser(
+        "research-portfolio-loop",
+        help="Run one bounded dependency-eligible pass through the existing Research Loop",
+    )
+    portfolio_loop.add_argument("portfolio", type=Path)
+    portfolio_loop.add_argument(
+        "--once",
+        action="store_true",
+        required=True,
+        help="Acknowledge that this command performs one bounded pass and exits",
+    )
+    portfolio_loop.add_argument(
+        "--backend",
+        choices=("codex_sdk", "replay"),
+        default="codex_sdk",
+    )
+    portfolio_loop.add_argument(
+        "--model",
+        default=os.environ.get("FORGE_DISCOVERY_MODEL"),
+        help="Exact Codex model; required for --backend codex_sdk",
+    )
+    portfolio_loop.add_argument(
+        "--codex-bin",
+        type=Path,
+        default=(
+            Path(os.environ["FORGE_CODEX_BIN"])
+            if os.environ.get("FORGE_CODEX_BIN")
+            else None
+        ),
+    )
+    portfolio_loop.add_argument("--replay-responses", type=Path)
+    portfolio_loop.add_argument("--max-new-discoveries", type=int, default=1)
+    portfolio_loop.add_argument("--max-new-requests", type=int, default=8)
+    portfolio_loop.add_argument("--max-reconciles", type=int, default=8)
+    portfolio_loop.add_argument("--json", action="store_true")
+
+    portfolio_review = subparsers.add_parser(
+        "research-portfolio-review",
+        help="Seal a named-human dependency decision for one completed exact Request",
+    )
+    portfolio_review.add_argument("portfolio", type=Path)
+    portfolio_review.add_argument("--study-id", required=True)
+    portfolio_review.add_argument("--request", type=Path, required=True)
+    portfolio_review.add_argument("--evidence", type=Path, action="append", required=True)
+    portfolio_review.add_argument("--reviewed-by", required=True)
+    portfolio_review.add_argument("--reason", required=True)
+    portfolio_review.add_argument(
+        "--decision",
+        choices=("proceed", "revise", "stop"),
+        required=True,
+    )
+    portfolio_review.add_argument("--json", action="store_true")
+
     research_inbox = subparsers.add_parser(
         "research-inbox",
         help="List immutable ResearchRequest lifecycle projections",
@@ -360,6 +443,31 @@ def build_parser() -> argparse.ArgumentParser:
     research_approve.add_argument("--approved-by", required=True)
     research_approve.add_argument("--reason", required=True)
     research_approve.add_argument("--reject", action="store_true")
+    research_approve.add_argument(
+        "--portfolio",
+        type=Path,
+        help="Exact Portfolio whose global/lane capacity is included in this A0",
+    )
+    research_approve.add_argument(
+        "--study-id",
+        help="Exact Portfolio study receiving the A0 execution policy",
+    )
+
+    research_control = subparsers.add_parser(
+        "research-control",
+        help="Issue one revision-bound PAUSE, RESUME, or CANCEL directive and reconcile it",
+    )
+    research_control.add_argument("request", type=Path)
+    research_control.add_argument(
+        "--action",
+        choices=("pause", "resume", "cancel"),
+        required=True,
+    )
+    research_control.add_argument("--expected-event-sha256", required=True)
+    research_control.add_argument("--requested-by", required=True)
+    research_control.add_argument("--reason", required=True)
+    research_control.add_argument("--grace", type=int, default=300)
+    research_control.add_argument("--json", action="store_true")
 
     research_reconcile = subparsers.add_parser(
         "research-reconcile",
@@ -828,6 +936,120 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"blocked={summary['blocked_count']}"
                 )
             return 2 if result.blocked_count else 0
+        if args.command == "research-portfolio-seal":
+            result = seal_research_portfolio(
+                config=config,
+                draft_path=args.draft,
+                output_path=args.output,
+            )
+            payload = {
+                "schema_version": "forge-research-portfolio-seal-result.v1",
+                "portfolio_id": result.portfolio_id,
+                "portfolio": str(result.portfolio_path),
+                "portfolio_sha256": sha256_bytes(
+                    result.portfolio_path.read_bytes()
+                ),
+                "reused": result.reused,
+                "automatic_human_gates_authorized": False,
+                "research_start_authorized": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"SEALED: portfolio={result.portfolio_id}; "
+                    f"artifact={result.portfolio_path}; reused={result.reused}"
+                )
+            return 0
+        if args.command == "research-portfolio-validate":
+            portfolio = validate_research_portfolio(
+                config=config,
+                portfolio_path=args.portfolio,
+            )
+            payload = {
+                "schema_version": "forge-research-portfolio-validation-result.v1",
+                "state": "VALID",
+                "portfolio_id": portfolio["portfolio_id"],
+                "study_count": len(portfolio["studies"]),
+                "max_active_runs_global": portfolio["scheduling"][
+                    "max_active_runs_global"
+                ],
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"VALID: portfolio={portfolio['portfolio_id']}; "
+                    f"studies={len(portfolio['studies'])}"
+                )
+            return 0
+        if args.command == "research-portfolio-status":
+            status = inspect_research_portfolio(
+                config=config,
+                portfolio_path=args.portfolio,
+            )
+            payload = status.to_jsonable()
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+            else:
+                print(
+                    f"PORTFOLIO: {status.portfolio_id}; studies={len(status.studies)}"
+                )
+                for study in status.studies:
+                    print(
+                        f"{study.state}: study={study.study_id}; "
+                        f"request={study.request_id or '-'}; run={study.run_id or '-'}"
+                    )
+            return 0
+        if args.command == "research-portfolio-loop":
+            result = run_research_portfolio_once(
+                config=config,
+                portfolio_path=args.portfolio,
+                backend=_research_discovery_backend(args, parser=parser),
+                max_new_discoveries=args.max_new_discoveries,
+                max_new_requests=args.max_new_requests,
+                max_reconciles=args.max_reconciles,
+            )
+            payload = result.to_jsonable()
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                summary = payload["status"]["summary"]
+                print(
+                    "PORTFOLIO_BOUNDED_ONCE: "
+                    f"eligible={len(result.eligible_study_ids)}; "
+                    f"running={summary['running_count']}; "
+                    f"awaiting_a0={summary['awaiting_a0_count']}; "
+                    f"needs_task_design={summary['needs_task_design_count']}"
+                )
+            return 2 if result.loop.blocked_count else 0
+        if args.command == "research-portfolio-review":
+            result = review_research_study_outcome(
+                config=config,
+                portfolio_path=args.portfolio,
+                study_id=args.study_id,
+                request_path=args.request,
+                evidence_paths=args.evidence,
+                reviewed_by=args.reviewed_by,
+                reason=args.reason,
+                decision=args.decision,
+            )
+            payload = {
+                "schema_version": "forge-research-study-outcome-result.v1",
+                "outcome_id": result.outcome_id,
+                "outcome": str(result.outcome_path),
+                "decision": result.decision,
+                "dependency_scheduling_only": True,
+                "production_promotion_authorized": False,
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"{result.decision}: outcome={result.outcome_id}; "
+                    f"artifact={result.outcome_path}"
+                )
+            return 0
         if args.command == "research-inbox":
             statuses = list_research_inbox(config=config)
             _print_research_statuses(statuses, as_json=args.json)
@@ -840,9 +1062,40 @@ def main(argv: Sequence[str] | None = None) -> int:
                 reviewed_by=args.approved_by,
                 reason=args.reason,
                 decision=decision,
+                portfolio_path=args.portfolio,
+                portfolio_study_id=args.study_id,
             )
             print(f"{result.decision}: {result.approval_id}; approval={result.approval_path}")
             return 0
+        if args.command == "research-control":
+            directive = issue_research_control_directive(
+                config=config,
+                request_path=args.request,
+                action=args.action,
+                expected_event_sha256=args.expected_event_sha256,
+                requested_by=args.requested_by,
+                reason=args.reason,
+                grace_seconds=args.grace,
+            )
+            status = reconcile_research_control(
+                config=config,
+                request_path=args.request,
+            )[0]
+            payload = {
+                "schema_version": "forge-research-control-result.v1",
+                "directive_id": directive.directive_id,
+                "directive_path": str(directive.directive_path),
+                "action": directive.action,
+                "status": _research_status_payload(status),
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(
+                    f"{directive.action}: directive={directive.directive_id}; "
+                    f"state={status.state}; run_id={status.run_id or '-'}"
+                )
+            return 2 if status.state in {"BLOCKED", "RUN_FAILED"} else 0
         if args.command == "research-reconcile":
             statuses = reconcile_research_control(
                 config=config,
@@ -980,6 +1233,7 @@ def _research_status_payload(status: ResearchControlStatus) -> dict[str, str | N
         "request_path": str(status.request_path),
         "approval_path": str(status.approval_path) if status.approval_path else None,
         "latest_event_path": str(status.latest_event_path) if status.latest_event_path else None,
+        "latest_event_sha256": status.latest_event_sha256,
         "run_id": status.run_id,
         "run_dir": status.run_dir,
         "monitor_command": status.monitor_command,

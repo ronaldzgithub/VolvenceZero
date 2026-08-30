@@ -1,0 +1,76 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "capability_axes": [
+    "readable",
+    "steerable"
+  ],
+  "claim_id": "claim:readout-cross-view-causal-validity",
+  "created_at": "2026-08-30T22:00:38+08:00",
+  "demand_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd",
+  "discovery": {
+    "max_source_bytes": 524288,
+    "max_source_files": 8,
+    "max_topics": 3,
+    "source_roots": [
+      "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md",
+      "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+      "research/continual-deep-learning-2026-08/09_DECISION_REGISTER.md"
+    ]
+  },
+  "evidence": [
+    {
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md",
+      "sha256": "62d383c823ce672d8c72ba0b1b8f2ec3f092653b27390dfc2725a5f7422494ca"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+      "sha256": "8e9c1266fb2f9ccbb906dc15261a7def62d2d1ec13442bd849473ef6d0fbd43e"
+    }
+  ],
+  "need": {
+    "current_gap": "Current Volvence evidence does not establish that a relationship-condition readout is invariant across surface views or causally connected to the frozen model's next-token decision; same-format accuracy can be a shortcut and a discriminative direction can patch in the wrong sign.",
+    "falsification_criteria": [
+      "Only same-view performance clears while cross-view or weakest-view performance fails, requiring a DOMAIN_LOCAL result.",
+      "Same-view separation, causal sign, or matched-random separation fails, requiring INSTRUMENT_INVALID and stopping downstream substrate-authority claims.",
+      "A visible public-development PASS does not replicate or depends on one exact layer/view boundary without positive headroom."
+    ],
+    "protected_boundaries": [
+      "Evaluation is not a PE or credit learning source.",
+      "Praxist may change only structured reader.json fields and may not modify the task, evaluator, corpus, model binding, thresholds, formal protocol, Volvence source, semantic owner, or runtime wiring.",
+      "Development PASS does not authorize formal qualification, candidate import, ModificationGate, SHADOW, canary, ACTIVE, or production wiring."
+    ],
+    "required_outcome": "Produce exact public-development evidence for linear, difference-of-means, RSA-aligned, future-token-proxy, and random-control readers under a frozen model/corpus/evaluator, with a loop-external formal nomination only if every preregistered gate clears.",
+    "success_criteria": [
+      "At least one complete non-random reader has non-negative minimum normalized qualification margin across every frozen gate.",
+      "Same-view and cross-view balanced accuracy, weakest-view accuracy, calibration, held-out Cohen's d, identity retrieval, and direction coherence all clear their preregistered thresholds.",
+      "Bounded causal patch improves the signed target-token margin and exceeds the matched random-direction effect by the frozen separation threshold."
+    ]
+  },
+  "objective": "Determine whether a bounded residual reader for agency_displacement versus belonging_erasure generalizes across held-out semantic identities, wording, question format, Chinese, role order, and counterfactual form while producing a signed target-logit intervention effect above a matched random direction.",
+  "owner": "vz-cognition",
+  "routing": {
+    "requested_mapping_id": "readout_cross_view_causal_validity_v1"
+  },
+  "schema_version": "forge-volvence-research-demand.v1",
+  "status": "OPEN",
+  "title": "Establish cross-view and causal validity of relationship-condition readouts"
+}

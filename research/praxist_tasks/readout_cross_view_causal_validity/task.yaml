@@ -1,0 +1,414 @@
+schema_version: 1
+task_version: 0.1.0
+task_id: readout_cross_view_causal_validity
+task_name: "Readout Cross-View and Causal Validity Research"
+description_file: description.md
+capabilities:
+  - task.residual_readout
+  - task.cross_view_validity
+  - task.causal_patch
+  - task.multi_metric_pareto
+
+research_direction: |
+  Improve a bounded structured residual reader for the existing Volvence
+  relationship-condition vocabulary. The evaluator freezes an exact local
+  Qwen2.5-0.5B-Instruct snapshot and a balanced public-development corpus with
+  six views per semantic group. Candidates may vary only reader family, layer,
+  pooling, regularization, bounded patch dose, seed, and view aggregation.
+
+  The primary score is the minimum normalized margin across same-view and
+  cross-view discrimination, weakest-view accuracy, calibration, held-out
+  separation, cross-view identity retrieval, direction coherence, causal
+  target-logit effect, and matched-random separation. The current linear
+  layer-12 baseline is DOMAIN_LOCAL; an initialization canary shows the PASS
+  lane is mechanically reachable but still requires replication and ablation.
+
+  Praxist owns development research and retention only. It may not modify the
+  task, evaluator, corpus, model binding, thresholds, Volvence runtime, formal
+  validator, gate, semantic owner, or production wiring. Development evidence
+  is never a PE/credit learning source and cannot authorize ModificationGate,
+  SHADOW, canary, or ACTIVE.
+
+prompt_layout:
+  base_template: prompt_base.jinja2
+  generation_template: prompt_generation.jinja2
+
+evaluation:
+  primary_metric: qualification_margin
+  direction: maximize
+  aux_metrics:
+    - same_view_balanced_accuracy
+    - cross_view_balanced_accuracy
+    - worst_view_balanced_accuracy
+    - brier_score
+    - heldout_cohen_d
+    - cross_view_identity_retrieval
+    - mean_direction_coherence
+    - causal_target_margin_effect
+    - causal_reverse_effect_rate
+    - random_control_separation
+    - evaluator_wall_seconds
+  seeds: [20260830]
+  aggregation: minimum_normalized_gate_margin_with_per_view_audit
+  maturity_policy:
+    min_effort_ratio: 1.0
+    min_coverage_ratio: 1.0
+    require_ratio_gate: true
+    complete_stage_labels: [complete]
+    preliminary_stage_labels: [preliminary]
+  constructive_peer_mix_enabled: true
+  constructive_target_ratio: 0.75
+  launch_guard:
+    enabled: true
+    estimated_heavy_eval_minutes: 1
+    estimated_close_grade_eval_minutes: 1
+    safety_factor: 1.50
+  staged_protocols:
+    - name: preliminary
+      launch_allowed: true
+      ranking_allowed: false
+      mature_allowed: false
+      parent_allowed: false
+      close_allowed: false
+      purpose: "Two balanced groups across three views for wiring and failure triage only."
+    - name: complete
+      launch_allowed: true
+      ranking_allowed: true
+      mature_allowed: true
+      parent_allowed: true
+      close_allowed: true
+      purpose: "All eight held-out groups and six views; development retention only."
+  diversity_dimensions:
+    - name: mechanism_family
+      description: "Linear probe, difference of means, RSA-aligned centroid, J-lens-like token direction, or random control."
+    - name: intervention_surface
+      description: "Exact frozen residual layer receiving the readout and bounded patch."
+    - name: intent
+      description: "Explore, exploit, bridge, repair, falsify, ablate, diagnose, or control."
+    - name: semantic_family
+      description: "Pooling and view-aggregation geometry, not a renamed numeric variant."
+    - name: parent_lineage
+      description: "Frozen baseline, confirmed parent, incubator parent, canary replication, or independent lineage."
+    - name: novelty_axis
+      description: "The exact invariance, calibration, causal, control, or dose property changed."
+  frontier_lanes:
+    - name: confirmed
+      description: "Complete public-development readers clearing every frozen discrimination and causal-control gate."
+      k: 3
+      cumulative_cap: 12
+      axes:
+        - {name: qualification_margin, direction: maximize}
+        - {name: worst_view_balanced_accuracy, direction: maximize}
+        - {name: cross_view_balanced_accuracy, direction: maximize}
+        - {name: causal_target_margin_effect, direction: maximize}
+      optional_axes:
+        - {name: brier_score, direction: minimize}
+        - {name: causal_reverse_effect_rate, direction: minimize}
+        - {name: evaluator_wall_seconds, direction: minimize}
+      include_lanes: [confirmed, performance]
+      require_metrics:
+        - qualification_margin
+        - worst_view_balanced_accuracy
+        - cross_view_balanced_accuracy
+        - causal_target_margin_effect
+        - random_control_separation
+      require_truthy_metrics:
+        - scored_complete
+        - protocol_integrity_passed
+        - qualification_passed
+        - promotion_eligible
+      require_falsey_metrics:
+        - protocol_integrity_failed
+        - random_control
+        - domain_local
+        - instrument_invalid
+        - suspect_protocol
+        - suspect_leakage
+        - late_after_generation_boundary
+      min_metrics:
+        qualification_margin: 0.0
+      parent_eligible: true
+      allow_missing_tier: true
+    - name: incubator
+      description: "Protocol-clean complete non-random readers needing a weakest-view, calibration, causal, or robustness repair."
+      k: 8
+      cumulative_cap: 48
+      admit_new_high: true
+      axes:
+        - {name: qualification_margin, direction: maximize}
+        - {name: worst_view_balanced_accuracy, direction: maximize}
+        - {name: causal_target_margin_effect, direction: maximize}
+      optional_axes:
+        - {name: cross_view_balanced_accuracy, direction: maximize}
+        - {name: brier_score, direction: minimize}
+        - {name: random_control_separation, direction: maximize}
+      include_lanes: [incubator, performance]
+      require_metrics:
+        - qualification_margin
+        - worst_view_balanced_accuracy
+        - causal_target_margin_effect
+      require_truthy_metrics: [scored_complete, protocol_integrity_passed]
+      require_falsey_metrics:
+        - protocol_integrity_failed
+        - random_control
+        - is_smoke_eval
+        - partial
+        - scout_only
+        - validation_only
+        - validation_only_result
+        - late_after_generation_boundary
+        - suspect_protocol
+        - suspect_leakage
+      parent_eligible: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+      allow_risk_violating: true
+    - name: task_candidate
+      description: "Preliminary, partial, repair, or replication evidence retained for complete follow-up."
+      k: 5
+      cumulative_cap: 20
+      axes:
+        - {name: qualification_margin, direction: maximize}
+        - {name: cross_view_balanced_accuracy, direction: maximize}
+      include_lanes: [task_candidate, candidate, preliminary, partial, repair]
+      require_metrics: [qualification_margin]
+      parent_eligible: false
+      allow_lower_tier: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+    - name: diagnostic
+      description: "Random controls, invalid instruments, reverse effects, falsifiers, and process diagnostics."
+      k: 4
+      cumulative_cap: 16
+      axes:
+        - {name: qualification_margin, direction: maximize}
+      optional_axes:
+        - {name: random_control_separation, direction: maximize}
+        - {name: evaluator_wall_seconds, direction: minimize}
+      include_lanes: [diagnostic, control, process, reference, negative_control]
+      parent_eligible: false
+      allow_lower_tier: true
+      allow_non_promotable: true
+      allow_missing_tier: true
+
+compute_budget:
+  per_experiment_gpu_hours: 0
+  max_parallel_runs_per_peer: 1
+  resource_scheduler:
+    mode: central
+    initial_concurrent_experiments: 1
+    min_concurrent_experiments: 1
+    max_concurrent_experiments: 1
+    supply_signal_enabled: true
+    supply_idle_samples: 3
+    supply_lease_seconds: 120
+    mature_supply_fraction: 0.50
+    mature_supply_redundancy: 2.0
+    mature_assessment_min_completion_probability: 0.25
+    exploration_reserve: 0
+    infrastructure_retries: 1
+    default_profile: mps_readout
+    profiles:
+      mps_readout:
+        accelerator: cpu
+        pressure_domains: [cpu, memory, io]
+
+toolchain:
+  framework: volvence_qwen_residual_readout
+  entrypoint_template: assets/baseline/reader.json
+  eval_entrypoint: evaluations/cross_view/run.py
+  benchmark_entrypoint: evaluations/cross_view/run.py
+
+task_entrypoints:
+  evaluation:
+    command: evaluations/cross_view/run.py
+    output_policy: "Use --output-dir and write exactly one evaluation_summary.json beneath the caller-owned result directory."
+    purpose: "Only public-development evaluator for structured residual readers."
+
+task_assets:
+  baseline_variant: assets/baseline
+  baseline_results: assets/baselines/results.jsonl
+  dataset_protocol: assets/dataset_metadata/development_corpus.json
+  resource_plan: assets/resource_plan.md
+  protocol_intent: assets/protocol_intent.md
+  research_directions: assets/literature/research_directions.md
+
+runtime_outputs:
+  root: experiments
+  gitignored: true
+  policy: "Variants, summaries, logs, and temporary tensors remain under task-owned or Praxist run output roots; activations are never persisted."
+
+runtime_environment:
+  cwd: task_project
+  venv: ../../../.venv
+  python: ../../../.venv/bin/python
+  require_paths: true
+  protected_child_paths:
+    - assets
+    - evaluations
+    - audit_rules
+  writable_roots:
+    - scratch
+
+generation_policy:
+  max_generations: 3
+  cohort_size: 4
+  per_generation_hours: 1.5
+  promote_top_k: 3
+  promote_criterion: multi_metric_frontier_lanes
+
+synthesis_trigger:
+  enabled: true
+  min_findings: 4
+  min_interval_minutes: 20
+  max_interval_minutes: 45
+  min_contributing_peers: 3
+  mature_quorum_fraction: 0.25
+  poll_interval_seconds: 20
+  adaptive:
+    enabled: true
+    min_evidence_units: 1.0
+    min_formal_result_peers: 1
+    drain_grace_minutes: 3
+
+research_memory:
+  enabled: true
+  rollout_phase: 2
+  evidence_pack_max_cards: 32
+  citation_coverage_min: 0.95
+  negative_evidence_ratio_min: 0.20
+  bridge_coverage_check_required: true
+
+multi_pi:
+  enabled: true
+  panel_mode_default: full
+  auto_escalate_to_high_stakes: true
+  pi_max_runtime_minutes: 10
+  chair_max_runtime_minutes: 18
+  chair_peer_budget: 4
+  shared_core_ratio_target: 0.65
+  private_kb_ratio_target: 0.35
+  fallback_to_single_pi_on_panel_failure: true
+
+dig_lite:
+  enabled: true
+  generation_scope: initial_only
+  phase: pre_code_only
+  experiments_allowed: false
+  shell_allowed: false
+  code_writes_allowed: false
+  result_writes_allowed: false
+  candidate_count: 8
+  min_mechanism_families: 4
+  min_intervention_surfaces: 3
+  max_refinement_rounds: 1
+  max_attempts: 10
+  max_total_runtime_minutes: 30
+  fallback_to_direct_on_failure: true
+  planner_allowed_tools: [Read, Grep, Glob]
+  planner_max_runtime_minutes: 10
+  strict: true
+  inject_contract_into_prompt: true
+  diversity:
+    cell_fields: [mechanism_family, intervention_surface, intent]
+    selection: best_within_lane
+    reject_near_duplicate: true
+    duplicate_threshold: 0.82
+    allow_adjacent_lane_fallback: true
+  innovation:
+    enabled: true
+    enforce_forward_slots: true
+    max_diagnostic_fraction: 0.25
+    max_diagnostic_peers: 1
+  contract:
+    require_selected_contract: true
+    require_ablation_hooks: true
+    min_rejected_alternatives: 2
+    require_forbidden_changes: true
+    require_expected_metric_signature: true
+    require_fail_fast_checks: true
+  write_gate:
+    enabled: true
+    allow_writes_only_under_dig_dir_before_unlock: true
+    block_shell_before_unlock: true
+    block_variant_dir_before_unlock: true
+    block_results_dir_before_unlock: true
+
+quality_diversity:
+  enabled: true
+  initial_generation_enabled: true
+  later_generations_enabled: true
+  max_same_diversity_cell_peers: 1
+  max_same_mechanism_family_fraction: 0.50
+  max_same_intervention_surface_fraction: 0.50
+  max_same_intent_fraction: 0.75
+
+gems:
+  enabled: false
+  selection_policy: mature_evidence_top_k
+  min_mature_eval_units: 8
+  evidence_stage_min_units:
+    complete: 8
+  max_resets: 3
+  max_gems_per_reset: 3
+  max_gems_total: 3
+  max_gems_per_family: 2
+  min_frontier_entries: 1
+  archive_ordinary_findings: true
+  prompt_max_gems: 3
+  include_lanes: [confirmed, performance, incubator]
+  result_artifact_default_lane: task_candidate
+  result_artifact_default_family: residual_reader
+  bottleneck_detector_mode: generic
+
+agent:
+  premium_mode: false
+  reasoning_effort: max
+
+baselines:
+  - {name: linear_l12_qualification_margin, metric_name: qualification_margin, metric_value: -0.25, direction: maximize}
+  - {name: linear_l12_same_view_accuracy, metric_name: same_view_balanced_accuracy, metric_value: 0.75, direction: maximize}
+  - {name: linear_l12_cross_view_accuracy, metric_name: cross_view_balanced_accuracy, metric_value: 0.675, direction: maximize}
+  - {name: linear_l12_worst_view_accuracy, metric_name: worst_view_balanced_accuracy, metric_value: 0.375, direction: maximize}
+  - {name: linear_l12_causal_effect, metric_name: causal_target_margin_effect, metric_value: 0.04953845342000326, direction: maximize}
+
+praxist_plugins:
+  task_ref: task:readout_cross_view_causal_validity
+  workflow:
+    stage: workflow_stage:research_loop
+  panel:
+    topology: panel_topology:readout_cross_view_causal_validity
+    roles:
+      - task_role:peer_generalist
+      - task_role:starter
+      - task_role:solver
+      - task_role:analyst
+      - task_role:builder_pi
+      - task_role:skeptic_pi
+      - task_role:portfolio_pi
+      - task_role:external_validity_pi
+      - task_role:chair
+    optional_roles:
+      literature_scout:
+        role: task_role:literature_scout
+        tool_server_ref: tool_server:literature_lookup
+        enabled: false
+        note: "Context only; no downloads, installs, new data, models, services, or threshold changes."
+  audit_rules:
+    - task_audit:scope_and_evidence
+  evaluations:
+    - task_evaluation:cross_view
+  tools:
+    - tool_server:evaluation_tools
+    - tool_server:frontier_tools
+    - tool_server:finding_graph_query
+    - tool_server:memory_tools
+    - tool_server:prior_work_tools
+    - tool_server:run_report
+    - tool_server:literature_lookup
+  graph_maintainers:
+    - graph_maintainer:finding_graph_mvp
+  optional_workflow_stages:
+    ideation: workflow_stage:ideation_stub
+    paper_writing: workflow_stage:paper_writing_stub
+    reviewer: workflow_stage:reviewer_stub

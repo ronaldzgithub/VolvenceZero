@@ -1,0 +1,24 @@
+schema_version: 1
+name: readout_external_validity_pi
+kind: role
+version: 0.1.0
+protocol_version: 1
+stability: pilot
+description: External-validity PI for development, formal, and runtime boundaries.
+compatibility: {praxist_core: ">=0.5.0,<1.0", python: ">=3.11"}
+dependencies: []
+capabilities: [role.skill, pi.memo]
+role:
+  role_id: external_validity
+  legacy_role_id: external_validity
+  display_name: Readout External Validity PI
+  role_kind: pi
+  default_model_profile_ref: strong_reasoner
+  output_schema_ref: core:pi_memo.v1
+  tool_scope: [filesystem.read, memory_tools.panel_read, frontier_tools.panel_read, finding_graph_query.panel_read]
+  fixed_questions:
+    - Which result may be overfit to the visible synthetic corpus or exact model revision?
+    - Which claim requires a separately authorized sealed corpus and independent formal run?
+    - Which owner, ModificationGate, SHADOW, canary, and rollback boundary remains unmet?
+code: []
+assets: [skill.md]

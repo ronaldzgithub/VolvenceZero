@@ -1,0 +1,289 @@
+{
+  "schema_version": "readout-cross-view-development-corpus.v1",
+  "visibility": "public-development-synthetic",
+  "created_at": "2026-08-30T00:00:00+08:00",
+  "purpose": "Development-only instrument screen for two relationship conditions. It is not a formal qualification corpus or a source of online credit.",
+  "labels": [
+    {
+      "id": "agency_displacement",
+      "code": "A",
+      "definition": "one party substitutes its own decision or agenda for another person's agency while presenting the move as help, protection, or necessity"
+    },
+    {
+      "id": "belonging_erasure",
+      "code": "B",
+      "definition": "one party denies, conditions, or erases another person's membership and relational belonging"
+    }
+  ],
+  "views": [
+    "original_en",
+    "paraphrase_en",
+    "question_en",
+    "zh_open",
+    "role_order_en",
+    "counterfactual_en"
+  ],
+  "protocol": {
+    "fit_split": "train",
+    "evaluation_split": "evaluation",
+    "anchor_view": "original_en",
+    "preliminary_group_ids": ["eval_agency_01", "eval_belonging_01"],
+    "complete_group_ids": [
+      "eval_agency_01",
+      "eval_agency_02",
+      "eval_agency_03",
+      "eval_agency_04",
+      "eval_belonging_01",
+      "eval_belonging_02",
+      "eval_belonging_03",
+      "eval_belonging_04"
+    ],
+    "preliminary_views": ["original_en", "paraphrase_en", "zh_open"],
+    "complete_views": [
+      "original_en",
+      "paraphrase_en",
+      "question_en",
+      "zh_open",
+      "role_order_en",
+      "counterfactual_en"
+    ],
+    "target_token_text": {"agency_displacement": " A", "belonging_erasure": " B"},
+    "target_token_ids": {"agency_displacement": 362, "belonging_erasure": 425}
+  },
+  "thresholds": {
+    "same_view_balanced_accuracy": 0.75,
+    "cross_view_balanced_accuracy": 0.65,
+    "worst_view_balanced_accuracy": 0.5,
+    "brier_score_max": 0.22,
+    "heldout_cohen_d": 0.8,
+    "cross_view_identity_retrieval": 0.15,
+    "mean_direction_coherence": 0.0,
+    "causal_target_margin_effect": 0.02,
+    "random_control_separation": 0.01
+  },
+  "model": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "num_hidden_layers": 24,
+    "hidden_size": 896,
+    "files": {
+      "config.json": "18e18afcaccafade98daf13a54092927904649e1dd4eba8299ab717d5d94ff45",
+      "generation_config.json": "e558847a8b4402616f1273797b015104dc266fe4b520056fca88823ba8f8ebe6",
+      "merges.txt": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "model.safetensors": "fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe",
+      "tokenizer.json": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "tokenizer_config.json": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+      "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    }
+  },
+  "groups": [
+    {
+      "group_id": "train_agency_01",
+      "split": "train",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Mira had chosen the local clinic, but her partner cancelled it and booked a different doctor, saying he knew what was best for her.",
+        "paraphrase_en": "Although Mira made her own care decision, her partner replaced it with his preferred plan and called that protection.",
+        "question_en": "Mira selected one clinic. Her partner voided that choice, selected another, and justified taking over as being helpful. Which relational condition is present?",
+        "zh_open": "米拉已经选好了诊所，伴侣却替她取消并改约自己认可的医生，还说这是为了她好。这里呈现了哪种关系状态？",
+        "role_order_en": "Claiming concern for Mira, the partner first imposed his doctor choice; only afterward did he acknowledge that she had already decided differently.",
+        "counterfactual_en": "The issue is not whether Mira remains part of the relationship; it is that her completed decision is being overwritten by someone else's plan."
+      }
+    },
+    {
+      "group_id": "train_agency_02",
+      "split": "train",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Jon planned to decline the promotion, yet his manager accepted it on his behalf and described the decision as career guidance.",
+        "paraphrase_en": "A manager converted Jon's refusal into an acceptance without consent, presenting the substitution as mentorship.",
+        "question_en": "Jon said no to a promotion. His manager answered yes for him because the manager believed that outcome was wiser. What condition does this illustrate?",
+        "zh_open": "乔恩决定拒绝升职，经理却代他表示接受，并把这种越俎代庖说成职业指导。应如何判断这种关系状态？",
+        "role_order_en": "The manager announced that Jon would take the role, then explained that overriding Jon's earlier refusal was good leadership.",
+        "counterfactual_en": "Jon is still treated as a member of the team, but control over his own career choice has been taken from him."
+      }
+    },
+    {
+      "group_id": "train_agency_03",
+      "split": "train",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Lea drafted her own budget, but her sibling rewrote every allocation and submitted it without asking because Lea was supposedly too stressed.",
+        "paraphrase_en": "Under the banner of reducing Lea's burden, her sibling replaced her financial decisions and filed the replacement as final.",
+        "question_en": "Someone discards Lea's finished budget, substitutes a new one, and claims stress makes her unfit to decide. Which relationship condition fits?",
+        "zh_open": "莉娅已经做好预算，手足却以她压力太大为由全部重写并直接提交，没有征求她同意。这是什么关系状态？",
+        "role_order_en": "After submitting a rewritten budget, the sibling told Lea that deciding for her was necessary because she seemed overwhelmed.",
+        "counterfactual_en": "No one questions whether Lea belongs in the family; the conflict is about another person appropriating her authority to choose."
+      }
+    },
+    {
+      "group_id": "train_agency_04",
+      "split": "train",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Omar asked to speak for himself at the meeting, but his colleague answered every question for him and said this would keep things efficient.",
+        "paraphrase_en": "Efficiency became the excuse for a colleague to take over Omar's voice after he explicitly asked to represent himself.",
+        "question_en": "Omar wants to answer directly, while a colleague repeatedly supplies answers in his place for convenience. What dynamic is being shown?",
+        "zh_open": "奥马尔明确要求在会议上自己发言，同事却以提高效率为由替他回答所有问题。这里的关系状态是什么？",
+        "role_order_en": "The colleague spoke over every question and only later explained to Omar that taking his place had saved time.",
+        "counterfactual_en": "Omar has not been expelled from the meeting; rather, his capacity to act and speak for himself is being displaced."
+      }
+    },
+    {
+      "group_id": "train_belonging_01",
+      "split": "train",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "When Ana mentioned the family tradition she helped create, her relatives told her it was not really hers and left her name off the gathering.",
+        "paraphrase_en": "Ana's contribution to a shared tradition was denied, and the family excluded her from the event built around it.",
+        "question_en": "Relatives erase Ana's place in a tradition she co-created and omit her from the gathering. Which relationship condition is present?",
+        "zh_open": "安娜参与建立了家庭传统，亲属却否认那与她有关，并在聚会名单中删掉她。这里体现哪种关系状态？",
+        "role_order_en": "The relatives removed Ana from the gathering and then recast the shared tradition as something to which she had never belonged.",
+        "counterfactual_en": "The central injury is not that others chose an activity for Ana; they are denying that she has a place in the shared family story."
+      }
+    },
+    {
+      "group_id": "train_belonging_02",
+      "split": "train",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "The team kept using Ravi's work but stopped inviting him, explaining that he was never truly one of them.",
+        "paraphrase_en": "Ravi's contribution remained useful while his membership was retroactively denied and his access to the group removed.",
+        "question_en": "A team benefits from Ravi's work yet says he was never a real member and excludes him from future meetings. What condition fits?",
+        "zh_open": "团队继续使用拉维的成果，却不再邀请他，还说他从来不算真正的一员。这是什么关系状态？",
+        "role_order_en": "After closing the meetings to Ravi, the team justified the exclusion by rewriting him as an outsider all along.",
+        "counterfactual_en": "No one is making a personal decision on Ravi's behalf; the group is erasing his standing as someone who belongs."
+      }
+    },
+    {
+      "group_id": "train_belonging_03",
+      "split": "train",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "Nia was told she could call the house home only on days when she agreed with everyone else.",
+        "paraphrase_en": "Nia's place in the household was made conditional on conformity rather than recognized as an ongoing bond.",
+        "question_en": "A household says Nia belongs only while she suppresses disagreement. Which relational condition does that indicate?",
+        "zh_open": "家人告诉妮娅，只有她始终赞同大家时，才可以把这里称为家。应如何识别这种关系状态？",
+        "role_order_en": "The family demanded agreement first and offered Nia a place in the home only as a revocable reward afterward.",
+        "counterfactual_en": "The pressure does not merely select one option for Nia; it turns her membership itself into something that can be withdrawn."
+      }
+    },
+    {
+      "group_id": "train_belonging_04",
+      "split": "train",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "After Eli returned from leave, coworkers referred to the group as if he were absent and removed his history from the project page.",
+        "paraphrase_en": "The project narrative was edited to make Eli's prior membership and contribution disappear after his leave.",
+        "question_en": "Colleagues delete Eli's history and talk about the team as though he was never part of it. What relationship condition is shown?",
+        "zh_open": "伊莱休假回来后，同事把项目页面上他的经历删去，并像他从未属于团队那样说话。这属于什么关系状态？",
+        "role_order_en": "The history was removed first; coworkers then described the project as having always existed without Eli.",
+        "counterfactual_en": "The group is not choosing Eli's next action for him; it is deleting evidence that he had a place with them."
+      }
+    },
+    {
+      "group_id": "eval_agency_01",
+      "split": "evaluation",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Sofia chose to pause the renovation, but her friend signed the next contract in her name and called it a favor.",
+        "paraphrase_en": "A friend converted Sofia's decision to stop into continued work by authorizing it for her under the guise of help.",
+        "question_en": "Sofia says to halt a project. A friend signs continuation papers using her name because the friend thinks that is helpful. Which condition applies?",
+        "zh_open": "索菲娅决定暂停装修，朋友却以帮忙为名，用她的名义签下后续合同。这里是什么关系状态？",
+        "role_order_en": "The friend committed Sofia to more work and only afterward described replacing her stop decision as a generous favor.",
+        "counterfactual_en": "Sofia's place in the friendship is not being denied; her authority over her own commitment is being substituted."
+      }
+    },
+    {
+      "group_id": "eval_agency_02",
+      "split": "evaluation",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Dae asked for time before replying, while his mentor sent an acceptance from Dae's account to prevent him from missing the chance.",
+        "paraphrase_en": "A mentor treated Dae's request to wait as permission to accept for him, replacing deliberation with the mentor's preferred outcome.",
+        "question_en": "Dae has not decided yet. His mentor uses Dae's account to say yes so the opportunity will not disappear. What dynamic is this?",
+        "zh_open": "戴希望考虑后再回复，导师却怕他错失机会，直接用他的账户表示接受。这是哪种关系状态？",
+        "role_order_en": "The acceptance was sent before Dae decided; the mentor then defended acting in his place as protecting his future.",
+        "counterfactual_en": "Dae remains included in the opportunity, but another person's judgment has replaced his own decision process."
+      }
+    },
+    {
+      "group_id": "eval_agency_03",
+      "split": "evaluation",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Priya selected a quiet recovery plan, yet her cousin scheduled daily visits and told others she had agreed.",
+        "paraphrase_en": "Priya's wish for solitude was rewritten as consent to a social schedule chosen by her cousin.",
+        "question_en": "A cousin replaces Priya's recovery preference with daily visits and reports that replacement as Priya's own consent. Which condition is present?",
+        "zh_open": "普里娅想安静休养，表亲却安排每天探访，还对别人说她已经同意。这反映了什么关系状态？",
+        "role_order_en": "After arranging the visits, the cousin represented the imposed schedule as if Priya herself had selected it.",
+        "counterfactual_en": "The conflict is not about whether Priya counts as family; it is about another person commandeering her consent."
+      }
+    },
+    {
+      "group_id": "eval_agency_04",
+      "split": "evaluation",
+      "label": "agency_displacement",
+      "views": {
+        "original_en": "Mateo wanted to present his unfinished design, but a senior partner replaced it overnight and submitted the new version under Mateo's name.",
+        "paraphrase_en": "A senior colleague removed Mateo's chosen draft, installed a different design, and attributed the imposed choice to him.",
+        "question_en": "Mateo intends to show his own draft. A senior partner swaps it for another and submits that as Mateo's decision. What condition fits?",
+        "zh_open": "马特奥想展示自己的未完成设计，高级合伙人却连夜替换，并以马特奥的名义提交。这里是哪种关系状态？",
+        "role_order_en": "The partner submitted a replacement first, then informed Mateo that senior judgment had decided what he should present.",
+        "counterfactual_en": "Mateo still has a nominal place on the project, while meaningful authorship and choice are taken over by someone else."
+      }
+    },
+    {
+      "group_id": "eval_belonging_01",
+      "split": "evaluation",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "After Lian questioned one decision, the club removed her photos and said she had only ever been a guest.",
+        "paraphrase_en": "One disagreement prompted the club to delete Lian from its history and redefine her former membership as temporary visiting.",
+        "question_en": "A club responds to Lian's dissent by erasing her record and claiming she was never a member. Which condition applies?",
+        "zh_open": "莲质疑了一项决定后，俱乐部删掉她的照片，并说她从来只算访客。这体现哪种关系状态？",
+        "role_order_en": "The club stripped Lian from its archive, then used the revised archive to insist that she had never belonged.",
+        "counterfactual_en": "Nobody is deciding Lian's personal next step; the institution is withdrawing and rewriting her membership."
+      }
+    },
+    {
+      "group_id": "eval_belonging_02",
+      "split": "evaluation",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "Kai's siblings held a reunion in the home he grew up in but described it as an event for the real family and did not tell him.",
+        "paraphrase_en": "Kai was excluded from a family reunion through language that recast him as outside the family itself.",
+        "question_en": "Siblings organize a reunion, conceal it from Kai, and reserve the phrase real family for everyone else. What condition is this?",
+        "zh_open": "凯的手足在他长大的家中聚会，却称那是“真正家人”的活动，并没有通知他。这是哪种关系状态？",
+        "role_order_en": "They withheld the reunion from Kai and afterward justified it by drawing the family boundary around everyone except him.",
+        "counterfactual_en": "The siblings are not selecting an option on Kai's behalf; they are positioning him beyond the relationship boundary."
+      }
+    },
+    {
+      "group_id": "eval_belonging_03",
+      "split": "evaluation",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "The collective credited Noor's work to the group but removed her biography and told newcomers she was never part of the project.",
+        "paraphrase_en": "Noor's labor was absorbed while the collective deleted the person and her membership from its public account.",
+        "question_en": "A collective keeps Noor's contribution, deletes her biography, and tells others she never belonged. Which relationship condition fits?",
+        "zh_open": "组织保留了努尔的工作成果，却删去她的介绍，还告诉新人她从未参与项目。这是什么关系状态？",
+        "role_order_en": "After removing Noor's biography, the collective narrated her contribution as anonymous group work from someone who was never inside.",
+        "counterfactual_en": "Noor's future choices are not being controlled here; her prior place and connection are being erased."
+      }
+    },
+    {
+      "group_id": "eval_belonging_04",
+      "split": "evaluation",
+      "label": "belonging_erasure",
+      "views": {
+        "original_en": "Tariq was told he could remain in the circle only if he stopped referring to the years they had shared.",
+        "paraphrase_en": "The group made Tariq's continued membership depend on denying the very history that connected him to them.",
+        "question_en": "A circle offers Tariq conditional inclusion only if he disowns their shared past. What relational condition does this show?",
+        "zh_open": "群体告诉塔里克，只有他不再提及共同经历的那些年，才可以继续留在圈子里。这是哪种关系状态？",
+        "role_order_en": "They demanded that Tariq erase the shared history first, with belonging offered only afterward as a conditional privilege.",
+        "counterfactual_en": "The group is not merely choosing how Tariq should act in one instance; it is making his relational place contingent and deniable."
+      }
+    }
+  ]
+}

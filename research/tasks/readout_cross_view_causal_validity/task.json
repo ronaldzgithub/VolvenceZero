@@ -1,0 +1,57 @@
+{
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "praxist_is_research_retention_authority_only": true,
+    "production_promotion_authorized": false
+  },
+  "baseline": {
+    "locator": "research/praxist_tasks/readout_cross_view_causal_validity/assets/baseline/reader.json",
+    "sha256": "9d6a00ea9485fc2979e757bb6c5744bc86ae4a95453b931126073605c4fda8fc"
+  },
+  "capability_axes": [
+    "readable",
+    "steerable"
+  ],
+  "claim_id": "claim:readout-cross-view-causal-validity",
+  "objective": "Determine whether an existing relationship-condition readout can discriminate held-out semantic groups across language, format, role-order, and counterfactual views while producing a bounded target-logit causal effect above matched random controls. Development search may retain evidence only; formal qualification and any owner/runtime adoption remain loop-external.",
+  "owner": "vz-cognition",
+  "praxist": {
+    "task_project_id": "readout_cross_view_causal_validity",
+    "task_project_manifest_sha256": "4ac5190ce2dcc21528b06db6ecf22af35c749f64839878bec34c906e032d7976"
+  },
+  "release": {
+    "gate_authority": "volvence_zero.credit.gate.evaluate_gate_reasons",
+    "initial_wiring": "disabled",
+    "mode": "evidence_only",
+    "rollback_instructions": "No repository candidate, semantic-owner publication, or runtime wiring is authorized by this Task. Roll back the research nomination by retaining the immutable evidence and declining downstream adoption; any future artifact path requires a new exact Task and separate formal, gate, SHADOW, canary, ACTIVE, and rollback approvals.",
+    "target": "readout_cross_view_causal_validity_evidence"
+  },
+  "sandbox": {
+    "editable_roots": [
+      "research/candidate_surfaces/readout_cross_view_causal_validity"
+    ],
+    "praxist_can_access_production_credentials": false,
+    "praxist_can_change_production_wiring": false,
+    "praxist_can_modify_formal_evaluator": false,
+    "praxist_can_modify_task_contract": false,
+    "praxist_can_read_sealed_holdout": false,
+    "protected_roots": [
+      "research/contracts",
+      "research/praxist_tasks",
+      "research/tasks"
+    ]
+  },
+  "schema_version": "forge-research-task.v1",
+  "source_base_revision": "93780f834b47eab71ba32a027e6f579e31dbd5f2",
+  "task_id": "readout_cross_view_causal_validity",
+  "validation": {
+    "active_required_checks": [],
+    "development_evaluator_id": "praxist:volvence-readout-cross-view-causal-validity.v1",
+    "formal_protocol": {
+      "locator": "research/contracts/readout_cross_view_causal_validity/formal_protocol.json",
+      "sha256": "d90620119efec99a9737a9de1c294568c4574584eb61f688f1635ef08b1dd8f6"
+    },
+    "formal_validator_id": "volvence:readout-cross-view-sealed-validator.v1",
+    "shadow_required_checks": []
+  }
+}

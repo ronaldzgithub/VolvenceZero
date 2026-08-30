@@ -1,0 +1,38 @@
+{
+  "schema_version": "volvence-readout-cross-view-formal-protocol.v1",
+  "protocol_id": "readout-cross-view-formal-v1",
+  "status": "NOT_AUTHORIZED",
+  "claim_id": "claim:readout-cross-view-causal-validity",
+  "purpose": "Define the loop-external evidence required before a development residual reader may be considered for owner publication or any runtime experiment.",
+  "development_overlap_allowed": false,
+  "required_bindings": [
+    "exact base-model revision and file digests",
+    "exact reader artifact and task-project lineage",
+    "sealed source-separated fit and qualification corpora",
+    "frozen prompt, labels, views, seeds, metrics, thresholds, and kill conditions",
+    "independent formal validator implementation and digest",
+    "named-human execution authorization"
+  ],
+  "required_checks": [
+    "same-view discrimination and calibration",
+    "cross-view language, format, order, role, and counterfactual validity",
+    "held-out separation and identity retrieval",
+    "direction coherence",
+    "causal target effect and dose response",
+    "matched random-direction separation",
+    "already-correct damage and reverse-effect rate",
+    "strict noop identity",
+    "model and artifact lineage integrity"
+  ],
+  "exit_labels": ["PASS", "DOMAIN_LOCAL", "INSTRUMENT_INVALID"],
+  "authority": {
+    "formal_execution_authorized": false,
+    "development_results_are_formal_evidence": false,
+    "semantic_owner_publication_authorized": false,
+    "modification_gate_authorized": false,
+    "shadow_authorized": false,
+    "active_authorized": false,
+    "runtime_wiring_changed": false,
+    "evaluation_is_learning_source": false
+  }
+}

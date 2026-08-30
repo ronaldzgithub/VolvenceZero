@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "volvence-readout-reader.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "variant_id",
+    "reader_family",
+    "layer",
+    "pooling",
+    "regularization",
+    "dose",
+    "seed",
+    "view_aggregation"
+  ],
+  "properties": {
+    "schema_version": {"const": "volvence-readout-reader.v1"},
+    "variant_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,95}$"
+    },
+    "reader_family": {
+      "enum": [
+        "linear_probe",
+        "diff_of_means",
+        "rsa_aligned_centroid",
+        "j_lens_like",
+        "random_control"
+      ]
+    },
+    "layer": {"type": "integer", "minimum": 0, "maximum": 23},
+    "pooling": {"enum": ["last_token", "mean_last_4", "mean_all"]},
+    "regularization": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "maximum": 100.0
+    },
+    "dose": {"type": "number", "minimum": 0.05, "maximum": 2.0},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+    "view_aggregation": {
+      "enum": ["original_only", "mean_aligned", "coherence_weighted"]
+    }
+  }
+}

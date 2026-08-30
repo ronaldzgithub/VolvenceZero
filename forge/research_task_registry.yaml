@@ -4,6 +4,27 @@ policy:
   max_new_requests_per_scan: 1
 
 mappings:
+  - mapping_id: readout_cross_view_causal_validity_v1
+    binding_revision: p0-public-cross-view-v1-codex-native-20260830
+    match:
+      editable_component: readout_cross_view_causal_validity_evidence
+      editable_target: research/candidate_surfaces/readout_cross_view_causal_validity
+    task_manifest: ../research/tasks/readout_cross_view_causal_validity/task.json
+    task_project: ../research/praxist_tasks/readout_cross_view_causal_validity
+    praxist_executable: /Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist
+    run_root: /Users/mengfu/.local/share/praxist/volvence_runs
+    launch:
+      config_file: null
+      agent_system: codex_sdk
+      runtime: agent_runtime:codex_sdk
+      codex_native: true
+      model_provider: model_provider:openai_compatible
+      model: gpt-5.6-luna
+      strategy: mixed
+      cohort: 4
+      generations: 3
+      startup_timeout_seconds: 30
+
   - mapping_id: coding_memory_inheritance_v1
     binding_revision: packet2-v3-public-replay-v2-portable-host-v1-20260830
     match:

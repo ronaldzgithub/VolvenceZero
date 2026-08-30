@@ -1,0 +1,216 @@
+{
+  "authority": {
+    "automatic_candidate_import_authorized": false,
+    "automatic_human_gates_authorized": false,
+    "evaluation_is_learning_source": false,
+    "portfolio_scheduling_only": true,
+    "production_promotion_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "created_at": "2026-08-30T22:00:38+08:00",
+  "objective": "Resolve the highest-leverage Readable, Steerable, Appendable, and Learnable uncertainties in scientific dependency order, using bounded concurrency only after exact named-human outcomes establish prerequisites.",
+  "owner": "volvence-research-program",
+  "portfolio_id": "research-portfolio:baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b",
+  "scheduling": {
+    "dependency_gate": "NAMED_HUMAN_OUTCOME",
+    "lanes": [
+      {
+        "max_active_runs": 1,
+        "name": "steering_foundation"
+      },
+      {
+        "max_active_runs": 1,
+        "name": "memory_evidence"
+      }
+    ],
+    "max_active_runs_global": 2,
+    "ordering_strategy": "dependency_then_priority",
+    "resume_policy": "completed_generation",
+    "unknown_active_run_policy": "BLOCK"
+  },
+  "schema_version": "forge-research-portfolio.v1",
+  "studies": [
+    {
+      "authority": {
+        "evaluation_is_learning_source": false,
+        "human_a0_required": true,
+        "human_outcome_decision_required": true,
+        "human_topic_binding_required": true,
+        "production_promotion_authorized": false,
+        "registration_only": true,
+        "research_start_authorized": false,
+        "runtime_wiring_changed": false
+      },
+      "capability_axes": [
+        "readable",
+        "steerable"
+      ],
+      "claim_id": "claim:readout-cross-view-causal-validity",
+      "concurrency_lane": "steering_foundation",
+      "demand": {
+        "artifact": {
+          "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+          "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+        },
+        "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+      },
+      "depends_on": [],
+      "mapping_id": "readout_cross_view_causal_validity_v1",
+      "objective": "Establish whether a relationship-condition residual reader generalizes across frozen views and has a bounded target-logit causal effect above matched random controls.",
+      "owner": "vz-cognition",
+      "priority": 10,
+      "readiness": "RUNNABLE_MAPPING",
+      "required_completion_decision": "PROCEED",
+      "study_id": "readout_cross_view_causal_validity",
+      "task_id": "readout_cross_view_causal_validity",
+      "title": "P0 cross-view and causal readout validity"
+    },
+    {
+      "authority": {
+        "evaluation_is_learning_source": false,
+        "human_a0_required": true,
+        "human_outcome_decision_required": true,
+        "human_topic_binding_required": true,
+        "production_promotion_authorized": false,
+        "registration_only": true,
+        "research_start_authorized": false,
+        "runtime_wiring_changed": false
+      },
+      "capability_axes": [
+        "steerable"
+      ],
+      "claim_id": "claim:substrate-control-authority",
+      "concurrency_lane": "steering_foundation",
+      "demand": {
+        "artifact": {
+          "locator": "research/demands/97f9b09b0ed648dfe3424da9af6295d2c105a44a47747736937d0dba95f61e45.json",
+          "sha256": "3b25a13b87f7a9cd6860a3c3647b9134c4ae50753e3e6f8f4a6e41440d0c277e"
+        },
+        "artifact_id": "research-demand:97f9b09b0ed648dfe3424da9af6295d2c105a44a47747736937d0dba95f61e45"
+      },
+      "depends_on": [
+        "readout_cross_view_causal_validity"
+      ],
+      "mapping_id": null,
+      "objective": "Distinguish executor insufficiency from a substrate control floor with matched noop, text, learned-residual, and direct-state upper-bound arms.",
+      "owner": "vz-substrate",
+      "priority": 20,
+      "readiness": "NEEDS_TASK_DESIGN",
+      "required_completion_decision": "PROCEED",
+      "study_id": "substrate_control_authority",
+      "task_id": null,
+      "title": "P1 bounded substrate control authority"
+    },
+    {
+      "authority": {
+        "evaluation_is_learning_source": false,
+        "human_a0_required": true,
+        "human_outcome_decision_required": true,
+        "human_topic_binding_required": true,
+        "production_promotion_authorized": false,
+        "registration_only": true,
+        "research_start_authorized": false,
+        "runtime_wiring_changed": false
+      },
+      "capability_axes": [
+        "appendable",
+        "learnable"
+      ],
+      "claim_id": "claim:relationship-memory-write-eligibility",
+      "concurrency_lane": "memory_evidence",
+      "demand": {
+        "artifact": {
+          "locator": "research/demands/074841feeb825e4f9560d802c7b14eb19b5b11c12eb47f672d75641065c19ecf.json",
+          "sha256": "8fd950d51718e5cc3a675c5f9cee845cda9f797ba611dd387172653bf6b2bcc0"
+        },
+        "artifact_id": "research-demand:074841feeb825e4f9560d802c7b14eb19b5b11c12eb47f672d75641065c19ecf"
+      },
+      "depends_on": [
+        "readout_cross_view_causal_validity"
+      ],
+      "mapping_id": null,
+      "objective": "Establish when PE/credit-bounded relationship-memory writes improve cross-session behavior over strong context and retrieval baselines without pollution or consent drift.",
+      "owner": "vz-memory",
+      "priority": 25,
+      "readiness": "NEEDS_TASK_DESIGN",
+      "required_completion_decision": "PROCEED",
+      "study_id": "relationship_memory_write_eligibility",
+      "task_id": null,
+      "title": "P1 relationship memory write eligibility"
+    },
+    {
+      "authority": {
+        "evaluation_is_learning_source": false,
+        "human_a0_required": true,
+        "human_outcome_decision_required": true,
+        "human_topic_binding_required": true,
+        "production_promotion_authorized": false,
+        "registration_only": true,
+        "research_start_authorized": false,
+        "runtime_wiring_changed": false
+      },
+      "capability_axes": [
+        "steerable"
+      ],
+      "claim_id": "claim:per-instance-layer-dose-headroom",
+      "concurrency_lane": "steering_foundation",
+      "demand": {
+        "artifact": {
+          "locator": "research/demands/eafc8ef3a68fa4a13a31b02ccca68938204ab62059c664268db1a8756e766e20.json",
+          "sha256": "8446bd386c15b1ecfd4dd05531c6d7cd421a0dd2ad9bc744af7f9bb6e14876c0"
+        },
+        "artifact_id": "research-demand:eafc8ef3a68fa4a13a31b02ccca68938204ab62059c664268db1a8756e766e20"
+      },
+      "depends_on": [
+        "substrate_control_authority"
+      ],
+      "mapping_id": null,
+      "objective": "Measure oracle scheduling headroom and whether a bounded ranker can recover it over the best fixed executor without increasing reverse effects or capability damage.",
+      "owner": "vz-temporal",
+      "priority": 30,
+      "readiness": "NEEDS_TASK_DESIGN",
+      "required_completion_decision": "PROCEED",
+      "study_id": "per_instance_layer_dose_headroom",
+      "task_id": null,
+      "title": "P2 per-instance layer and dose headroom"
+    },
+    {
+      "authority": {
+        "evaluation_is_learning_source": false,
+        "human_a0_required": true,
+        "human_outcome_decision_required": true,
+        "human_topic_binding_required": true,
+        "production_promotion_authorized": false,
+        "registration_only": true,
+        "research_start_authorized": false,
+        "runtime_wiring_changed": false
+      },
+      "capability_axes": [
+        "readable",
+        "steerable"
+      ],
+      "claim_id": "claim:steering-side-effect-matrix",
+      "concurrency_lane": "steering_foundation",
+      "demand": {
+        "artifact": {
+          "locator": "research/demands/eaf9d13be2e4f6f09dd20d00fb0a0dc68a29e65c9dae4a5849e7a21cbe6917b1.json",
+          "sha256": "1c307fa9837451d7844d4eff49e4fa1c11c2eddf717231747582f72ea15b5564"
+        },
+        "artifact_id": "research-demand:eaf9d13be2e4f6f09dd20d00fb0a0dc68a29e65c9dae4a5849e7a21cbe6917b1"
+      },
+      "depends_on": [
+        "per_instance_layer_dose_headroom"
+      ],
+      "mapping_id": null,
+      "objective": "Quantify target and cross effects, unrelated capability tax, robustness, latency, strict-noop identity, and rollback recovery before any promotion path is designed.",
+      "owner": "vz-cognition",
+      "priority": 40,
+      "readiness": "NEEDS_TASK_DESIGN",
+      "required_completion_decision": "PROCEED",
+      "study_id": "steering_side_effect_matrix",
+      "task_id": null,
+      "title": "P3 steering side-effect and rollback matrix"
+    }
+  ],
+  "title": "Volvence 4ables evidence-first improvement program"
+}

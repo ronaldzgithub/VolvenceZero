@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "research_portfolio.schema.json",
+  "oneOf": [
+    {"$ref": "#/$defs/portfolio"},
+    {"$ref": "#/$defs/outcome"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullable_string": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "identified_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "artifact"],
+      "properties": {
+        "artifact_id": {"type": "string", "minLength": 1},
+        "artifact": {"$ref": "#/$defs/content_ref"}
+      }
+    },
+    "capability_axes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["appendable", "readable", "learnable", "steerable"]
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "max_active_runs"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "max_active_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        }
+      }
+    },
+    "study_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registration_only",
+        "human_topic_binding_required",
+        "human_a0_required",
+        "human_outcome_decision_required",
+        "research_start_authorized",
+        "production_promotion_authorized",
+        "runtime_wiring_changed",
+        "evaluation_is_learning_source"
+      ],
+      "properties": {
+        "registration_only": {"const": true},
+        "human_topic_binding_required": {"const": true},
+        "human_a0_required": {"const": true},
+        "human_outcome_decision_required": {"const": true},
+        "research_start_authorized": {"const": false},
+        "production_promotion_authorized": {"const": false},
+        "runtime_wiring_changed": {"const": false},
+        "evaluation_is_learning_source": {"const": false}
+      }
+    },
+    "study": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "study_id",
+        "title",
+        "objective",
+        "claim_id",
+        "owner",
+        "capability_axes",
+        "priority",
+        "depends_on",
+        "concurrency_lane",
+        "demand",
+        "mapping_id",
+        "task_id",
+        "readiness",
+        "required_completion_decision",
+        "authority"
+      ],
+      "properties": {
+        "study_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,95}$"
+        },
+        "title": {"type": "string", "minLength": 1, "maxLength": 240},
+        "objective": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "capability_axes": {"$ref": "#/$defs/capability_axes"},
+        "priority": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,95}$"
+          }
+        },
+        "concurrency_lane": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "demand": {"$ref": "#/$defs/identified_ref"},
+        "mapping_id": {"$ref": "#/$defs/nullable_string"},
+        "task_id": {"$ref": "#/$defs/nullable_string"},
+        "readiness": {"enum": ["RUNNABLE_MAPPING", "NEEDS_TASK_DESIGN"]},
+        "required_completion_decision": {"const": "PROCEED"},
+        "authority": {"$ref": "#/$defs/study_authority"}
+      }
+    },
+    "portfolio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "portfolio_id",
+        "title",
+        "objective",
+        "owner",
+        "scheduling",
+        "studies",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-portfolio.v1"},
+        "portfolio_id": {
+          "type": "string",
+          "pattern": "^research-portfolio:[0-9a-f]{64}$"
+        },
+        "title": {"type": "string", "minLength": 1, "maxLength": 240},
+        "objective": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "scheduling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ordering_strategy",
+            "max_active_runs_global",
+            "unknown_active_run_policy",
+            "dependency_gate",
+            "resume_policy",
+            "lanes"
+          ],
+          "properties": {
+            "ordering_strategy": {"const": "dependency_then_priority"},
+            "max_active_runs_global": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "unknown_active_run_policy": {"const": "BLOCK"},
+            "dependency_gate": {"const": "NAMED_HUMAN_OUTCOME"},
+            "resume_policy": {"const": "completed_generation"},
+            "lanes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {"$ref": "#/$defs/lane"}
+            }
+          }
+        },
+        "studies": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/study"}
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "portfolio_scheduling_only",
+            "automatic_human_gates_authorized",
+            "automatic_candidate_import_authorized",
+            "production_promotion_authorized",
+            "runtime_wiring_changed",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "portfolio_scheduling_only": {"const": true},
+            "automatic_human_gates_authorized": {"const": false},
+            "automatic_candidate_import_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "outcome_id",
+        "portfolio",
+        "study_id",
+        "request",
+        "evidence",
+        "decision",
+        "review",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-study-outcome.v1"},
+        "outcome_id": {
+          "type": "string",
+          "pattern": "^research-study-outcome:[0-9a-f]{64}$"
+        },
+        "portfolio": {"$ref": "#/$defs/identified_ref"},
+        "study_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,95}$"
+        },
+        "request": {"$ref": "#/$defs/identified_ref"},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/content_ref"}
+        },
+        "decision": {"enum": ["PROCEED", "REVISE", "STOP"]},
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reviewed_by", "reason"],
+          "properties": {
+            "reviewed_by": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dependency_scheduling_only",
+            "research_start_authorized",
+            "formal_validation_authorized",
+            "production_promotion_authorized",
+            "runtime_wiring_changed",
+            "evaluation_is_learning_source"
+          ],
+          "properties": {
+            "dependency_scheduling_only": {"const": true},
+            "research_start_authorized": {"const": false},
+            "formal_validation_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false},
+            "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    }
+  }
+}

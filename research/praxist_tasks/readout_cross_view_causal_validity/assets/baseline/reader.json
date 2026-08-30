@@ -1,0 +1,11 @@
+{
+  "schema_version": "volvence-readout-reader.v1",
+  "variant_id": "baseline_linear_l12_last_token",
+  "reader_family": "linear_probe",
+  "layer": 12,
+  "pooling": "last_token",
+  "regularization": 1.0,
+  "dose": 1.0,
+  "seed": 20260830,
+  "view_aggregation": "original_only"
+}

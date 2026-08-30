@@ -1,3 +1,18 @@
+## Forge 登记：4ables evidence-first 改进研究组合 2026-08
+
+- [`portfolios/baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b.json`](portfolios/baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b.json)
+  已把当前筛出的五个研究目标登记为 content-addressed Portfolio：先做
+  `readout_cross_view_causal_validity`，再根据具名人类对 exact completed evidence 的
+  `PROCEED` 判定展开 substrate control 与 relationship-memory 两条支线，最后进入逐实例选层/剂量与
+  side-effect/rollback 矩阵。Portfolio 冻结依赖 DAG、priority、全局并发 2、steering lane 并发 1、memory
+  lane 并发 1，以及 `completed_generation` 恢复策略。首个
+  [`Praxist task`](praxist_tasks/readout_cross_view_causal_validity/) 已通过 task-local 测试、doctor 与 resolve，
+  但当前仍只到 TopicProposal：没有 TopicBinding、A0 或 Praxist start，更不授权 formal validation、
+  `ModificationGate`、SHADOW/ACTIVE 或生产 wiring。协议见
+  [`research-portfolio-orchestration.md`](../docs/specs/research-portfolio-orchestration.md)。
+
+---
+
 ## 新增重要研究：NVIDIA AVO / Agentic Variation Operators 专项 2026-08
 
 - [`nvidia-avo-2026-08/`](nvidia-avo-2026-08/) — 对 NVIDIA Chen et al.《AVO: Agentic

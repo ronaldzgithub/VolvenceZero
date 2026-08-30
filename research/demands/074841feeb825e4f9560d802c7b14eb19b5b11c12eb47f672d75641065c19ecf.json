@@ -1,0 +1,75 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "capability_axes": [
+    "appendable",
+    "learnable"
+  ],
+  "claim_id": "claim:relationship-memory-write-eligibility",
+  "created_at": "2026-08-30T22:00:38+08:00",
+  "demand_id": "research-demand:074841feeb825e4f9560d802c7b14eb19b5b11c12eb47f672d75641065c19ecf",
+  "discovery": {
+    "max_source_bytes": 524288,
+    "max_source_files": 8,
+    "max_topics": 3,
+    "source_roots": [
+      "research/continual-deep-learning-2026-08/02_FOUR_AXIS_CROSSWALK.md",
+      "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md"
+    ]
+  },
+  "evidence": [
+    {
+      "locator": "research/continual-deep-learning-2026-08/02_FOUR_AXIS_CROSSWALK.md",
+      "sha256": "f2b71e4e1c1af9e289045f3fee6df1d90c422503f396195177276a941b03431b"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    },
+    {
+      "locator": "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+      "sha256": "8e9c1266fb2f9ccbb906dc15261a7def62d2d1ec13442bd849473ef6d0fbd43e"
+    }
+  ],
+  "need": {
+    "current_gap": "CMS persistence exists, but Volvence lacks decisive evidence for when relationship observations should become durable memory, when compression loses exact facts, and when writes create stale, conflicting, non-consensual, or identity-level pollution.",
+    "falsification_criteria": [
+      "Naive full recent context or retrieval-only memory matches or outperforms gated CMS under equal context, latency, and token budgets.",
+      "Compressed memory loses exact facts, conflict correction, deletion semantics, consent scope, or unrelated-task locality.",
+      "Any write eligibility decision depends on evaluator, judge, human score, keywords, or an unowned reconstructed hidden state."
+    ],
+    "protected_boundaries": [
+      "This Demand remains NEEDS_TASK_DESIGN and may become concurrently eligible with substrate work only after the readout study has a named-human PROCEED outcome.",
+      "Memory writes must use the vz-memory owner API and frozen immutable snapshots; no consumer may create a second owner.",
+      "Evaluation and human anchors validate outcomes only and cannot become the learning source."
+    ],
+    "required_outcome": "Freeze stateless, full recent context, retrieval-only, gated CMS, and gated CMS plus bounded steering arms over cross-session exact, semantic, procedural, preference, conflict, correction, deletion, and restore episodes.",
+    "success_criteria": [
+      "The gated write policy improves preregistered cross-session behavioral outcomes over stateless, naive full-context, retrieval-only, and ungated-memory controls.",
+      "Eligible writes derive only from owner snapshots and PE downstream credit with exact source, consent, conflict, deletion, and policy lineage.",
+      "Checkpoint, deletion, restore, conflict update, locality, stale-memory recovery, and rollback drills all pass."
+    ]
+  },
+  "objective": "Determine whether a PE/credit-bounded relationship-memory write policy improves cross-session behavior over stateless, full-recent-context, retrieval-only, and ungated-memory baselines while preserving conflict correction, deletion, consent, locality, and rollback.",
+  "owner": "vz-memory",
+  "routing": {
+    "requested_mapping_id": null
+  },
+  "schema_version": "forge-volvence-research-demand.v1",
+  "status": "OPEN",
+  "title": "Establish when relationship memory writes help rather than pollute"
+}

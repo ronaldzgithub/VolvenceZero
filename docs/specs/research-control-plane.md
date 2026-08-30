@@ -1,7 +1,7 @@
 # Research Control Plane：Praxist 自动研究启动与可恢复调和
 
-> Status: v1 mechanism landed；单 pilot A0 Request 正等待人审；无有效 research run，formal validator 与部署 adapter 尚未落地
-> Last updated: 2026-08-29
+> Status: v2 lifecycle mechanism landed；支持 A0-bound Portfolio 并发、exact pause/resume/cancel 与 completed-generation 断点恢复；formal validator 与部署 adapter 仍独立
+> Last updated: 2026-08-30
 > Owner: `volvence_forge`（development-plane control artifacts only）
 > Companion contracts: [`research-opportunity-discovery.md`](./research-opportunity-discovery.md)、[`external-research-adapter.md`](./external-research-adapter.md)、[`research-promotion-pipeline.md`](./research-promotion-pipeline.md)
 
@@ -31,6 +31,7 @@ typed research signal / ResearchOpportunity
 
 ```text
 ResearchRequest → A0 approval/rejection → doctor → resolve → start → status
+    → revision-bound PAUSE / RESUME / CANCEL → status
 ```
 
 上游 `research-opportunity-discovery.md` 已能从 typed failure pattern 形成 Request，但仍不从任意自然语言
@@ -44,6 +45,7 @@ ResearchRequest → A0 approval/rejection → doctor → resolve → start → s
 
 - content-addressed `ResearchRequest`；
 - exact-bound A0 `ResearchApproval`；
+- exact Request/Approval/event-revision bound `ResearchControlDirective`；
 - 每个 request 的 append-only `ResearchControlEvent` chain；
 - 从上述 immutable artifacts 投影出的 inbox state。
 
@@ -128,6 +130,11 @@ Approval 精确绑定 `request_id + request file SHA-256`，scope 固定为 `pra
 Task、budget、model、run dir 或 executable 任一改变都必须生成新 Request 并重新 A0，不能修改旧
 Approval。
 
+Portfolio task 的 APPROVE 可额外冻结 `execution_policy`：exact Portfolio id/locator/SHA、study、lane、global
+与 lane active-run 上限、`unknown_active_run_policy=BLOCK` 和 `resume_policy=completed_generation`。审批时必须
+复核 Request 的 exact Demand、ResearchTask、task project、Praxist executable、launch profile 和 run root 都与
+该 study 的 registry mapping 一致。未带 execution policy 的 legacy Approval 保持 host-wide 单 active-run。
+
 ### 4.3 `forge-research-control-event.v1`
 
 Event 是 create-only append chain，包含 contiguous sequence、previous-event file SHA-256、Request /
@@ -139,11 +146,27 @@ Approval exact bindings、规范化 command receipt 和 run snapshot。正式 ev
 - `RESOLVE_SUCCEEDED`
 - `START_INTENT`
 - `START_CONFIRMED`
+- `STOP_INTENT`
+- `STOP_CONFIRMED`
+- `RESUME_INTENT`
+- `RESUME_CONFIRMED`
 - `STATUS_OBSERVED`
 - `CONTROL_BLOCKED`
 
 命令 receipt 保存 argv、exit code、timeout flag、stdout/stderr digest；不保存进程环境、credential、raw
 stderr 或 token。成功输出只投影 schema 所需的非秘密 lifecycle fields。
+
+### 4.4 `forge-research-control-directive.v1`
+
+Directive 是 named operator 发出的 create-only 生命周期动作，只允许 `PAUSE | RESUME | CANCEL`。它精确绑定
+Request、A0 Approval 和 operator 当前看到的最后一个 Event file SHA-256；因此旧页面、旧脚本或并发操作者
+无法把过期动作施加到新状态。每个动作固定：
+
+- stop grace 为 `1..600` 秒；
+- resume policy 为 Praxist `completed_generation`；
+- 不允许 `--force`、artifact cropping 或新的 start authority；
+- 不授权 formal validation、promotion 或 runtime wiring；
+- 前一个 directive 必须已有 `*_CONFIRMED` 或 `CONTROL_BLOCKED` 才能登记下一个。
 
 ## 5. State machine
 
@@ -157,6 +180,12 @@ stateDiagram-v2
     APPROVED --> PREFLIGHT_RESOLVED: doctor + resolve pass
     PREFLIGHT_RESOLVED --> STARTING: START_INTENT durable
     STARTING --> RUNNING: exact registry/status row observed
+    RUNNING --> STOPPING: PAUSE/CANCEL directive
+    STOPPING --> PAUSED: exact run confirmed non-live
+    STOPPING --> CANCELLED: exact run confirmed non-live
+    PAUSED --> RESUMING: RESUME directive
+    RESUMING --> RUNNING: exact resumed registry row observed
+    PAUSED --> CANCELLED: CANCEL directive
     RUNNING --> RUN_COMPLETED: Praxist reports completed
     RUNNING --> RUN_FAILED: failed/stopped/stale terminal
     APPROVED --> BLOCKED: binding/doctor/resolve violation
@@ -174,14 +203,15 @@ candidate maturity、Gate ALLOW 或 wiring authority。
 1. 获取全局 control lock，再逐 Request 获取 lock；所有 artifact 重新校验 schema、identity 和 hash chain。
 2. 无 Approval 返回 `AWAITING_RESEARCH_APPROVAL`；REJECT 返回 `REJECTED`，不调用 Praxist。
 3. 对已启动 Request 只执行 `praxist status --run-id <run_id> --json`。
-4. 对未启动 Request 先执行 `praxist status --active --json`；存在任何 live Praxist run 时保持
-   `WAITING_FOR_CAPACITY`，v1 默认不并发抢占 host。
+4. 对未启动 Request 先执行 `praxist status --active --json`。legacy A0 存在任何 live run 时保持
+   `WAITING_FOR_CAPACITY`；Portfolio A0 只把具有同一 exact Portfolio execution policy、合法 start event 和
+   exact run identity 的 run 计入 global/lane 配额。未知、外部或其他 Portfolio 的 live run 一律 BLOCK。
 5. 重算 Task、task project、executable、config、evidence 和 Praxist source bindings。
 6. 执行 exact profile 的 `praxist doctor --json --task-path ...`，再执行
    `praxist resolve <task> --run-dir <request-control>/preflight`。
 7. 校验 resolve JSON、`task_project_manifest.json` 和 Volvence Task 中冻结的 manifest digest。
-8. resolve 后再次检查 host capacity，关闭 preflight 期间外部 run 启动的 TOCTOU；为空时才 create-only
-   写入 `START_INTENT`，随后执行
+8. resolve 后再次检查 exact A0 capacity，关闭 preflight 期间其他 run 启动的 TOCTOU；配额仍可用时才
+   create-only 写入 `START_INTENT`，随后执行
    `praxist start --task-path ... --run-dir ... --daemonize --json`。
 9. 校验返回的 `run_id/run_dir/task_path/pid`，再 targeted status；后续 scheduler 只做同一 targeted poll。
 
@@ -194,6 +224,18 @@ candidate maturity、Gate ALLOW 或 wiring authority。
 
 同理，`RESOLVE_INTENT` 后只接受完整且 exact-bound 的 preflight artifacts；partial directory 不会被静默
 覆盖。
+
+暂停/取消先做 targeted status，再 create-only 写 `STOP_INTENT`，随后只执行固定 argv：
+`praxist stop <exact-run-id> --grace <n> --json`。命令后必须再次 targeted status；只有 exact run 已消失或
+进入 `stopped/failed/stale` 才写 `STOP_CONFIRMED`。仍 live、status 失败或 receipt shape 不可信时写
+`CONTROL_BLOCKED`，不猜测成功。
+
+恢复先重验 Request 的 Task/project/executable/source/evidence bindings 和原 run directory，再写
+`RESUME_INTENT`，只执行：
+`praxist resume <exact-run-dir> --daemonize --json --resume-policy completed_generation ...`。禁止 `--force`。
+若 worker 在 resume 后、确认前中断，下一回合只在 targeted status 已出现 exact live row 时恢复为
+`RESUME_CONFIRMED`；没有 live row 时 fail closed，要求 operator 基于新 Event revision 发一张新 directive，
+避免重复启动。所有后续轮次继续 targeted poll，同一 directive 不重复 resume。
 
 ## 7. CLI surface
 
@@ -214,7 +256,13 @@ forge research-submit-external <descriptor.json> \
 forge research-inbox [--json]
 
 forge research-approve <request.json> \
-  --approved-by <human> --reason <reason> [--reject]
+  --approved-by <human> --reason <reason> \
+  [--portfolio <portfolio.json> --study-id <study>] [--reject]
+
+forge research-control <request.json> \
+  --action pause|resume|cancel \
+  --expected-event-sha256 <current-event-file-sha256> \
+  --requested-by <human> --reason <reason> [--grace 300] [--json]
 
 forge research-reconcile --once [--request <request.json>] [--json]
 
@@ -254,40 +302,43 @@ A1/A2 已由 `research-promotion-pipeline.md` 的 receipt contract 约束，实�
 ## 10. Failure semantics、安全与隐私
 
 - schema、identity、hash chain、path、manifest、symlink 或 command output shape 错误：fail loudly；
-- doctor/resolve/start non-zero 或 timeout：写 `CONTROL_BLOCKED`，不自动扩大权限或反复重试；
+- doctor/resolve/start/stop/resume non-zero 或 timeout：写 `CONTROL_BLOCKED`，不自动扩大权限或无界重试；
 - status 只能 targeted poll 已知 run；global status 只用于只读容量检查；
 - subprocess 永远传 argv list，禁止 shell；不接受任意 extra args；
 - credential 只由 Praxist/current host runtime 读取，不进入 Request、Event、stdout summary 或测试 fixture；
-  Codex-native doctor/resolve/start 额外清除 provider key、base URL、binary 和 model 环境覆盖，避免冻结的
+  Codex-native doctor/resolve/start/resume 额外清除 provider key、base URL、binary 和 model 环境覆盖，避免冻结的
   saved-login profile 被宿主环境静默改写；
 - run output 不得位于 Praxist source checkout；control artifacts 只能写到 `artifacts/research_control/`；
-- v1 不 stop、resume、kill 或 crop run。出现 stale/failed 只报告，由显式 Praxist control workflow 处理。
+- v2 只通过 exact directive 调用 graceful stop 与 completed-generation resume；仍不允许 force resume、任意
+  kill、artifact crop 或手工改写 Praxist registry。
 
 ## 11. 迁移、退出与回滚
 
 本包不改现有 Forge proposal、promotion receipt 或 production defaults。停用自动控制只需停止外部
-scheduler；detached Praxist run 仍由 Praxist registry 管理，需显式 `praxist stop <run_id>`。
+scheduler；detached Praxist run 仍由 Praxist registry 管理，应通过 revision-bound
+`research-control --action pause|cancel` 停止，以保留 Forge 审计链。
 
 完全退出时删除 Forge CLI/module/schema/spec 引用即可；已生成 Request/Approval/Event 和 Praxist run
 保留审计史。由于本包从未改变 runtime wiring，不存在本包自己的 ACTIVE rollback；候选回滚继续走
 promotion receipt 的相邻降级。
 
-## 12. v1 限制与后续收敛包
+## 12. v2 限制与后续收敛包
 
 - typed `research-scan`、Opportunity 与 `NEEDS_TASK_DESIGN` registry 已落地，但 v1 只接
   `forge-failure-pattern.v3`；
-- task registry 只登记一个 `coding_memory_inheritance` pilot，尚不自动设计或修复其他 runnable task；
-- 默认 host-wide 单 active-run，不做 GPU/resource quota portfolio scheduling；
+- task registry 已登记 `coding_memory_inheritance` 与 `readout_cross_view_causal_validity` 两个映射；后续
+  `NEEDS_TASK_DESIGN` study 仍必须独立构建并验证 task，不能由 Portfolio 假装 runnable；
+- legacy A0 默认 host-wide 单 active-run；Portfolio A0 已支持 global/lane 并发计数，但它是 run-count 配额，
+  不替代 task-owned CPU/GPU/memory resource gate；
 - capacity check 在 resolve 前后各执行一次，但 Praxist 当前没有跨 client 的 host-capacity reservation；
   外部 operator 在最终检查后并发 start 的极窄竞争窗仍需未来 scheduler lease 关闭；
 - pip-installed Praxist 只能绑定 executable bytes；可识别 source checkout 才额外绑定 package tree；
 - task project 外部的已安装 plugin/dependency 与 manifest 排除的数据资产依赖 task-owned metadata；对
   高价值 run 应把 lockfile、dataset manifest 和 simulator image digest 作为 Request evidence；
-- 首个真实 run 仍必须精确批准 A0 Request；注册和扫描都不授予启动权限；
+- 每个真实 run 仍必须精确批准 A0 Request；注册、组合编排和控制 directive 都不产生新的启动权限；
 - Forge 不提供 OS-level execution denial；另一个 shell 直接调用 `praxist start` 的 out-of-band run 只能按
   exact identity 检出、停止并排除，不能写进 Request event chain；
 - run completion 后仍需 pilot exporter、formal validator、Gate adapter 和 target-owned deployment seam。
 
-下一包只在用户明确批准当前 `coding_memory_inheritance` Request 后，验证
-Request → real Praxist run → committed handoff；
-不得同时上线第二个 owner，也不得在 pilot 中跳过 A1/A2。
+下一包登记当前 4ables 目标、完成首个 task harness 与真实 interruption drill；不得同时上线第二个 writer，
+也不得跳过 TopicBinding、A0 或 A1/A2。
