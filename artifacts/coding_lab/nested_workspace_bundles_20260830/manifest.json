@@ -1,0 +1,1071 @@
+{
+  "schema_version": "coding-lab-nested-workspace-bundle.v1",
+  "package_kind": "git_bundle",
+  "generated_at_utc": "2026-08-30T05:21:44.8121578Z",
+  "repository_count": 132,
+  "source_roots": [
+    "artifacts/coding_lab/packet35_directed_smoke_20260828a",
+    "artifacts/coding_lab/packet36_advice_smoke_20260828a",
+    "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828",
+    "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828"
+  ],
+  "restoration_contract": "Verify SHA-256, git clone --no-checkout the bundle into source_relative_path, then git checkout --detach head_commit.",
+  "records": [
+    {
+      "source_relative_path": "artifacts/coding_lab/packet35_directed_smoke_20260828a/chains/chain-00/repo",
+      "head_commit": "93e67365dd907dcdb2e0be980007c99640847ff3",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet35_directed_smoke_20260828a_chains_chain-00_repo.bundle",
+      "bundle_sha256": "e9309ff15c0b3a567b90617adbb2e290a3726f134983de42d0d7505e5a1e2820",
+      "bundle_bytes": 6393,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet35_directed_smoke_20260828a/chains/chain-01/repo",
+      "head_commit": "506f5e81db12d52b6591850489c2b8ecc9d5ff1d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet35_directed_smoke_20260828a_chains_chain-01_repo.bundle",
+      "bundle_sha256": "b810280023e85974c4b7f38ea19afb598290e68d508cacf64b15c01711fb8158",
+      "bundle_bytes": 6396,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet35_directed_smoke_20260828a/chains/chain-02/repo",
+      "head_commit": "be1a18a681d24000f6902c632a853ece0b22413d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet35_directed_smoke_20260828a_chains_chain-02_repo.bundle",
+      "bundle_sha256": "f94d2a5ee39528ec218eb3c68123c0dd18c115ebe86aa59e443cd00363f01172",
+      "bundle_bytes": 6291,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet35_directed_smoke_20260828a/chains/chain-03/repo",
+      "head_commit": "183fa47cdda1491cc8d6234d4d98ebbda327a8bc",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet35_directed_smoke_20260828a_chains_chain-03_repo.bundle",
+      "bundle_sha256": "e6d47385a75c0f5a9064ffd6d9dc44a035e03efddaaaa5194ce0b0c52b389cbf",
+      "bundle_bytes": 5969,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/always_on/chain-00/repo",
+      "head_commit": "609cc45fd53cd122d8478a82b35344c195cad94b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_always_on_chain-00_repo.bundle",
+      "bundle_sha256": "b1c49e2a270e2d2eeb5ef289cb9814f09ff19e868644eba9a1190e3262b3efc4",
+      "bundle_bytes": 6733,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/always_on/chain-01/repo",
+      "head_commit": "35dd13fd5deec26c9137755ef9b35430915a1c00",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_always_on_chain-01_repo.bundle",
+      "bundle_sha256": "00b082a54744645a5fa293bd43814cdd8c1bbec1ed78a120d7bdaf3ae43ed818",
+      "bundle_bytes": 6396,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/always_on/chain-02/repo",
+      "head_commit": "7d1a2bebf7713a63d9dfc334f8d1862d1f2f811e",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_always_on_chain-02_repo.bundle",
+      "bundle_sha256": "f39fe777e88ddba4f31e43f7386222a49d433803dc6f393c99709c9b5ba537d0",
+      "bundle_bytes": 5954,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/always_on/chain-03/repo",
+      "head_commit": "a5464d6136ea1aef541d281f9a996744571dfcce",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_always_on_chain-03_repo.bundle",
+      "bundle_sha256": "dc66ae9e353db7f41d577a43ab8594640a1e7c73d0a2f3bba470bf463c587c63",
+      "bundle_bytes": 6051,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/noop/chain-00/repo",
+      "head_commit": "609cc45fd53cd122d8478a82b35344c195cad94b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_noop_chain-00_repo.bundle",
+      "bundle_sha256": "b1c49e2a270e2d2eeb5ef289cb9814f09ff19e868644eba9a1190e3262b3efc4",
+      "bundle_bytes": 6733,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/noop/chain-01/repo",
+      "head_commit": "380ca642fa2531615b9274d3717d87553782aabf",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_noop_chain-01_repo.bundle",
+      "bundle_sha256": "b4d4a3d657171307155700c9ed3adee5333ada43bdf95535b8ff26607e0a7c00",
+      "bundle_bytes": 6562,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/noop/chain-02/repo",
+      "head_commit": "be1a18a681d24000f6902c632a853ece0b22413d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_noop_chain-02_repo.bundle",
+      "bundle_sha256": "f94d2a5ee39528ec218eb3c68123c0dd18c115ebe86aa59e443cd00363f01172",
+      "bundle_bytes": 6291,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/noop/chain-03/repo",
+      "head_commit": "3a01d9199f202c998ea130aa22ef7f245cd2590d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_noop_chain-03_repo.bundle",
+      "bundle_sha256": "ec27028b94f9f3d37156502083deeb0b7144c62cceda869adbf318cb82cf4da0",
+      "bundle_bytes": 6135,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/random_gate/chain-00/repo",
+      "head_commit": "609cc45fd53cd122d8478a82b35344c195cad94b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_random_gate_chain-00_repo.bundle",
+      "bundle_sha256": "b1c49e2a270e2d2eeb5ef289cb9814f09ff19e868644eba9a1190e3262b3efc4",
+      "bundle_bytes": 6733,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/random_gate/chain-01/repo",
+      "head_commit": "8cf4793f0d16edd98545853bd91b70ea8d7f4fce",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_random_gate_chain-01_repo.bundle",
+      "bundle_sha256": "cb7f3673f0cf55cb55056fd6a52b40bc9d1d9a9a673875aed3c9b12571028511",
+      "bundle_bytes": 6480,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/random_gate/chain-02/repo",
+      "head_commit": "7d1a2bebf7713a63d9dfc334f8d1862d1f2f811e",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_random_gate_chain-02_repo.bundle",
+      "bundle_sha256": "f39fe777e88ddba4f31e43f7386222a49d433803dc6f393c99709c9b5ba537d0",
+      "bundle_bytes": 5954,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/random_gate/chain-03/repo",
+      "head_commit": "a5464d6136ea1aef541d281f9a996744571dfcce",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_random_gate_chain-03_repo.bundle",
+      "bundle_sha256": "dc66ae9e353db7f41d577a43ab8594640a1e7c73d0a2f3bba470bf463c587c63",
+      "bundle_bytes": 6051,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/table_gate/chain-00/repo",
+      "head_commit": "609cc45fd53cd122d8478a82b35344c195cad94b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_table_gate_chain-00_repo.bundle",
+      "bundle_sha256": "b1c49e2a270e2d2eeb5ef289cb9814f09ff19e868644eba9a1190e3262b3efc4",
+      "bundle_bytes": 6733,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/table_gate/chain-01/repo",
+      "head_commit": "380ca642fa2531615b9274d3717d87553782aabf",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_table_gate_chain-01_repo.bundle",
+      "bundle_sha256": "b4d4a3d657171307155700c9ed3adee5333ada43bdf95535b8ff26607e0a7c00",
+      "bundle_bytes": 6562,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/table_gate/chain-02/repo",
+      "head_commit": "be1a18a681d24000f6902c632a853ece0b22413d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_table_gate_chain-02_repo.bundle",
+      "bundle_sha256": "f94d2a5ee39528ec218eb3c68123c0dd18c115ebe86aa59e443cd00363f01172",
+      "bundle_bytes": 6291,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_advice_smoke_20260828a/table_gate/chain-03/repo",
+      "head_commit": "3a01d9199f202c998ea130aa22ef7f245cd2590d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_advice_smoke_20260828a_table_gate_chain-03_repo.bundle",
+      "bundle_sha256": "ec27028b94f9f3d37156502083deeb0b7144c62cceda869adbf318cb82cf4da0",
+      "bundle_bytes": 6135,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-00/repo",
+      "head_commit": "d0d63399f357a72884d9363e9ede21e96223553c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-00_repo.bundle",
+      "bundle_sha256": "14afbed18e06ec7c2ef9024c66088303bd631bba1df51a3849ae7b66a7290ad3",
+      "bundle_bytes": 5956,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-01/repo",
+      "head_commit": "9898c45806fe6753acfaa7aaf11318afdd11c380",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-01_repo.bundle",
+      "bundle_sha256": "c4279919787614126438561362571382653e1e30b5f9a9e84992360149f31e5f",
+      "bundle_bytes": 6536,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-02/repo",
+      "head_commit": "5628c61267847f750769395bf4a3ca1782a0f818",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-02_repo.bundle",
+      "bundle_sha256": "93416a943b2d927cbdf680f8d4c5b9a33e09094067c44ee326c2a5f550de2f30",
+      "bundle_bytes": 5494,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-03/repo",
+      "head_commit": "3c612b427cc0ba797e3235b17ce97a62dc2938e5",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-03_repo.bundle",
+      "bundle_sha256": "e34e6561da28b3ce68ea0251af9f6f850ffa9ddaf3a2559879c4dcd23a376810",
+      "bundle_bytes": 5931,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-04/repo",
+      "head_commit": "29c84c6d20c5af5d590a615131afe4372ae76aa9",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-04_repo.bundle",
+      "bundle_sha256": "77f55c8f2ae2d32eb261207cc9336ef783e067b43f0d10f497a72c0c67e8b51d",
+      "bundle_bytes": 6206,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-05/repo",
+      "head_commit": "ee49c320082177759b38dd07b5f851d8676f34d8",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-05_repo.bundle",
+      "bundle_sha256": "e18f68b8d428d1c998afd2b0f0d3e42023adcc922e92cdb08fb93a75d6753e3f",
+      "bundle_bytes": 6328,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-06/repo",
+      "head_commit": "1df1c3517ece3cc3fd97e5428119e14dd7880384",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-06_repo.bundle",
+      "bundle_sha256": "148b39794e00bdcc0b73da3dad61c6baabc9cb45553ebc7ab85b6c5fc2c8d985",
+      "bundle_bytes": 5494,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-07/repo",
+      "head_commit": "28d4301f5d2db71fdcda3dbbce9defe6a6231319",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-07_repo.bundle",
+      "bundle_sha256": "e825868f8ec104646273581afcdc19fbdcf650ba012f7e67fc7dfef35f91397c",
+      "bundle_bytes": 6304,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-08/repo",
+      "head_commit": "cc372932e3d5a34c19a89cf9cb74f7042361526f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-08_repo.bundle",
+      "bundle_sha256": "f672de570f15208b1ee527870dc304f7a5faf3889d5e3650db5b0daae4ad7907",
+      "bundle_bytes": 6192,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-09/repo",
+      "head_commit": "c694740aea244d70250dffda9e9278f352d0f66e",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-09_repo.bundle",
+      "bundle_sha256": "7d00d38b139fadc11bba5db9ab6a08aca7eb527be95385ffd8368161e4ddaecc",
+      "bundle_bytes": 5838,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-10/repo",
+      "head_commit": "2884c117ca5c1f29a4a448df1b3e3cbc126670cf",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-10_repo.bundle",
+      "bundle_sha256": "9755219edc7a6f517fb71e27c69b9ed90849fdc2c8f0f1a242be2d5d4356db9c",
+      "bundle_bytes": 5895,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-11/repo",
+      "head_commit": "0010cb696022c59f1eacb2e6e0b887e6f556a367",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-11_repo.bundle",
+      "bundle_sha256": "04eb3ee294e89ef39ef76cc0296a2a4e9b3d7a37965456ff8e855ad86a136224",
+      "bundle_bytes": 5996,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-12/repo",
+      "head_commit": "1dd72a04143e5e9867be05d0d0cef35b77613583",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-12_repo.bundle",
+      "bundle_sha256": "57cf27871edb6bf52c5c70c4dcae129e867aa19a071a8a09b078d09149c88450",
+      "bundle_bytes": 5491,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-13/repo",
+      "head_commit": "d4b66a455094ec177d9619c6c313840ac8f885ec",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-13_repo.bundle",
+      "bundle_sha256": "32a51cd052d5adf8b8ef51bf428b3cfc5a7cd8acbdd06448a6cf2a56c9cfa81a",
+      "bundle_bytes": 4968,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-14/repo",
+      "head_commit": "89538be57b0cae4853aa8a3c752d75bb5d390f67",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-14_repo.bundle",
+      "bundle_sha256": "7e6de9080804096dfaefa03ecc85cb62ca427add2d9aa0369ad8d574f8ca02be",
+      "bundle_bytes": 6253,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-15/repo",
+      "head_commit": "c74df2052405e944cbe84eafd4dab9041ef3dd33",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-15_repo.bundle",
+      "bundle_sha256": "28ac07e8fba444a6919da28d4417f3ff1a9fa55709c3c9209132e2245371f4a1",
+      "bundle_bytes": 6323,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-16/repo",
+      "head_commit": "5c7b564b5b06430b7e9aea77d7dea4163877b839",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-16_repo.bundle",
+      "bundle_sha256": "a5e377df789b8cbf72b15b6ed3c939dfa775a5efff3a5f7727851c4decb4a672",
+      "bundle_bytes": 6092,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-17/repo",
+      "head_commit": "4099a8f1bff8e72be30265ac8867197033b4341f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-17_repo.bundle",
+      "bundle_sha256": "da08d70292577cb1a1013ed5c9f5584dc83cdc6c55a918b5b2347118bbc19afe",
+      "bundle_bytes": 6155,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-18/repo",
+      "head_commit": "4449d89321f85458de34d9ee48c5391c2f1bba5a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-18_repo.bundle",
+      "bundle_sha256": "85a5d5d2811eb1bee8ec76cb1789bcb051446243a2e96fe29ca9ef1f88fac13c",
+      "bundle_bytes": 6574,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-19/repo",
+      "head_commit": "87195f8b7627839f46cb2798ce8fd69bb4fb6fdd",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-19_repo.bundle",
+      "bundle_sha256": "231fa4fc4689bd7ea6b9d4cf5db3a596a54e662f73eadd6a7fe7ebb44ce9c143",
+      "bundle_bytes": 5939,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-20/repo",
+      "head_commit": "8c7a059f6e4d839c6d71184b557d3df104198874",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-20_repo.bundle",
+      "bundle_sha256": "1a473b8a2f62191a895ba6f9ad6b210fc56c6cda788adfb12b995dbc93bbabc4",
+      "bundle_bytes": 6196,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-21/repo",
+      "head_commit": "3044af33ee2273a9c6d4fef062286a357bd25073",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-21_repo.bundle",
+      "bundle_sha256": "1c011aeec285c237323e708444438ef1585cd2dcd46d8d488b0318a7947a7082",
+      "bundle_bytes": 6311,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-22/repo",
+      "head_commit": "de1eaf0c1cc98172daddb786c35aeec3fec16c98",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-22_repo.bundle",
+      "bundle_sha256": "974745650cd517639f145466a6b724c1a0382ea12095d856796e4262d00eda50",
+      "bundle_bytes": 5910,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/always_on/chain-23/repo",
+      "head_commit": "f6a32ea1148726b198994bcc32fe41291e9be781",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_always_on_chain-23_repo.bundle",
+      "bundle_sha256": "3591f83ec6fb6b134f9b17692be119f6f3f8bfac039400d0ac886f9cad05e9a7",
+      "bundle_bytes": 5735,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-00/repo",
+      "head_commit": "918c3e67720c9c6c4937a78f9eed346f9d0b54c3",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-00_repo.bundle",
+      "bundle_sha256": "0b1c6cec6f1b069e60ea2e026218d750ecb45cd7fdf9b3e5b892efd960ac36a7",
+      "bundle_bytes": 6867,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-01/repo",
+      "head_commit": "f84f4bf7094848ba2daacbf440563c2e239bf063",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-01_repo.bundle",
+      "bundle_sha256": "86baac43189c22cf31a74afd0db9cd9ea53bcb54402dc3da82ca508fd394b732",
+      "bundle_bytes": 6386,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-02/repo",
+      "head_commit": "f616682b42209c906ba4754fba47f7ec7eb50df6",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-02_repo.bundle",
+      "bundle_sha256": "f0277c8e471f2f6141c860da4ec06956090104f038e3fc0e8f1fa71c58253ae4",
+      "bundle_bytes": 6291,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-03/repo",
+      "head_commit": "4277bcaec13280ce0961b3503bfe945917908099",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-03_repo.bundle",
+      "bundle_sha256": "3664f0257a75953d7465f027cb32a25f7a98e69b9ac2d40457b19cde6e2be14c",
+      "bundle_bytes": 6661,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-04/repo",
+      "head_commit": "68baef472367f489581bcf8cdd2287d775626932",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-04_repo.bundle",
+      "bundle_sha256": "01dc02538a6278c9f8f36a19cbe62e285e2319a8d1b9e2546f9fcd95fa2afe2d",
+      "bundle_bytes": 6104,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-05/repo",
+      "head_commit": "ee6efaa491173238317d649433b026427690a46a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-05_repo.bundle",
+      "bundle_sha256": "be0a9a770d7d5ed06638a748a2eae853c3f2d7967adf4b0a69d6c1474019bc56",
+      "bundle_bytes": 6384,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-06/repo",
+      "head_commit": "9e9f5199156ea26c5ab2742bc2baa92a71e564ef",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-06_repo.bundle",
+      "bundle_sha256": "8c2b987b3d121f658e66b8e66e1d66a0bd2715deacbcfe474ec814ef5edcb057",
+      "bundle_bytes": 6070,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-07/repo",
+      "head_commit": "4610da6f75505c1e7043cb56a7f1992b9118679b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-07_repo.bundle",
+      "bundle_sha256": "eb660604fdb77bd6345a9a7d2235f4dbc8b3021024563afc7387c21c7374d28a",
+      "bundle_bytes": 6340,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-08/repo",
+      "head_commit": "f277156fa63d108ed44d47560d0af6712504af16",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-08_repo.bundle",
+      "bundle_sha256": "080ad29d14c7b5fcfad8ced1a221df6715c471f049be399cce791e9ee5650276",
+      "bundle_bytes": 6972,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-09/repo",
+      "head_commit": "d3a80a564f507158062b0c0d8bede424a7a61e39",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-09_repo.bundle",
+      "bundle_sha256": "4ed74492573de7faece98e2529a9794dc0c4b85860798efdeaf766913e4ba2c5",
+      "bundle_bytes": 6506,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-10/repo",
+      "head_commit": "85627d32f229412127db35d29a483c3d03cdf4cc",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-10_repo.bundle",
+      "bundle_sha256": "a922a47d986455692fb2925797e5790ff1391461531f250f913dff8ba90179c3",
+      "bundle_bytes": 6060,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-11/repo",
+      "head_commit": "0b07307e629659212570b0930eade1b857e13afd",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-11_repo.bundle",
+      "bundle_sha256": "fe07785440ada5467608a316dc6db7938a43f74b743b1e1c695f8060b31e3ca9",
+      "bundle_bytes": 6322,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-12/repo",
+      "head_commit": "17a921be712248ec3c52287c34799768662e3d6e",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-12_repo.bundle",
+      "bundle_sha256": "ce88800725c8607c5bfd84bb37b4b5ad8ffe8f421e9bd772b499ca0cc2792dba",
+      "bundle_bytes": 6215,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-13/repo",
+      "head_commit": "8a2474dcbf40213c7bca280fc84358f10db78012",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-13_repo.bundle",
+      "bundle_sha256": "3785dfaff1a445fd9cc0bc6656718281114b1bce502b065f3c16ad758ebad5e8",
+      "bundle_bytes": 5996,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-14/repo",
+      "head_commit": "ce454c5cdaa7e1e18f2bbbc66000edf96e0013ab",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-14_repo.bundle",
+      "bundle_sha256": "cb94659204a9923163cd9294701a57f7012e57d13cd5814f48cefa90a305489d",
+      "bundle_bytes": 6281,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-15/repo",
+      "head_commit": "379d90a6910b5a6208fd20efae8ee1c8e57cb17f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-15_repo.bundle",
+      "bundle_sha256": "4698a58432258fcc0cb1793a38fca06426664ad2775ee3b9e8b45cf3b05cc03f",
+      "bundle_bytes": 6420,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-16/repo",
+      "head_commit": "478ea34cb39f67a6ba5bac0993da2ca1b9b54b36",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-16_repo.bundle",
+      "bundle_sha256": "62443a328dadefe6f6e3b89825f6f627a62fb90fc6666900c777fe2e2d75eee2",
+      "bundle_bytes": 6429,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-17/repo",
+      "head_commit": "434ab2678ae5ff3bab589deef2267a1d5e887590",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-17_repo.bundle",
+      "bundle_sha256": "bfd236fe541fc938162636769a72fb8ee4644e32a92bb7d376f4ec64e596fae6",
+      "bundle_bytes": 6714,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-18/repo",
+      "head_commit": "c880dea7f0943edd48cc8179514073a5dfd4d9af",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-18_repo.bundle",
+      "bundle_sha256": "1f11fb65896ac187b958d8b780f50b46e9e5cde1b9ff2bff11017cefc2c0f85c",
+      "bundle_bytes": 6515,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-19/repo",
+      "head_commit": "cd5cc67696a5a83b12722b1fea47bebe0abe13d6",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-19_repo.bundle",
+      "bundle_sha256": "8bacbc2a2a7165fde26c2feaf73a21f7194ffa7cca3ba3b194bce32c8ef61c5f",
+      "bundle_bytes": 6560,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-20/repo",
+      "head_commit": "fca325fd9dd9d47c7e1bd11eda954abdd8301447",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-20_repo.bundle",
+      "bundle_sha256": "2636d4390e5b057f6b21c6d3cba674f78d7bf2a8ab57db517b855cf09d3e2438",
+      "bundle_bytes": 6406,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-21/repo",
+      "head_commit": "a555684ed4ae37dd64e44636ebe5fbb7115da0f0",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-21_repo.bundle",
+      "bundle_sha256": "8a04f3d4b98632dc7456ba49fbb1a645e899b1adbfe8c345e290a2eb13a32faf",
+      "bundle_bytes": 6333,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-22/repo",
+      "head_commit": "6cf229cb67c81d85371b8b9e45b9855cdb830483",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-22_repo.bundle",
+      "bundle_sha256": "7306971aeebb0dcb7ef24ac81127b7abb4c0fd54dbfea5a1af49cfe0e3b61400",
+      "bundle_bytes": 6877,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/noop/chain-23/repo",
+      "head_commit": "6e6b2e0393ca89dd69aa1147d987d058b2397170",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_noop_chain-23_repo.bundle",
+      "bundle_sha256": "cfbdcd90989b7d6199d1e4c54aafb4a36cfe3fe0d689755087c7b5f1197779ea",
+      "bundle_bytes": 6362,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-00/repo",
+      "head_commit": "0daa93d9f42d3311695d0d809e3818ccbfadc37f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-00_repo.bundle",
+      "bundle_sha256": "9852bc45fa1bc49c82ecb2b70cb8aa47a08c88ea528d4d454ccc7e2b7b598ad4",
+      "bundle_bytes": 6649,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-01/repo",
+      "head_commit": "cf9c3405aa1f4af6269ded821cef963b4975723a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-01_repo.bundle",
+      "bundle_sha256": "ccfd4d988704faefe48f18acaff0d35b35bc2a3d1b7a1850d5669a15e7e77345",
+      "bundle_bytes": 6574,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-02/repo",
+      "head_commit": "e64ef01a9cee74fc011f53c0bd1706d05da88876",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-02_repo.bundle",
+      "bundle_sha256": "a583727ba54d1fc4b8bb894f7d756fac836a962f91aaa5d366f06767117b0fcc",
+      "bundle_bytes": 5901,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-03/repo",
+      "head_commit": "bd7595ba8a7206f76c0a8c480ccc2c546574a401",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-03_repo.bundle",
+      "bundle_sha256": "32f0ec336eca43bb281c4e52ff0837bfdb7c55cc7a3d2554d15bfb225402060b",
+      "bundle_bytes": 5931,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-04/repo",
+      "head_commit": "ad25a96bf471089d5689dc0c60046fe9e6307369",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-04_repo.bundle",
+      "bundle_sha256": "f6e25f917fa7e8e18fe1a3645133c022a59f146a028352254ed7f0980ed586e6",
+      "bundle_bytes": 6177,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-05/repo",
+      "head_commit": "a8bf8474ced478df697bee15a39c2e9d806f8882",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-05_repo.bundle",
+      "bundle_sha256": "9d445046e96388bf7586da5d7272fd7ce73ec718daf28341f8c6b7877bd9a4d3",
+      "bundle_bytes": 6341,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-06/repo",
+      "head_commit": "28d0f425a03650a2bae656f89762f0af52f8ee6a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-06_repo.bundle",
+      "bundle_sha256": "41107fa044667f6c854f2d1c8dcc4fc7e548fb92fb5fa2289fe285a1820d3cff",
+      "bundle_bytes": 5902,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-07/repo",
+      "head_commit": "4b91e5f2a5296740f5179f4e6085fc2b68945ceb",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-07_repo.bundle",
+      "bundle_sha256": "01ad51199b736bd07b30cd38375e7d429578b9d1305d2e0d2c8002fb34afca4f",
+      "bundle_bytes": 6512,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-08/repo",
+      "head_commit": "2915fdeb6907a7c1d02e1023e24dd69f5d98adcf",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-08_repo.bundle",
+      "bundle_sha256": "a3f9d2b66f585c510593f055dcfe4784fb1349016b5092f699291a7a8bb04415",
+      "bundle_bytes": 6216,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-09/repo",
+      "head_commit": "3f78f56644ea3cc6f10f0afacd41ebaae433c1f8",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-09_repo.bundle",
+      "bundle_sha256": "d6c410e67ae4b1efacb6f939aeef9e2794a02dbb357bfc6aac18c7b5d4287239",
+      "bundle_bytes": 6392,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-10/repo",
+      "head_commit": "4144b88b2885a2958ea1fc98caa131f752441e7a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-10_repo.bundle",
+      "bundle_sha256": "1eaad035f8f19c8dbc11f9a43ae9a92e3b1fe29307d481c551b73085e87fa7c0",
+      "bundle_bytes": 5928,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-11/repo",
+      "head_commit": "88a8a4dd3b9502fe6bedd55feb6c1581a20dd751",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-11_repo.bundle",
+      "bundle_sha256": "d673364fa309ce5f2b39fc63d54c866c5022ea738b1c6d9a4288dfb0591736cb",
+      "bundle_bytes": 6020,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-12/repo",
+      "head_commit": "1e7e664245af88b3572049f6d52b887180680a78",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-12_repo.bundle",
+      "bundle_sha256": "afca5cea35db7b06706ce20623361f5a2b1c6cf547c87c3cf7a4a2b67a88dc26",
+      "bundle_bytes": 5926,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-13/repo",
+      "head_commit": "b83b8411bde4182ad3d856afb4e4c8c4111dea96",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-13_repo.bundle",
+      "bundle_sha256": "5d1a1d62204bd70b8f16d1db118ec18e1f322968ebaafda8eb1d76a6f0ae91e6",
+      "bundle_bytes": 5497,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-14/repo",
+      "head_commit": "a426242c1a0d7469196b757fdedc64ea8ff1c40c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-14_repo.bundle",
+      "bundle_sha256": "b843387b2be302cf62dd90c84a8d22473a92beac534d50073e952fc746b36d1b",
+      "bundle_bytes": 6214,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-15/repo",
+      "head_commit": "5e63b1afebfcdca7e6b4ac2ece667ace22d3236f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-15_repo.bundle",
+      "bundle_sha256": "6da5b9feac5f6a2b26cf32b9742c97667262e9eb2a825578b677af335388b58e",
+      "bundle_bytes": 6618,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-16/repo",
+      "head_commit": "143637107ecb5ed23280c08d2995a58aaac5a99b",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-16_repo.bundle",
+      "bundle_sha256": "722f86f5f928d176062e98cf8fd13f5ebeba1496dfbfb7b3fa001ef9ba02e965",
+      "bundle_bytes": 6180,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-17/repo",
+      "head_commit": "bf9d3e09fcd28aa496caa4c03a9d818c0b6f3708",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-17_repo.bundle",
+      "bundle_sha256": "181e88beef26cc0c4812aa69f91a54ee3ba99fbd6acf6d4c16c0247e33ea6023",
+      "bundle_bytes": 6398,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-18/repo",
+      "head_commit": "2edd24d8610a294d009eb9bfeac4546db69f779c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-18_repo.bundle",
+      "bundle_sha256": "205de29ae2515474104bd59a22df9bc23b9ea60b06815f6f637c33094acea8d0",
+      "bundle_bytes": 6344,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-19/repo",
+      "head_commit": "12fad39a07bccb767266e0d6de72dc7fd1146e83",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-19_repo.bundle",
+      "bundle_sha256": "94ea51555d7c8aaa679009f4961b4bfa654135679f27d1ff2cab6dc1f5f09b95",
+      "bundle_bytes": 6233,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-20/repo",
+      "head_commit": "919b29b6d3acc3f25e8bb68e6e85648109ae96ab",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-20_repo.bundle",
+      "bundle_sha256": "13f005d2200653872d5233fe2103be1fedd0b7e2cfb2969cd158d07a86da5f68",
+      "bundle_bytes": 5999,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-21/repo",
+      "head_commit": "d0a4b165ffdd02ef8eace252e4202231725770ad",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-21_repo.bundle",
+      "bundle_sha256": "01796c83bd74085645a8dd939171fac6f4e4f72d6352da43ec353e95509b7884",
+      "bundle_bytes": 6528,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-22/repo",
+      "head_commit": "c18a9a0cea902d70c343a197d9cebb823210d714",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-22_repo.bundle",
+      "bundle_sha256": "73997da353bca052c85186e212627892a651a157d195d2e84451e9854c111bb8",
+      "bundle_bytes": 6949,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/random_gate/chain-23/repo",
+      "head_commit": "38af7a64cdb44f638f395df220a007597161a65e",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_random_gate_chain-23_repo.bundle",
+      "bundle_sha256": "8324dac17e968904a6c6a85fd31dbad4ee4f6568c5cd98d5839b4f8f88c44f96",
+      "bundle_bytes": 6363,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-00/repo",
+      "head_commit": "4c0f85e942dd38b360be3e0c82318b865f1b13b7",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-00_repo.bundle",
+      "bundle_sha256": "038f7aabaa92f7f41cf49d542a58fa483cb95e1d0fc496c1c7339b1433973344",
+      "bundle_bytes": 6874,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-01/repo",
+      "head_commit": "c5e87a3466a9c659bd101089cf922d0d777a69dc",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-01_repo.bundle",
+      "bundle_sha256": "ae4b550ee050ecd196bd7ed425461c8d90d71e7558f00b4cafe314879226c777",
+      "bundle_bytes": 6134,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-02/repo",
+      "head_commit": "a14e12239fa6f1ea303ecc586491915e48cb5ffd",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-02_repo.bundle",
+      "bundle_sha256": "b6226fbcd096a15fa754d5bd1e75f07d89457da70ae87beb9e77588d1ea122f5",
+      "bundle_bytes": 5540,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-03/repo",
+      "head_commit": "af47691d3768d8d9f6f028b02daf59ccbbdc884c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-03_repo.bundle",
+      "bundle_sha256": "0827b130f2c2c553b010963632a34028c66c09557d5a9ffe3ce47f281ad2854f",
+      "bundle_bytes": 6302,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-04/repo",
+      "head_commit": "456b7fcbb962eab7822e05231733323b90b1b299",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-04_repo.bundle",
+      "bundle_sha256": "60342f51183e9dc6bdfa6a5f31dbe19fdcdfd814226dcf218614f775993350fc",
+      "bundle_bytes": 6314,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-05/repo",
+      "head_commit": "380f2c10443e53d6bd93ea80ff08086d2fe6f3ad",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-05_repo.bundle",
+      "bundle_sha256": "748470a1d0d739beb43bb06d3a023ad45c5719a56f56eaf90332911a7dd3dd82",
+      "bundle_bytes": 6426,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-06/repo",
+      "head_commit": "067755bae1c906843a90f8dbb0bd6e30c46cca9f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-06_repo.bundle",
+      "bundle_sha256": "684c839811785da9e3652545b867b72d5d8a35b713f7bfc65c42da7ccbeefb7e",
+      "bundle_bytes": 5928,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-07/repo",
+      "head_commit": "6e4154a29339cfae55fc14e6a983a6ce82ff2d8d",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-07_repo.bundle",
+      "bundle_sha256": "b8ad059282ae79ada77276e77feb9d0c9c6d7b2ace493c7d8701eed7806ca595",
+      "bundle_bytes": 6543,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-08/repo",
+      "head_commit": "bb6a459e81fcddf5284d473ec86cf133cc345992",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-08_repo.bundle",
+      "bundle_sha256": "6471817f25c902234ed1b1a222b24d823b35140dfa45f7311a66059e8c4cef26",
+      "bundle_bytes": 6167,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-09/repo",
+      "head_commit": "19ba8e53581159939105fe093cd2c1a40568f421",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-09_repo.bundle",
+      "bundle_sha256": "f34c8e8c1d67e9d8c44c73a2506abc931912888b9a81bfbda25042671ded148f",
+      "bundle_bytes": 6269,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-10/repo",
+      "head_commit": "3f17b984b99ee0b72b105a2779677174fc048335",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-10_repo.bundle",
+      "bundle_sha256": "ef70f4d56439403d8f4efa59900db8dcfd8377a0ec1c7bfebf7b7d7ef8dacf1e",
+      "bundle_bytes": 6527,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-11/repo",
+      "head_commit": "8dcfd0413295dbac98e3ce0345f82d35b8052b8f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-11_repo.bundle",
+      "bundle_sha256": "16cf725bf1158ba1ce4dd119e0d76bc45abcdf517831f701fa5ebd5b40b8268c",
+      "bundle_bytes": 6109,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-12/repo",
+      "head_commit": "4757525d8ff03cadf576317248e2e110dd129119",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-12_repo.bundle",
+      "bundle_sha256": "86c73854d3c731463ef4cac5433c2ed0c68c594ca64d76e1296422e98057f5f6",
+      "bundle_bytes": 5898,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-13/repo",
+      "head_commit": "2e28c71e877e59c97fa46dc4faaa6f089d59a4cf",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-13_repo.bundle",
+      "bundle_sha256": "05dc68d17d41d786bd5414f23470d88258bc342a60ec3b7d7180ac2402e5df37",
+      "bundle_bytes": 6009,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-14/repo",
+      "head_commit": "a5889deb10ac7fe3349f987d88e8358b9ba77536",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-14_repo.bundle",
+      "bundle_sha256": "649a55fa245e3776c5f3312a09050c7b6a35df28165171189a020f15c20493b0",
+      "bundle_bytes": 6329,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-15/repo",
+      "head_commit": "5fad3eb8404fb43dd93abf1eee3d5e1a3b6d377a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-15_repo.bundle",
+      "bundle_sha256": "0b9fae5f0ab8aa7c94ed6f1bb1fd56656efaf94b737f39507cb6c99e7c25be26",
+      "bundle_bytes": 6386,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-16/repo",
+      "head_commit": "5856b1293f79c350da1000e2584cbcba82db2372",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-16_repo.bundle",
+      "bundle_sha256": "b6a42fbf94d5e3e6766a1a8f8a4bbe26168c417c5e523b5d6b44d836721e43cd",
+      "bundle_bytes": 6419,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-17/repo",
+      "head_commit": "4729dbc4365af22d02ad8e5e94e81a0a67626765",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-17_repo.bundle",
+      "bundle_sha256": "a5c018ffefeb7c533e177f9fd98db1cc56b023d1b8a8e62cd0b9a909228be73e",
+      "bundle_bytes": 6552,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-18/repo",
+      "head_commit": "4449d89321f85458de34d9ee48c5391c2f1bba5a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-18_repo.bundle",
+      "bundle_sha256": "85a5d5d2811eb1bee8ec76cb1789bcb051446243a2e96fe29ca9ef1f88fac13c",
+      "bundle_bytes": 6574,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-19/repo",
+      "head_commit": "e9563b53e4444be11743efacd5f6527b22f72f37",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-19_repo.bundle",
+      "bundle_sha256": "ea14a025ea00ea9b410f50c1b5df403d304024b62959e01316acec0eb18aecba",
+      "bundle_bytes": 6545,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-20/repo",
+      "head_commit": "c9f32543eae727b5f2f5001f3acb93dce642f5e9",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-20_repo.bundle",
+      "bundle_sha256": "f80a757ab96014a33dcc672d4597fdf7f2fba90e88e068240ff15408da99a414",
+      "bundle_bytes": 6497,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-21/repo",
+      "head_commit": "592e3feec016482da89545f497c9a19b444f4443",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-21_repo.bundle",
+      "bundle_sha256": "3737f883ccdf4ec2d3f2df314bf68e7ac9ec817ea1d090b744aaf40ff5046dad",
+      "bundle_bytes": 6208,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-22/repo",
+      "head_commit": "22fe0fb085bcb0b55f04a9ee3c7608160e7371d2",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-22_repo.bundle",
+      "bundle_sha256": "feb75502c2496b3b9079ce3e2b2a013f72364a4d3afafe0fbbe26c75532aef41",
+      "bundle_bytes": 6377,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/packet36_v21_formal_qwen3codernext_20260828/table_gate/chain-23/repo",
+      "head_commit": "d48d909be67f7012e87726771b76d61443f13469",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_packet36_v21_formal_qwen3codernext_20260828_table_gate_chain-23_repo.bundle",
+      "bundle_sha256": "6bcb8642d40ce6e6fa6eff831797f1b490028f299ad440cf8a587c12f98634b3",
+      "bundle_bytes": 6467,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-00/repo",
+      "head_commit": "bf8206017664dd1ad03922e44cc9874341fdcbb2",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-00_repo.bundle",
+      "bundle_sha256": "0412b14f90d1159f7890a3e0126aac07df55921895dab5d83c6f3f39dee4f431",
+      "bundle_bytes": 8456,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-01/repo",
+      "head_commit": "983b7a8617de537e20db8948ce796898560f4f03",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-01_repo.bundle",
+      "bundle_sha256": "e023965c28f3aa787de9d2ff868caa0e1592683be16cd81d193f7a26efe45712",
+      "bundle_bytes": 8546,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-02/repo",
+      "head_commit": "070a8f32af93cfef1e400ddf8fc3a858cca222fe",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-02_repo.bundle",
+      "bundle_sha256": "c2e06c795ba1185de0981a58e32c8082ed2e5551bf4ed47ecbdd0904f4164539",
+      "bundle_bytes": 8574,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-03/repo",
+      "head_commit": "ea203c45685d140e413532a92454a0362df163a8",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-03_repo.bundle",
+      "bundle_sha256": "4d65827beb0d5c91ec689fc6abb9a3a911fa410137518c393143c5aa36a66bfc",
+      "bundle_bytes": 8164,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-04/repo",
+      "head_commit": "d2a01e97415489e06a86b8222b839095b6f91c0a",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-04_repo.bundle",
+      "bundle_sha256": "66c99576c0f846bfbb4ccd2b78a97a8dc0c6d77e7bc320ec77b171b7671d3a97",
+      "bundle_bytes": 8820,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-05/repo",
+      "head_commit": "8563285fcf85053ed03f5bfcb4aafd4b6afc236f",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-05_repo.bundle",
+      "bundle_sha256": "fe6fe4ac05900216a694bc8fc18cce91f4459367fe59747684b7529abd2973a6",
+      "bundle_bytes": 8263,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-06/repo",
+      "head_commit": "5c644cf3c47059f5206317d0fdcdf02a78849e61",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-06_repo.bundle",
+      "bundle_sha256": "89c0cdcc123643a85c06a3fb451a8485468e146da15745ec2456ea215cdc9280",
+      "bundle_bytes": 7856,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-07/repo",
+      "head_commit": "a939a5914a100ceeb3d4b0dec507c1bcee826ac1",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-07_repo.bundle",
+      "bundle_sha256": "0b2da54e289cf1bf8f86dfe6e6e9f62296705bd0401755e597041c9567987677",
+      "bundle_bytes": 8758,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-08/repo",
+      "head_commit": "403ecae1118c205f11165b99e35d325c36921cee",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-08_repo.bundle",
+      "bundle_sha256": "7f7a2776e5829fc10817a76dd015d017de85f3b3ede7e6848c02cf717f5c76ff",
+      "bundle_bytes": 8334,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-09/repo",
+      "head_commit": "365f22e0453435ae0e0576dab452589da101e8cc",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-09_repo.bundle",
+      "bundle_sha256": "665ac9545cd53945cb92e3e258cd77e6ddd86cb4630435360a2402da44277a57",
+      "bundle_bytes": 8300,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-10/repo",
+      "head_commit": "208e526eca803bba1f14bf4648f6116072ca1ca3",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-10_repo.bundle",
+      "bundle_sha256": "db6b9145bc94d478a01152602334ba1d9dcb0e7dc75370618d246caa984ac753",
+      "bundle_bytes": 8585,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-11/repo",
+      "head_commit": "db8eca33dfda7f363384afac0fc7ad1a12f792cb",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-11_repo.bundle",
+      "bundle_sha256": "e3c64eb0552702daf18aa0be5798177769712bd55e70f16144727048db45d036",
+      "bundle_bytes": 8808,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-12/repo",
+      "head_commit": "a4a04de4b52786923fe69f56e1a853aedfb9687c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-12_repo.bundle",
+      "bundle_sha256": "55efcf1fe44869647b03ca0600835818642ad6870d8569ef569755bfc59a9261",
+      "bundle_bytes": 8471,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-13/repo",
+      "head_commit": "3de2970dc799fb4e14b237958afab12c783a2d19",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-13_repo.bundle",
+      "bundle_sha256": "f41e20b882978751d1062f409fbb33d4070efc104feea38f4e20c1c06f20642c",
+      "bundle_bytes": 8774,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-14/repo",
+      "head_commit": "b34c1f692b73b18fa00690471d31b0d2a2d6b3a0",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-14_repo.bundle",
+      "bundle_sha256": "68d9e618ce3633ef2608b1773a083bfc8c46642956076d1fb4f3084ae92e74c2",
+      "bundle_bytes": 8579,
+      "source_status": "clean"
+    },
+    {
+      "source_relative_path": "artifacts/coding_lab/t0_intrinsic_noconv_qwen3codernext_20260828/chains/chain-15/repo",
+      "head_commit": "3d084755261e27a3c8fa41d39ea9e2db4857fc9c",
+      "bundle_relative_path": "bundles/artifacts_coding_lab_t0_intrinsic_noconv_qwen3codernext_20260828_chains_chain-15_repo.bundle",
+      "bundle_sha256": "8b1d3649099204fc6285706858fe399eb09022ee55bda77e058fb4e30df6682a",
+      "bundle_bytes": 8180,
+      "source_status": "clean"
+    }
+  ]
+}
