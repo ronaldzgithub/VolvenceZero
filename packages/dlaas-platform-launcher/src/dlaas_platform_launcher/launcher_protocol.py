@@ -9,9 +9,10 @@ satisfy this :class:`LauncherProtocol`; the handlers check the Protocol
 instead of a concrete class.
 
 ``forward_interaction`` is the primary multi-process discriminator. Optional
-``forward_session_create`` and ``forward_operations_request`` methods extend
-the same pod affinity to explicit session and Operations Brain traffic; remote
-pods retain ownership of their sessions and product-lineage controllers.
+``forward_session_create`` and ``forward_brain_request`` methods extend the
+same pod affinity to explicit session and vertical Brain traffic; remote pods
+retain ownership of their sessions and product-lineage controllers.  The
+Operations-specific protocol remains as a compatibility surface.
 """
 
 from __future__ import annotations
@@ -54,8 +55,22 @@ class ExplicitSessionForwardingLauncherProtocol(Protocol):
 
 
 @runtime_checkable
+class VerticalBrainForwardingLauncherProtocol(Protocol):
+    """Capability contract for sticky vertical Brain request forwarding."""
+
+    async def forward_brain_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+@runtime_checkable
 class OperationsForwardingLauncherProtocol(Protocol):
-    """Capability contract for sticky Operations Brain request forwarding."""
+    """Compatibility contract for legacy Operations-only forwarding."""
 
     async def forward_operations_request(
         self,
@@ -72,4 +87,5 @@ __all__ = [
     "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",
     "OperationsForwardingLauncherProtocol",
+    "VerticalBrainForwardingLauncherProtocol",
 ]

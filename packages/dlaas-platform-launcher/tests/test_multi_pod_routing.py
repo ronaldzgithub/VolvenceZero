@@ -13,6 +13,7 @@ from dlaas_platform_launcher import (
     OperationsForwardingLauncherProtocol,
     RemoteInstanceManager,
     RuntimePod,
+    VerticalBrainForwardingLauncherProtocol,
 )
 
 
@@ -29,6 +30,7 @@ def test_multi_pod_launcher_conforms_to_protocol() -> None:
     assert isinstance(launcher, LauncherProtocol)
     assert isinstance(launcher, ExplicitSessionForwardingLauncherProtocol)
     assert isinstance(launcher, OperationsForwardingLauncherProtocol)
+    assert isinstance(launcher, VerticalBrainForwardingLauncherProtocol)
 
 
 # --- RemoteInstanceManager (fake transport) -------------------------
@@ -109,6 +111,25 @@ async def test_remote_session_and_operations_forwarding_routes_urls() -> None:
     assert [call[1] for call in transport.calls] == [session_url, operations_url]
 
 
+async def test_remote_uniform_brain_forwarding_routes_url() -> None:
+    brain_url = (
+        "http://pod/dlaas/v1/instances/ai_1/sessions/session_1/"
+        "brain/context-packs"
+    )
+    transport = _transport_recording(
+        {brain_url: (201, {"context_pack_id": "pack-1"})}
+    )
+    proxy = RemoteInstanceManager(base_url="http://pod", transport=transport)
+    assert isinstance(proxy, VerticalBrainForwardingLauncherProtocol)
+    assert await proxy.forward_brain_request(
+        ai_id="ai_1",
+        session_id="session_1",
+        operation="context-packs",
+        payload={"request_id": "request-1"},
+    ) == (201, {"context_pack_id": "pack-1"})
+    assert transport.calls[0][1] == brain_url
+
+
 async def test_remote_operations_forwarding_rejects_unknown_operation() -> None:
     proxy = RemoteInstanceManager(
         base_url="http://pod",
@@ -156,6 +177,18 @@ class _FakePodManager:
     ):
         del payload
         self.operations.append((ai_id, operation))
+        return 201, {"pod": self.pod_id, "session_id": session_id}
+
+    async def forward_brain_request(
+        self,
+        *,
+        ai_id,
+        session_id,
+        operation,
+        payload,
+    ):
+        del payload
+        self.operations.append((ai_id, f"brain:{operation}"))
         return 201, {"pod": self.pod_id, "session_id": session_id}
 
     async def wake(self, *, ai_id, **kwargs):
@@ -213,6 +246,20 @@ async def test_session_and_operations_follow_sticky_pod_placement() -> None:
     )
     assert session_status == operations_status == 201
     assert session_body["pod"] == operations_body["pod"] == owner
+
+
+async def test_uniform_brain_follows_sticky_pod_placement() -> None:
+    launcher, _, _ = _launcher_two_pods()
+    await launcher.acquire(ai_id="ai_1", runtime_template_id="coding")
+    owner = launcher.router.resolve("ai_1").runtime_pod_id
+    status, body = await launcher.forward_brain_request(
+        ai_id="ai_1",
+        session_id="session_1",
+        operation="context-packs",
+        payload={},
+    )
+    assert status == 201
+    assert body["pod"] == owner
 
 
 def test_get_not_supported() -> None:

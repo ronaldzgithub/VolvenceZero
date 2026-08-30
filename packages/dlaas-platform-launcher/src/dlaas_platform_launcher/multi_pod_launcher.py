@@ -21,6 +21,7 @@ from typing import Any
 from dlaas_platform_launcher.launcher_protocol import (
     ExplicitSessionForwardingLauncherProtocol,
     OperationsForwardingLauncherProtocol,
+    VerticalBrainForwardingLauncherProtocol,
 )
 from dlaas_platform_contracts import InstanceLifecycleState, InstanceStatus
 
@@ -172,6 +173,29 @@ class MultiPodLauncher:
             )
         self._router.record_interaction(ai_id)
         return await manager.forward_operations_request(
+            ai_id=ai_id,
+            session_id=session_id,
+            operation=operation,
+            payload=payload,
+        )
+
+    async def forward_brain_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward a uniform vertical Brain operation to the owning pod."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, VerticalBrainForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support vertical Brain forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await manager.forward_brain_request(
             ai_id=ai_id,
             session_id=session_id,
             operation=operation,

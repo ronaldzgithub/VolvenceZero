@@ -133,6 +133,32 @@ class RemoteInstanceManager:
             )
         return status, body
 
+    async def forward_brain_request(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+        operation: str,
+        payload: dict[str, Any],
+    ) -> tuple[int, dict]:
+        """Forward one uniform vertical Brain operation to its owning pod."""
+
+        if operation not in {"context-packs", "outcomes"}:
+            raise ValueError(f"unsupported vertical Brain operation: {operation!r}")
+        status, body = await self._transport(
+            "POST",
+            (
+                f"{self._base_url}/dlaas/v1/instances/{quote(ai_id, safe='')}/sessions/"
+                f"{quote(session_id, safe='')}/brain/{operation}"
+            ),
+            payload,
+        )
+        if status >= 500:
+            raise RuntimeError(
+                f"pod vertical Brain forward failed for ai_id={ai_id!r}: {body}"
+            )
+        return status, body
+
     async def wake(self, *, ai_id: str, **kwargs: Any) -> dict:
         status, body = await self._transport(
             "POST",
