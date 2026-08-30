@@ -209,6 +209,43 @@ class CreditSnapshot:
     # carry environment prediction/outcome ids, so typed bank lineage is
     # independently sufficient for retention.
     recent_action_lineage_credits: tuple[CreditRecord, ...] = ()
+    # Owner-published latest complete four-axis PE group.  The generic recent
+    # window is intentionally small and may evict these four records after
+    # same-turn session/counterfactual records are appended.  Consumers that
+    # exact-join a typed outcome to the current PE read this immutable group;
+    # they must still validate prediction/outcome lineage themselves.
+    recent_prediction_error_credits: tuple[CreditRecord, ...] = ()
+
+
+_PREDICTION_ERROR_CREDIT_SOURCES = (
+    "pe:task",
+    "pe:relationship",
+    "pe:regime",
+    "pe:action",
+)
+
+
+def _latest_complete_prediction_error_credits(
+    records: tuple[CreditRecord, ...],
+) -> tuple[CreditRecord, ...]:
+    candidates = tuple(
+        record
+        for record in records
+        if record.level == "prediction_error"
+        and record.source_event in _PREDICTION_ERROR_CREDIT_SOURCES
+    )
+    if not candidates:
+        return ()
+    latest_timestamp = max(record.timestamp_ms for record in candidates)
+    latest = tuple(
+        record for record in candidates if record.timestamp_ms == latest_timestamp
+    )
+    by_source = {record.source_event: record for record in latest}
+    if len(latest) != 4 or set(by_source) != set(
+        _PREDICTION_ERROR_CREDIT_SOURCES
+    ):
+        return ()
+    return tuple(by_source[source] for source in _PREDICTION_ERROR_CREDIT_SOURCES)
 
 
 @dataclass(frozen=True)
@@ -1336,6 +1373,9 @@ def extend_credit_snapshot(
     for record in extra_records:
         cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
     recent_credits = tuple((credit_snapshot.recent_credits + extra_records)[-20:])
+    all_prediction_error_credits = (
+        credit_snapshot.recent_prediction_error_credits + extra_records
+    )
     recent_action_lineage_credits = tuple(
         (
             credit_snapshot.recent_action_lineage_credits
@@ -1367,6 +1407,12 @@ def extend_credit_snapshot(
         least_control_readout=credit_snapshot.least_control_readout,
         gate_risk_readout=credit_snapshot.gate_risk_readout,
         recent_action_lineage_credits=recent_action_lineage_credits,
+        recent_prediction_error_credits=(
+            _latest_complete_prediction_error_credits(
+                all_prediction_error_credits
+            )
+            or credit_snapshot.recent_prediction_error_credits
+        ),
     )
 
 
@@ -2269,6 +2315,11 @@ class CreditLedger:
                     or record.conditioning_bank_set
                 )
             )[-20:],
+            recent_prediction_error_credits=(
+                _latest_complete_prediction_error_credits(
+                    tuple(self._recent_credits)
+                )
+            ),
         )
 
 

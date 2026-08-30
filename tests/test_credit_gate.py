@@ -609,6 +609,51 @@ def test_credit_snapshot_can_be_extended_with_abstract_action_credit():
     assert any(record.level == "abstract_action" for record in extended.recent_credits)
 
 
+def test_credit_snapshot_retains_latest_complete_four_axis_pe_group() -> None:
+    from volvence_zero.credit import CreditLedger, CreditRecord
+
+    ledger = CreditLedger()
+    pe_records = tuple(
+        CreditRecord(
+            record_id=f"pe-credit-{index}",
+            level="prediction_error",
+            track=Track.WORLD,
+            source_event=source,
+            credit_value=0.25,
+            context="typed PE owner record",
+            timestamp_ms=100,
+        )
+        for index, source in enumerate(
+            ("pe:task", "pe:relationship", "pe:regime", "pe:action"),
+            start=1,
+        )
+    )
+    ledger.record_credits(pe_records)
+    ledger.record_credits(
+        tuple(
+            CreditRecord(
+                record_id=f"later-credit-{index}",
+                level="session",
+                track=Track.SHARED,
+                source_event=f"session:{index}",
+                credit_value=0.1,
+                context="same-turn records that may evict the generic window",
+                timestamp_ms=101,
+            )
+            for index in range(20)
+        )
+    )
+
+    snapshot = ledger.snapshot()
+
+    assert tuple(
+        item.source_event for item in snapshot.recent_prediction_error_credits
+    ) == ("pe:task", "pe:relationship", "pe:regime", "pe:action")
+    assert not any(
+        item.level == "prediction_error" for item in snapshot.recent_credits
+    )
+
+
 def test_runtime_adaptation_audit_records_capture_rollback_evidence():
     records = derive_runtime_adaptation_audit_records(
         rollback_reasons=("reward-regression", "metacontroller-drift"),

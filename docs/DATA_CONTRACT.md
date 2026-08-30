@@ -1285,6 +1285,11 @@ P2 confirmatory/shard/progress 为 v7。v11 将 forced-return 冻结为左右均
 | `BoundedContentPolicyDecision` | 各垂直 adapter | owner 原始 entry order、owner-issued `source_prediction_id`、通用有界 ranking/timing | 最多把一个非首位 entry 提到第一位；否则 strict noop、byte-exact 保留 owner 顺序；不创建、删除或改写 memory entry |
 | `BoundedContentPolicyCredit` / `BoundedContentPolicyUpdateReceipt` | PE/credit owner 发布原始信用；各垂直 adapter 做 exact lineage join 并发布 policy readout | exact prediction、合格 typed outcome、同拍四条 `pe:*` credit | evaluation/judge/text 不得作为 learning source；只有 Context Pack 实际内容排序的下一拍合格结局可更新 |
 
+Credit owner 的 `CreditSnapshot.recent_prediction_error_credits` 固定发布最近一次 timestamp 上完整且唯一的
+`pe:task / pe:relationship / pe:regime / pe:action` 四条记录。它解决通用 `recent_credits` 小窗口被同拍其它
+records 挤出的可读性问题，但不自行证明业务 outcome lineage；adapter 仍必须把该组与同拍 PE 的 exact
+prediction、typed outcome/evidence 和自己的 decision lineage 联合校验。
+
 `lifeform-core.BoundedContentPolicy` 是三个 Brain 可复用的 adapter-level mechanism，不是第二个认知
 owner，也不拥有 Memory、PE、credit 或业务状态。它只接 opaque entry id 与 `[0,1]` typed feature，
 不 import 任何垂直 wheel。各 adapter 必须分别定义 scope、恢复/持久化、合格 outcome 和回滚字段。
