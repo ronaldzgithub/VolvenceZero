@@ -14,6 +14,16 @@ from lifeform_core.bounded_policy import (
     apply_bounded_policy_credit,
     rank_and_gate_bounded_policy,
 )
+from lifeform_core.bounded_content_policy import (
+    BoundedContentCandidate,
+    BoundedContentPolicy,
+    BoundedContentPolicyCheckpoint,
+    BoundedContentPolicyCredit,
+    BoundedContentPolicyDecision,
+    BoundedContentPolicyUpdateReceipt,
+    CONTENT_POLICY_NOOP_CANDIDATE_ID,
+    default_bounded_content_policy_checkpoint,
+)
 from lifeform_core.external_llm import (
     LlmJsonClient,
     OpenAiCompatConfig,
@@ -46,6 +56,12 @@ from volvence_zero.dialogue_trace import (
 )
 
 __all__ = (
+    "BoundedContentCandidate",
+    "BoundedContentPolicy",
+    "BoundedContentPolicyCheckpoint",
+    "BoundedContentPolicyCredit",
+    "BoundedContentPolicyDecision",
+    "BoundedContentPolicyUpdateReceipt",
     "BoundedPolicyCandidate",
     "BoundedPolicyDecision",
     "BoundedPolicyRankedCandidate",
@@ -75,6 +91,8 @@ __all__ = (
     "VitalsBootstrap",
     "VitalsModule",
     "VitalsSnapshot",
+    "CONTENT_POLICY_NOOP_CANDIDATE_ID",
     "apply_bounded_policy_credit",
+    "default_bounded_content_policy_checkpoint",
     "rank_and_gate_bounded_policy",
 )

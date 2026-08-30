@@ -290,6 +290,10 @@ sequenceDiagram
 | Steerable | `vz-substrate`（executor）、`vz-temporal`（gate）、`vz-cognition`（sensor） | runtime 接线 / lifeform activation | vLLM 假 hook；ACTIVE 读 shadow |
 
 `vz-runtime` 是唯一跨业务编排层；`lifeform-*` 只经 Brain facade / contracts / ModificationGate 进入。
+`lifeform-core.BoundedContentPolicy` 只提供垂直 adapter 共用的有界内容择位数学与不可变
+checkpoint/decision/credit/update 契约：输入仅为 owner 发布的 entry 顺序、opaque id 和 typed 数值特征；
+每拍最多把一个非首位 entry 提到首位，否则 strict noop。Memory、PE/credit、scope、持久化和合格 outcome
+仍由原 owner/垂直 adapter 解释，因此它不是通用业务 brain，也不允许解析记忆文本或取得执行权。
 证据 lane 同理：coding-lab（`lifeform-domain-coding.lab` 环境 + `lifeform-evolution` 采集器）只经
 Brain facade 与 typed submit API 进入脑核，episode 终局复用 `dialogue_external_outcome` 唯一合法通道，
 不新建 owner（[specs/coding-lab.md](./specs/coding-lab.md)）。

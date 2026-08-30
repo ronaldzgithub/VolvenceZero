@@ -1277,7 +1277,19 @@ P2 confirmatory/shard/progress 为 v7。v11 将 forced-return 冻结为左右均
 
 ---
 
-### 2.20 Coding Brain 产品契约（lifeform-side，不新增 kernel slot）
+### 2.20 垂直 Brain 共享有界内容策略（lifeform-side，不新增 kernel slot）
+
+| 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
+|---|---|---|---|
+| `BoundedContentPolicyCheckpoint` | 各垂直 adapter 拥有其 scope 下的参数解释与 checkpoint lineage；`lifeform-core` 只定义不可变通用机制；`vz-memory` 仅作 carrier | adapter 从 owner 返回顺序、entry strength/age/stratum 与同拍 PE 构造的五维 typed feature | checkpoint-in/checkpoint-out；参数有 cap；同 update count 分叉必须 fail loudly；不得解析 entry 文本 |
+| `BoundedContentPolicyDecision` | 各垂直 adapter | owner 原始 entry order、owner-issued `source_prediction_id`、通用有界 ranking/timing | 最多把一个非首位 entry 提到第一位；否则 strict noop、byte-exact 保留 owner 顺序；不创建、删除或改写 memory entry |
+| `BoundedContentPolicyCredit` / `BoundedContentPolicyUpdateReceipt` | PE/credit owner 发布原始信用；各垂直 adapter 做 exact lineage join 并发布 policy readout | exact prediction、合格 typed outcome、同拍四条 `pe:*` credit | evaluation/judge/text 不得作为 learning source；只有 Context Pack 实际内容排序的下一拍合格结局可更新 |
+
+`lifeform-core.BoundedContentPolicy` 是三个 Brain 可复用的 adapter-level mechanism，不是第二个认知
+owner，也不拥有 Memory、PE、credit 或业务状态。它只接 opaque entry id 与 `[0,1]` typed feature，
+不 import 任何垂直 wheel。各 adapter 必须分别定义 scope、恢复/持久化、合格 outcome 和回滚字段。
+
+### 2.21 Coding Brain 产品契约（lifeform-side，不新增 kernel slot）
 
 **所在 wheel**：`lifeform-domain-coding`；HTTP 投影：`lifeform-service`。完整 contract 见
 [`docs/specs/coding-brain.md`](./specs/coding-brain.md)。
@@ -1297,7 +1309,7 @@ checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / ve
 
 ---
 
-### 2.21 Venture Brain 产品契约（lifeform-side，不新增 kernel slot）
+### 2.22 Venture Brain 产品契约（lifeform-side，不新增 kernel slot）
 
 **所在 wheel**：`lifeform-domain-venture`；HTTP 投影：`lifeform-service`。完整 contract 见
 [`docs/specs/venture-brain.md`](./specs/venture-brain.md)。
@@ -1315,7 +1327,7 @@ checkpoint 与恢复仍唯一属于 `vz-memory`。service 只负责 session / ve
 
 ---
 
-### 2.22 Operations Brain 产品契约（lifeform-side，不新增 kernel slot）
+### 2.23 Operations Brain 产品契约（lifeform-side，不新增 kernel slot）
 
 **所在 wheel**：`lifeform-domain-operations`；HTTP 投影：`lifeform-service`。完整 contract 见
 [`docs/specs/operations-brain.md`](./specs/operations-brain.md)。
