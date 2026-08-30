@@ -307,8 +307,8 @@ Coding Brain 与 Venture Brain 是四能力轴在外部产品 host 上的两种�
 |---|---|---|---|
 | Appendable | typed outcome 经 `LifeformSession` facade 追加 identity-scoped memory；controller 不建第二 store | test/review/VCS experience | simulation/review/machine/field commercial experience，保留多目标结果 |
 | Readable | 只读 owner 发布的 immutable Memory / PE 状态，生成 content-addressed ACTIVE Context Pack | memory-first coding context + settlement refs | 跨周期商业经历、当前不确定性、source/evidence lineage |
-| Learnable | 只有合格 typed environment outcome 可在下一 Context Pack turn 进入 PE；evaluation/judge 不回灌 | 确定性 test/build/CI oracle exact-join 最近完整四轴 PE credit，更新 CMS-backed 内容 checkpoint | 仅 Foundry-qualified `field_experiment_result` 多目标 verdict |
-| Steerable | Context Pack 可 ACTIVE；Advice v1 固定 SHADOW、`applied=false` 且不进入 ACTIVE rendered context | 有界内容择位最多提升一个 entry，否则 strict noop；regime/action readout只作比较 | opportunity/comparison/experiment/stop candidate 只作比较 |
+| Learnable | 只有合格 typed environment outcome 可在下一 Context Pack turn 进入 PE；evaluation/judge 不回灌 | 确定性 test/build/CI oracle exact-join 最近完整四轴 PE credit，更新 CMS-backed 内容 checkpoint | Foundry-qualified `field_experiment_result` exact-join四轴 credit，更新 CMS-backed 内容 checkpoint |
+| Steerable | Context Pack 可 ACTIVE；Advice v1 固定 SHADOW、`applied=false` 且不进入 ACTIVE rendered context | 有界内容择位最多提升一个 entry，否则 strict noop；regime/action readout只作比较 | 有界内容择位最多提升一个 entry，否则 strict noop；商业 advice 只作比较 |
 
 Host 权威不随 Context Pack 转移：coding host 继续拥有 repo、工具、review、VCS/部署；Foundry 继续拥有
 来源核验、evidence class、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作。

@@ -14,7 +14,19 @@ import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from lifeform_core import LifeformSession, TurnTriggerKind
+from lifeform_core import (
+    BoundedContentCandidate,
+    BoundedContentPolicy,
+    BoundedContentPolicyCheckpoint,
+    BoundedContentPolicyCredit,
+    BoundedContentPolicyDecision,
+    BoundedContentPolicyUpdateReceipt,
+    CONTENT_POLICY_NOOP_CANDIDATE_ID,
+    LifeformSession,
+    TurnTriggerKind,
+    default_bounded_content_policy_checkpoint,
+)
+from volvence_zero.credit import CreditRecord, CreditSnapshot
 from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentMeasurement,
@@ -28,6 +40,7 @@ from volvence_zero.memory import (
     Track,
 )
 from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.runtime import WiringLevel
 
 from lifeform_domain_venture.venture_brain_contracts import (
     EXPERIENCE_RECORD_SCHEMA_VERSION,
@@ -129,6 +142,9 @@ class _SessionLedger:
     outcomes_by_outcome_id: dict[str, _OutcomeLineage] = field(default_factory=dict)
     latest_context_pack_id: str = ""
     pending_environment_outcome_id: str = ""
+    policy_checkpoints_by_scope: dict[str, BoundedContentPolicyCheckpoint] = field(
+        default_factory=dict
+    )
 
 
 _VERDICT_MEASUREMENT = {
@@ -137,6 +153,16 @@ _VERDICT_MEASUREMENT = {
     VentureOutcomeVerdict.MIXED: 0.0,
     VentureOutcomeVerdict.INCONCLUSIVE: 0.0,
 }
+
+_CONTENT_POLICY_FEATURE_ORDER = (
+    "owner_rank",
+    "memory_strength",
+    "recency",
+    "durable",
+    "pe_magnitude",
+)
+_CONTENT_POLICY_ARTIFACT_ID = "venture-content-position-policy.v1"
+_PE_CREDIT_SOURCES = ("pe:task", "pe:relationship", "pe:regime", "pe:action")
 
 
 def _short_hash(value: str) -> str:
@@ -184,6 +210,126 @@ def _prediction_error_snapshot(turn_result: object) -> PredictionErrorSnapshot:
     if not isinstance(published.value, PredictionErrorSnapshot):
         raise TypeError("prediction_error slot must publish PredictionErrorSnapshot")
     return published.value
+
+
+def _credit_snapshot(turn_result: object) -> CreditSnapshot:
+    published = turn_result.active_snapshots.get("credit")
+    if published is None:
+        published = turn_result.shadow_snapshots.get("credit")
+    if published is None:
+        raise RuntimeError("Venture Brain turn published no credit snapshot")
+    if not isinstance(published.value, CreditSnapshot):
+        raise TypeError("credit slot must publish CreditSnapshot")
+    return published.value
+
+
+def _clamp(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
+    return max(lower, min(upper, float(value)))
+
+
+def _content_policy_scope(request: VentureContextRequest) -> str:
+    return f"{request.portfolio_id}\x1f{request.venture_id or '__portfolio__'}"
+
+
+def _content_policy_scope_facets(request: VentureContextRequest) -> tuple[str, ...]:
+    return (
+        f"portfolio:{_short_hash(request.portfolio_id)}",
+        (
+            f"venture:{_short_hash(request.venture_id)}"
+            if request.venture_id
+            else "venture-scope:portfolio"
+        ),
+    )
+
+
+def _content_policy_candidates(
+    entries: tuple[MemoryEntry, ...],
+    *,
+    observed_at_ms: int,
+    pe_magnitude: float,
+) -> tuple[BoundedContentCandidate, ...]:
+    candidates: list[BoundedContentCandidate] = []
+    for index, entry in enumerate(entries[1:], start=2):
+        age_days = max(0.0, observed_at_ms - entry.created_at_ms) / 86_400_000.0
+        values = (
+            1.0 / float(index),
+            _clamp(entry.strength),
+            1.0 / (1.0 + age_days),
+            1.0 if entry.stratum == MemoryStratum.DURABLE.value else 0.0,
+            _clamp(pe_magnitude),
+        )
+        candidates.append(
+            BoundedContentCandidate(
+                entry_id=entry.entry_id,
+                feature_values=tuple(
+                    zip(_CONTENT_POLICY_FEATURE_ORDER, values, strict=True)
+                ),
+            )
+        )
+    return tuple(candidates)
+
+
+def _ordered_entries(
+    entries: tuple[MemoryEntry, ...],
+    decision: BoundedContentPolicyDecision | None,
+) -> tuple[MemoryEntry, ...]:
+    if decision is None:
+        return entries
+    by_id = {entry.entry_id: entry for entry in entries}
+    if set(by_id) != set(decision.output_entry_ids):
+        raise VentureBrainLineageError("content policy output diverged from retrieval")
+    return tuple(by_id[entry_id] for entry_id in decision.output_entry_ids)
+
+
+def _settled_content_policy_credit(
+    *,
+    prediction_error: PredictionErrorSnapshot,
+    credit_snapshot: CreditSnapshot,
+    decision: BoundedContentPolicyDecision,
+    environment_outcome_id: str,
+) -> BoundedContentPolicyCredit:
+    if prediction_error.bootstrap:
+        raise ValueError("bootstrap PE cannot settle Venture content policy")
+    context = prediction_error.actual_outcome.action_context
+    if context.environment_outcome_id != environment_outcome_id:
+        raise ValueError("Venture content policy PE outcome lineage mismatch")
+    evaluated = prediction_error.evaluated_prediction
+    if (
+        evaluated is None
+        or evaluated.prediction_id != decision.source_prediction_id
+        or context.prediction_id != decision.source_prediction_id
+    ):
+        raise ValueError("Venture content policy PE prediction lineage mismatch")
+    records: tuple[CreditRecord, ...] = (
+        credit_snapshot.recent_prediction_error_credits
+    )
+    by_source = {record.source_event: record for record in records}
+    if len(records) != 4 or set(by_source) != set(_PE_CREDIT_SOURCES):
+        raise ValueError("Venture content policy requires exactly four PE credits")
+    ordered = tuple(by_source[source] for source in _PE_CREDIT_SOURCES)
+    if any(
+        record.prediction_id != decision.source_prediction_id
+        or record.environment_outcome_id != environment_outcome_id
+        for record in ordered
+    ):
+        raise ValueError("Venture content policy credit lineage diverged")
+    return BoundedContentPolicyCredit.create(
+        policy_decision_id=decision.policy_decision_id,
+        credited_candidate_id=(
+            decision.selected_entry_id
+            if decision.intervened
+            else CONTENT_POLICY_NOOP_CANDIDATE_ID
+        ),
+        prediction_id=decision.source_prediction_id,
+        settlement_ref=environment_outcome_id,
+        signed_prediction_error=_clamp(
+            prediction_error.error.signed_reward,
+            -1.0,
+            1.0,
+        ),
+        source_credit_record_ids=tuple(item.record_id for item in ordered),
+        observed_at_ms=max(item.timestamp_ms for item in ordered),
+    )
 
 
 def _experience_record_payload(
@@ -329,6 +475,10 @@ def _context_digest_payload(
     pe_magnitude: float,
     pe_bootstrap: bool,
     advice: VentureAdviceSnapshot,
+    content_policy_decision: BoundedContentPolicyDecision | None,
+    settled_policy_credits: tuple[BoundedContentPolicyCredit, ...],
+    policy_updates: tuple[BoundedContentPolicyUpdateReceipt, ...],
+    content_policy_wiring_level: WiringLevel,
 ) -> dict[str, object]:
     return {
         "schema_version": "venture-context-pack.v1",
@@ -349,6 +499,16 @@ def _context_digest_payload(
         "pe_magnitude": pe_magnitude,
         "pe_bootstrap": pe_bootstrap,
         "advice": advice.to_json(),
+        "content_policy_decision": (
+            content_policy_decision.to_json()
+            if content_policy_decision is not None
+            else None
+        ),
+        "settled_policy_credits": [
+            item.to_json() for item in settled_policy_credits
+        ],
+        "policy_updates": [item.to_json() for item in policy_updates],
+        "content_policy_wiring_level": content_policy_wiring_level.value,
         "wiring_level": "active",
     }
 
@@ -357,13 +517,21 @@ def _environment_outcome_for_report(
     *,
     request: VentureContextRequest,
     report: VentureOutcomeReport,
+    content_policy_decision: BoundedContentPolicyDecision | None,
 ) -> EnvironmentOutcome:
     normalized = _VERDICT_MEASUREMENT[report.verdict]
+    action_id = f"foundry-decision:{request.decision_id}"
+    if content_policy_decision is not None:
+        action_id = (
+            content_policy_decision.selected_entry_id
+            if content_policy_decision.intervened
+            else CONTENT_POLICY_NOOP_CANDIDATE_ID
+        )
     return EnvironmentOutcome(
         outcome_id=f"venture-field-outcome:{_short_hash(report.outcome_id)}",
         event_id=f"venture-report:{_short_hash(report.outcome_id)}",
         outcome_kind=EnvironmentEventKind.SCENE_EVENT,
-        action_id=f"foundry-decision:{request.decision_id}",
+        action_id=action_id,
         status=f"foundry_{report.verdict.value}",
         summary=report.summary,
         detail=report.detail,
@@ -382,6 +550,11 @@ def _environment_outcome_for_report(
         situation_summary=(
             f"portfolio={request.portfolio_id}; decision={request.decision_id}; point={request.decision_point.value}"
         ),
+        prediction_id=(
+            content_policy_decision.source_prediction_id
+            if content_policy_decision is not None
+            else None
+        ),
     )
 
 
@@ -392,6 +565,8 @@ class VentureBrainController:
         self,
         *,
         advice_provider: VentureAdviceProvider | None = None,
+        content_policy: BoundedContentPolicy | None = None,
+        content_policy_wiring_level: WiringLevel = WiringLevel.ACTIVE,
         max_records_per_session: int = 512,
         max_session_ledgers: int = 1_024,
     ) -> None:
@@ -403,7 +578,14 @@ class VentureBrainController:
             raise ValueError("max_records_per_session must be positive")
         if isinstance(max_session_ledgers, bool) or not isinstance(max_session_ledgers, int) or max_session_ledgers < 1:
             raise ValueError("max_session_ledgers must be positive")
+        if content_policy_wiring_level not in {
+            WiringLevel.ACTIVE,
+            WiringLevel.DISABLED,
+        }:
+            raise ValueError("content_policy_wiring_level must be ACTIVE or DISABLED")
         self._advice_provider = advice_provider or EmptyVentureAdviceProvider()
+        self._content_policy = content_policy or BoundedContentPolicy()
+        self._content_policy_wiring_level = content_policy_wiring_level
         self._max_records_per_session = max_records_per_session
         self._max_session_ledgers = max_session_ledgers
         self._ledgers: dict[str, _SessionLedger] = {}
@@ -451,6 +633,19 @@ class VentureBrainController:
             if isinstance(observed_at_ms, bool) or not isinstance(observed_at_ms, int) or observed_at_ms < 0:
                 raise ValueError("generated_at_ms must be a non-negative integer")
 
+            policy_scope = _content_policy_scope(request)
+            if (
+                self._content_policy_wiring_level is WiringLevel.ACTIVE
+                and policy_scope not in ledger.policy_checkpoints_by_scope
+            ):
+                ledger.policy_checkpoints_by_scope[policy_scope] = (
+                    self._restore_policy_checkpoint(
+                        session=session,
+                        request=request,
+                        timestamp_ms=observed_at_ms,
+                    )
+                )
+
             result = await session.run_turn(
                 _context_observation(request),
                 trigger_kind=TurnTriggerKind.USER_INPUT,
@@ -462,7 +657,17 @@ class VentureBrainController:
             pending = ledger.pending_environment_outcome_id
             if pending and pending not in settled_outcome_ids:
                 raise RuntimeError("pending Venture field outcome was not settled by the next context turn")
+            settled_policy_credits: tuple[BoundedContentPolicyCredit, ...] = ()
+            policy_updates: tuple[BoundedContentPolicyUpdateReceipt, ...] = ()
             if pending:
+                settled_policy_credits, policy_updates = self._settle_policy_update(
+                    session=session,
+                    ledger=ledger,
+                    result=result,
+                    prediction_error=pe,
+                    environment_outcome_id=pending,
+                    timestamp_ms=observed_at_ms,
+                )
                 ledger.pending_environment_outcome_id = ""
             settled_evidence_ref_ids = self._settled_evidence_refs(
                 ledger=ledger,
@@ -483,7 +688,26 @@ class VentureBrainController:
             venture_entries = tuple(entry for entry in retrieval.entries if "venture-brain" in entry.tags)[
                 : request.memory_limit
             ]
-            experiences = tuple(_experience_from_memory(entry) for entry in venture_entries)
+            content_policy_decision: BoundedContentPolicyDecision | None = None
+            if self._content_policy_wiring_level is WiringLevel.ACTIVE:
+                checkpoint = ledger.policy_checkpoints_by_scope[policy_scope]
+                content_policy_decision = self._content_policy.decide(
+                    owner_order=tuple(entry.entry_id for entry in venture_entries),
+                    challengers=_content_policy_candidates(
+                        venture_entries,
+                        observed_at_ms=observed_at_ms,
+                        pe_magnitude=float(pe.error.magnitude),
+                    ),
+                    source_prediction_id=pe.next_prediction.prediction_id,
+                    checkpoint=checkpoint,
+                )
+            positioned_entries = _ordered_entries(
+                venture_entries,
+                content_policy_decision,
+            )
+            experiences = tuple(
+                _experience_from_memory(entry) for entry in positioned_entries
+            )
             rendered, included_experiences, truncated = _render_context(
                 request=request,
                 experiences=experiences,
@@ -552,6 +776,10 @@ class VentureBrainController:
                 pe_magnitude=float(pe.error.magnitude),
                 pe_bootstrap=pe.bootstrap,
                 advice=advice,
+                content_policy_decision=content_policy_decision,
+                settled_policy_credits=settled_policy_credits,
+                policy_updates=policy_updates,
+                content_policy_wiring_level=self._content_policy_wiring_level,
             )
             context_digest = stable_content_sha256(context_payload)
             snapshot = VentureContextPackSnapshot(
@@ -574,6 +802,10 @@ class VentureBrainController:
                 pe_magnitude=float(pe.error.magnitude),
                 pe_bootstrap=pe.bootstrap,
                 advice=advice,
+                content_policy_decision=content_policy_decision,
+                settled_policy_credits=settled_policy_credits,
+                policy_updates=policy_updates,
+                content_policy_wiring_level=self._content_policy_wiring_level,
             )
             ledger.contexts_by_request_id[request.request_id] = _ContextLineage(
                 request_digest=request_digest,
@@ -640,7 +872,13 @@ class VentureBrainController:
                     )
 
             environment_outcome = (
-                _environment_outcome_for_report(request=request, report=report) if report.pe_eligible else None
+                _environment_outcome_for_report(
+                    request=request,
+                    report=report,
+                    content_policy_decision=context_pack.content_policy_decision,
+                )
+                if report.pe_eligible
+                else None
             )
             task_event_seed = _short_hash(f"{session_id}:{report.outcome_id}")
             task_event_ids = session.submit_task_event(
@@ -699,6 +937,14 @@ class VentureBrainController:
                 "action_turn_index": context_pack.source_turn_index,
                 "source_advice_id": context_pack.advice.advice_id,
                 "source_advice_applied": False,
+                "source_content_policy_decision_id": (
+                    context_pack.content_policy_decision.policy_decision_id
+                    if context_pack.content_policy_decision is not None
+                    else ""
+                ),
+                "content_policy_action_applied": (
+                    context_pack.content_policy_decision is not None
+                ),
                 "memory_entry_id": memory_entry.entry_id,
                 "memory_persisted": memory_persisted,
                 "task_event_ids": list(task_event_ids),
@@ -725,6 +971,14 @@ class VentureBrainController:
                 environment_outcome_id=environment_outcome_id,
                 learning_route=route,
                 settlement_state=settlement_state,
+                source_content_policy_decision_id=(
+                    context_pack.content_policy_decision.policy_decision_id
+                    if context_pack.content_policy_decision is not None
+                    else ""
+                ),
+                content_policy_action_applied=(
+                    context_pack.content_policy_decision is not None
+                ),
             )
             ledger.outcomes_by_outcome_id[report.outcome_id] = _OutcomeLineage(
                 report_digest=report_digest,
@@ -734,6 +988,204 @@ class VentureBrainController:
                 ledger.pending_environment_outcome_id = environment_outcome_id
             self._trim_outcomes(ledger)
             return receipt, True
+
+    def _restore_policy_checkpoint(
+        self,
+        *,
+        session: LifeformSession,
+        request: VentureContextRequest,
+        timestamp_ms: int,
+    ) -> BoundedContentPolicyCheckpoint:
+        scope_facets = _content_policy_scope_facets(request)
+        retrieval = session.retrieve_memory(
+            RetrievalQuery(
+                text="venture content position policy checkpoint",
+                track=Track.WORLD,
+                strata=(MemoryStratum.EPISODIC, MemoryStratum.DURABLE),
+                limit=80,
+                facets=("venture-content-policy-checkpoint", *scope_facets),
+            ),
+            timestamp_ms=timestamp_ms,
+        )
+        checkpoints: list[BoundedContentPolicyCheckpoint] = []
+        for entry in retrieval.entries:
+            if "venture-content-policy-checkpoint" not in entry.tags or any(
+                facet not in entry.tags for facet in scope_facets
+            ):
+                continue
+            try:
+                payload = json.loads(entry.content)
+            except json.JSONDecodeError as exc:
+                raise VentureBrainMemoryContractError(
+                    f"content policy checkpoint {entry.entry_id!r} is not JSON"
+                ) from exc
+            if not isinstance(payload, dict) or set(payload) != {
+                "schema_version",
+                "portfolio_id",
+                "venture_id",
+                "checkpoint",
+            }:
+                raise VentureBrainMemoryContractError(
+                    f"content policy checkpoint {entry.entry_id!r} has invalid shape"
+                )
+            if payload["schema_version"] != "venture-content-policy-memory-record.v1":
+                raise VentureBrainMemoryContractError(
+                    f"content policy checkpoint {entry.entry_id!r} has unsupported schema"
+                )
+            if (
+                payload["portfolio_id"] != request.portfolio_id
+                or payload["venture_id"] != request.venture_id
+            ):
+                raise VentureBrainMemoryContractError(
+                    "Venture content policy scope does not match retrieval facets"
+                )
+            checkpoint_payload = payload["checkpoint"]
+            if not isinstance(checkpoint_payload, dict):
+                raise VentureBrainMemoryContractError(
+                    f"content policy checkpoint {entry.entry_id!r} payload is invalid"
+                )
+            try:
+                checkpoint = BoundedContentPolicyCheckpoint.from_json(
+                    checkpoint_payload
+                )
+            except (TypeError, ValueError) as exc:
+                raise VentureBrainMemoryContractError(
+                    f"content policy checkpoint {entry.entry_id!r} violates contract: {exc}"
+                ) from exc
+            if checkpoint.artifact_id != _CONTENT_POLICY_ARTIFACT_ID:
+                raise VentureBrainMemoryContractError(
+                    "Venture content policy artifact id mismatch"
+                )
+            checkpoints.append(checkpoint)
+        if not checkpoints:
+            checkpoint = default_bounded_content_policy_checkpoint(
+                artifact_id=_CONTENT_POLICY_ARTIFACT_ID,
+                feature_order=_CONTENT_POLICY_FEATURE_ORDER,
+            )
+            self._persist_policy_checkpoint(
+                session=session,
+                request=request,
+                checkpoint=checkpoint,
+                timestamp_ms=timestamp_ms,
+            )
+            return checkpoint
+        maximum_update_count = max(item.update_count for item in checkpoints)
+        latest = tuple(
+            item for item in checkpoints if item.update_count == maximum_update_count
+        )
+        if len({item.checkpoint_id for item in latest}) != 1:
+            raise VentureBrainMemoryContractError(
+                "Venture content policy has divergent checkpoints at one update count"
+            )
+        return latest[0]
+
+    @staticmethod
+    def _persist_policy_checkpoint(
+        *,
+        session: LifeformSession,
+        request: VentureContextRequest,
+        checkpoint: BoundedContentPolicyCheckpoint,
+        timestamp_ms: int,
+    ) -> None:
+        session.write_memory(
+            MemoryWriteRequest(
+                content=json.dumps(
+                    {
+                        "schema_version": "venture-content-policy-memory-record.v1",
+                        "portfolio_id": request.portfolio_id,
+                        "venture_id": request.venture_id,
+                        "checkpoint": checkpoint.to_json(),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                track=Track.WORLD,
+                stratum=MemoryStratum.EPISODIC,
+                tags=(
+                    "venture-content-policy-checkpoint",
+                    *_content_policy_scope_facets(request),
+                    f"policy-artifact:{checkpoint.artifact_id}",
+                    f"policy-update-count:{checkpoint.update_count}",
+                ),
+                strength=0.95,
+            ),
+            timestamp_ms=timestamp_ms,
+        )
+        session.persist_memory()
+
+    def _settle_policy_update(
+        self,
+        *,
+        session: LifeformSession,
+        ledger: _SessionLedger,
+        result: object,
+        prediction_error: PredictionErrorSnapshot,
+        environment_outcome_id: str,
+        timestamp_ms: int,
+    ) -> tuple[
+        tuple[BoundedContentPolicyCredit, ...],
+        tuple[BoundedContentPolicyUpdateReceipt, ...],
+    ]:
+        lineage = next(
+            (
+                item
+                for item in ledger.outcomes_by_outcome_id.values()
+                if item.receipt.environment_outcome_id == environment_outcome_id
+            ),
+            None,
+        )
+        if lineage is None:
+            raise VentureBrainLineageError(
+                "settled field outcome has no Venture report lineage"
+            )
+        receipt = lineage.receipt
+        if not receipt.source_content_policy_decision_id:
+            return (), ()
+        context_pack = ledger.contexts_by_pack_id.get(receipt.report.context_pack_id)
+        if context_pack is None:
+            raise VentureBrainLineageError(
+                "policy settlement Context Pack is absent from the live ledger"
+            )
+        decision = context_pack.content_policy_decision
+        if decision is None:
+            raise VentureBrainLineageError(
+                "policy-bearing outcome references Context Pack without a decision"
+            )
+        if (
+            receipt.source_content_policy_decision_id != decision.policy_decision_id
+            or not receipt.content_policy_action_applied
+        ):
+            raise VentureBrainLineageError(
+                "Venture outcome content policy application lineage mismatch"
+            )
+        scope = _content_policy_scope(context_pack.request)
+        checkpoint = ledger.policy_checkpoints_by_scope.get(scope)
+        if checkpoint is None:
+            raise RuntimeError("Venture content policy checkpoint is unavailable")
+        if checkpoint.checkpoint_id != decision.checkpoint_id:
+            raise VentureBrainLineageError(
+                "Venture content policy checkpoint advanced outside exact settlement"
+            )
+        credit = _settled_content_policy_credit(
+            prediction_error=prediction_error,
+            credit_snapshot=_credit_snapshot(result),
+            decision=decision,
+            environment_outcome_id=environment_outcome_id,
+        )
+        next_checkpoint, update = self._content_policy.observe_credit(
+            checkpoint=checkpoint,
+            decision=decision,
+            credit=credit,
+        )
+        ledger.policy_checkpoints_by_scope[scope] = next_checkpoint
+        self._persist_policy_checkpoint(
+            session=session,
+            request=context_pack.request,
+            checkpoint=next_checkpoint,
+            timestamp_ms=timestamp_ms,
+        )
+        return (credit,), (update,)
 
     def drop_session(self, session_id: str) -> None:
         """Discard bounded product lineage for a closed live session."""

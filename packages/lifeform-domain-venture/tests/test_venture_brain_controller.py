@@ -409,6 +409,186 @@ async def test_identity_scoped_outcome_is_recalled_across_sessions(tmp_path) -> 
     assert "rejected the renewal price" in recalled.rendered_context
 
 
+async def test_content_position_policy_settles_exact_field_credit() -> None:
+    controller = VentureBrainController()
+    session = _session(session_id="venture-content-policy")
+    first = await controller.build_context_pack(
+        session=session,
+        request=_request(),
+        generated_at_ms=1_000,
+    )
+    for index in range(2):
+        await controller.record_outcome(
+            session=session,
+            report=_report(
+                context_pack_id=first.context_pack_id,
+                outcome_id=f"policy-memory-{index}",
+                outcome_kind="customer_outcome",
+                role="customer_outcome",
+                verdict="mixed",
+                detail=f"Memory-only customer observation {index}",
+            ),
+        )
+
+    policy_pack = await controller.build_context_pack(
+        session=session,
+        request=_request(
+            request_id="policy-request-2",
+            decision_id="policy-decision-2",
+            cycle_id="policy-cycle-2",
+        ),
+        generated_at_ms=1_100,
+    )
+    decision = policy_pack.content_policy_decision
+    assert decision is not None
+    assert policy_pack.source_entry_ids == decision.output_entry_ids
+    assert VentureContextPackSnapshot.from_json(policy_pack.to_json()) == policy_pack
+    receipt = await controller.record_outcome(
+        session=session,
+        report=_report(
+            context_pack_id=policy_pack.context_pack_id,
+            outcome_id="policy-field-result",
+            decision_id="policy-decision-2",
+            detail="The policy-positioned Context Pack preceded this field aggregate.",
+        ),
+    )
+    assert receipt.source_content_policy_decision_id == decision.policy_decision_id
+    assert receipt.content_policy_action_applied is True
+
+    settled = await controller.build_context_pack(
+        session=session,
+        request=_request(
+            request_id="policy-request-3",
+            decision_id="policy-decision-3",
+            cycle_id="policy-cycle-3",
+        ),
+        generated_at_ms=1_200,
+    )
+
+    assert len(settled.settled_policy_credits) == 1
+    assert len(settled.policy_updates) == 1
+    assert (
+        settled.settled_policy_credits[0].policy_decision_id
+        == decision.policy_decision_id
+    )
+    assert settled.policy_updates[0].update_count == 1
+
+
+async def test_content_position_policy_can_be_disabled() -> None:
+    controller = VentureBrainController(
+        content_policy_wiring_level=WiringLevel.DISABLED
+    )
+    session = _session(session_id="venture-content-policy-disabled")
+    first = await controller.build_context_pack(
+        session=session,
+        request=_request(),
+        generated_at_ms=2_000,
+    )
+    for index in range(2):
+        await controller.record_outcome(
+            session=session,
+            report=_report(
+                context_pack_id=first.context_pack_id,
+                outcome_id=f"disabled-memory-{index}",
+                outcome_kind="customer_outcome",
+                role="customer_outcome",
+                verdict="mixed",
+            ),
+        )
+    recalled = await controller.build_context_pack(
+        session=session,
+        request=_request(
+            request_id="disabled-request-2",
+            decision_id="disabled-decision-2",
+            cycle_id="disabled-cycle-2",
+        ),
+        generated_at_ms=2_100,
+    )
+
+    assert recalled.content_policy_wiring_level is WiringLevel.DISABLED
+    assert recalled.content_policy_decision is None
+    assert len(recalled.source_entry_ids) == 2
+
+
+async def test_updated_content_policy_checkpoint_restores_across_sessions(
+    tmp_path,
+) -> None:
+    identity = StaticIdentityProvider(
+        identity=UserIdentity(user_id="foundry-policy", scope_key="foundry-policy")
+    )
+    config = LifeformConfig(
+        brain_config=BrainConfig(memory_scope_root_dir=str(tmp_path))
+    )
+    first_lifeform = build_venture_lifeform(
+        config=config,
+        identity_provider=identity,
+    )
+    first_session = first_lifeform.create_session(session_id="policy-session-a")
+    first_controller = VentureBrainController()
+    first = await first_controller.build_context_pack(
+        session=first_session,
+        request=_request(),
+        generated_at_ms=3_000,
+    )
+    for index in range(2):
+        await first_controller.record_outcome(
+            session=first_session,
+            report=_report(
+                context_pack_id=first.context_pack_id,
+                outcome_id=f"restored-memory-{index}",
+                outcome_kind="customer_outcome",
+                role="customer_outcome",
+                verdict="mixed",
+            ),
+        )
+    policy_pack = await first_controller.build_context_pack(
+        session=first_session,
+        request=_request(
+            request_id="restore-request-2",
+            decision_id="restore-decision-2",
+            cycle_id="restore-cycle-2",
+        ),
+        generated_at_ms=3_100,
+    )
+    assert policy_pack.content_policy_decision is not None
+    await first_controller.record_outcome(
+        session=first_session,
+        report=_report(
+            context_pack_id=policy_pack.context_pack_id,
+            outcome_id="restore-field-result",
+            decision_id="restore-decision-2",
+        ),
+    )
+    settled = await first_controller.build_context_pack(
+        session=first_session,
+        request=_request(
+            request_id="restore-request-3",
+            decision_id="restore-decision-3",
+            cycle_id="restore-cycle-3",
+        ),
+        generated_at_ms=3_200,
+    )
+    assert settled.policy_updates[0].update_count == 1
+
+    second_lifeform = build_venture_lifeform(
+        config=config,
+        identity_provider=identity,
+    )
+    second_session = second_lifeform.create_session(session_id="policy-session-b")
+    restored = await VentureBrainController().build_context_pack(
+        session=second_session,
+        request=_request(
+            request_id="restore-request-b",
+            decision_id="restore-decision-b",
+            cycle_id="restore-cycle-b",
+        ),
+        generated_at_ms=3_300,
+    )
+
+    assert restored.content_policy_decision is not None
+    assert restored.content_policy_decision.checkpoint_update_count == 1
+
+
 def test_venture_controller_uses_facades_not_owner_stores() -> None:
     package_root = Path(__file__).parents[1] / "src" / "lifeform_domain_venture"
     forbidden_attributes = {"runner", "memory_store", "semantic_state_store", "prediction_error_module"}

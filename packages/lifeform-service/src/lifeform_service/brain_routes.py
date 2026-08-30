@@ -285,18 +285,27 @@ def _venture_capabilities() -> VerticalBrainCapabilityManifest:
         readable=_shared_read_axis(vertical="Venture"),
         learnable=BrainCapabilityAxis(
             status="active",
-            mechanism="Foundry-qualified field aggregates settle through the shared PE path",
+            mechanism=(
+                "Foundry-qualified field aggregates exact-join PE credit and "
+                "update the CMS-backed bounded content checkpoint"
+            ),
             boundary="simulation, judge, adoption and gross revenue are not learning sources",
         ),
         steerable=BrainCapabilityAxis(
-            status="shadow",
-            mechanism="typed advisor candidates remain a comparison-only projection",
-            boundary="Foundry retains every decision and actuator; no ACTIVE learned gate",
+            status="active",
+            mechanism=(
+                "bounded content positioning promotes at most one recalled entry "
+                "or preserves strict owner-order NOOP"
+            ),
+            boundary=(
+                "typed advisor candidates remain SHADOW; Foundry retains every "
+                "commercial decision and actuator"
+            ),
         ),
         shared_lifeform_kernel=True,
-        shared_bounded_policy=False,
+        shared_bounded_policy=True,
         maximum_advice_scope="shadow",
-        claim_scope="partial_four_axis_mechanism_no_active_steering",
+        claim_scope="active_bounded_content_position_no_residual_or_advice_actuation",
     )
 
 

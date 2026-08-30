@@ -15,6 +15,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from lifeform_core import (
+    BoundedContentPolicyCredit,
+    BoundedContentPolicyDecision,
+    BoundedContentPolicyUpdateReceipt,
+)
 from volvence_zero.runtime import WiringLevel
 
 
@@ -1422,6 +1427,10 @@ class VentureContextPackSnapshot:
     pe_magnitude: float
     pe_bootstrap: bool
     advice: VentureAdviceSnapshot
+    content_policy_decision: BoundedContentPolicyDecision | None = None
+    settled_policy_credits: tuple[BoundedContentPolicyCredit, ...] = ()
+    policy_updates: tuple[BoundedContentPolicyUpdateReceipt, ...] = ()
+    content_policy_wiring_level: WiringLevel = WiringLevel.ACTIVE
     wiring_level: WiringLevel = WiringLevel.ACTIVE
 
     def __post_init__(self) -> None:
@@ -1484,6 +1493,40 @@ class VentureContextPackSnapshot:
             raise ValueError("pe_bootstrap must be a boolean")
         if not isinstance(self.advice, VentureAdviceSnapshot):
             raise ValueError("advice must be a VentureAdviceSnapshot")
+        if self.content_policy_decision is not None and not isinstance(
+            self.content_policy_decision,
+            BoundedContentPolicyDecision,
+        ):
+            raise ValueError(
+                "content_policy_decision must be a BoundedContentPolicyDecision"
+            )
+        _require_typed_tuple(
+            "settled_policy_credits",
+            self.settled_policy_credits,
+            item_type=BoundedContentPolicyCredit,
+            max_items=1,
+        )
+        _require_typed_tuple(
+            "policy_updates",
+            self.policy_updates,
+            item_type=BoundedContentPolicyUpdateReceipt,
+            max_items=1,
+        )
+        if len(self.settled_policy_credits) != len(self.policy_updates):
+            raise ValueError("each settled content policy credit requires one update")
+        if self.content_policy_wiring_level not in {
+            WiringLevel.ACTIVE,
+            WiringLevel.DISABLED,
+        }:
+            raise ValueError("Venture content policy must be ACTIVE or DISABLED")
+        if self.content_policy_wiring_level is WiringLevel.DISABLED and any(
+            (
+                self.content_policy_decision is not None,
+                self.settled_policy_credits,
+                self.policy_updates,
+            )
+        ):
+            raise ValueError("DISABLED content policy cannot publish policy lineage")
         if self.wiring_level is not WiringLevel.ACTIVE:
             raise ValueError("Venture Context Pack must be WiringLevel.ACTIVE")
 
@@ -1511,6 +1554,10 @@ class VentureContextPackSnapshot:
                 "pe_magnitude",
                 "pe_bootstrap",
                 "advice",
+                "content_policy_decision",
+                "settled_policy_credits",
+                "policy_updates",
+                "content_policy_wiring_level",
                 "wiring_level",
             }
         )
@@ -1543,6 +1590,36 @@ class VentureContextPackSnapshot:
             pe_magnitude=payload["pe_magnitude"],
             pe_bootstrap=payload["pe_bootstrap"],
             advice=VentureAdviceSnapshot.from_json(_mapping("advice", payload["advice"])),
+            content_policy_decision=(
+                BoundedContentPolicyDecision.from_json(
+                    _mapping(
+                        "content_policy_decision",
+                        payload["content_policy_decision"],
+                    )
+                )
+                if payload["content_policy_decision"] is not None
+                else None
+            ),
+            settled_policy_credits=tuple(
+                BoundedContentPolicyCredit.from_json(
+                    _mapping("settled_policy_credits[]", item)
+                )
+                for item in _array(
+                    "settled_policy_credits",
+                    payload["settled_policy_credits"],
+                )
+            ),
+            policy_updates=tuple(
+                BoundedContentPolicyUpdateReceipt.from_json(
+                    _mapping("policy_updates[]", item)
+                )
+                for item in _array("policy_updates", payload["policy_updates"])
+            ),
+            content_policy_wiring_level=_closed_enum(
+                WiringLevel,
+                "content_policy_wiring_level",
+                payload["content_policy_wiring_level"],
+            ),
             wiring_level=_closed_enum(WiringLevel, "wiring_level", payload["wiring_level"]),
         )
         digest_payload = snapshot.to_json()
@@ -1574,6 +1651,18 @@ class VentureContextPackSnapshot:
             "pe_magnitude": float(self.pe_magnitude),
             "pe_bootstrap": self.pe_bootstrap,
             "advice": self.advice.to_json(),
+            "content_policy_decision": (
+                self.content_policy_decision.to_json()
+                if self.content_policy_decision is not None
+                else None
+            ),
+            "settled_policy_credits": [
+                item.to_json() for item in self.settled_policy_credits
+            ],
+            "policy_updates": [item.to_json() for item in self.policy_updates],
+            "content_policy_wiring_level": (
+                self.content_policy_wiring_level.value
+            ),
             "wiring_level": self.wiring_level.value,
         }
 
@@ -1597,6 +1686,8 @@ class VentureOutcomeReceipt:
     environment_outcome_id: str
     learning_route: VentureOutcomeRoute
     settlement_state: VentureSettlementState
+    source_content_policy_decision_id: str = ""
+    content_policy_action_applied: bool = False
 
     def __post_init__(self) -> None:
         _require_content_id(
@@ -1641,6 +1732,19 @@ class VentureOutcomeReceipt:
             raise ValueError("learning_route must be a VentureOutcomeRoute")
         if not isinstance(self.settlement_state, VentureSettlementState):
             raise ValueError("settlement_state must be a VentureSettlementState")
+        _require_optional_text(
+            "source_content_policy_decision_id",
+            self.source_content_policy_decision_id,
+            max_length=256,
+        )
+        if not isinstance(self.content_policy_action_applied, bool):
+            raise ValueError("content_policy_action_applied must be a boolean")
+        if self.content_policy_action_applied != bool(
+            self.source_content_policy_decision_id
+        ):
+            raise ValueError(
+                "content policy application requires exact decision lineage"
+            )
         if self.report.pe_eligible:
             if self.learning_route is not VentureOutcomeRoute.FIELD_PE_MEMORY_AND_EXECUTION_RESULT:
                 raise ValueError("field_experiment_result must use the PE route")
@@ -1678,6 +1782,8 @@ class VentureOutcomeReceipt:
                 "environment_outcome_id",
                 "learning_route",
                 "settlement_state",
+                "source_content_policy_decision_id",
+                "content_policy_action_applied",
             }
         )
         _strict_payload(payload, allowed=fields, required=fields)
@@ -1709,6 +1815,12 @@ class VentureOutcomeReceipt:
                 "settlement_state",
                 payload["settlement_state"],
             ),
+            source_content_policy_decision_id=payload[
+                "source_content_policy_decision_id"
+            ],
+            content_policy_action_applied=payload[
+                "content_policy_action_applied"
+            ],
         )
         digest_payload = receipt.to_json()
         digest_payload.pop("receipt_id")
@@ -1737,6 +1849,10 @@ class VentureOutcomeReceipt:
             "environment_outcome_id": self.environment_outcome_id,
             "learning_route": self.learning_route.value,
             "settlement_state": self.settlement_state.value,
+            "source_content_policy_decision_id": (
+                self.source_content_policy_decision_id
+            ),
+            "content_policy_action_applied": self.content_policy_action_applied,
         }
 
 

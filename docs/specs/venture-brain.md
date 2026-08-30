@@ -1,6 +1,6 @@
 # Venture Brain v1 产品契约 Spec
 
-> Status: implemented v1
+> Status: implemented v1 + shared bounded content policy
 > Last updated: 2026-08-30
 > Owner: `lifeform-domain-venture`
 > Service projection: `lifeform-service`
@@ -26,7 +26,9 @@ Venture Brain 不是另一个 Foundry，也不是商业 actuator。权威边界�
 Foundry 已确认事实 + evidence refs + 决策点/约束/预算/窗口
   -> VentureContextRequest
   -> 普通 Lifeform turn（结算上一批合格 field outcome）
+  -> exact PE + 四轴 credit 结算上一拍内容策略并写回 CMS checkpoint
   -> Memory owner 的 identity-scoped episodic/durable retrieval
+  -> 共享有界内容策略：最多提升一个非首位 entry，否则 strict noop
   -> VentureContextPackSnapshot [ACTIVE]
        + VentureAdviceSnapshot [SHADOW, applied=false]
   -> Foundry 自己资格审查、审批、执行、Accounting 和状态转换
@@ -46,6 +48,8 @@ v1 包含：
   拒绝未知字段、未知 enum 和非法 evidence-class/outcome-kind pair；
 - Context Pack 可 `ACTIVE`，但只由 Foundry typed request 与 owner-published memory/PE readout
   构成；Advice 在 v1 永久 `SHADOW` 且 `applied=false`；
+- portfolio+venture-scoped 内容策略 checkpoint 经 Memory owner 跨 session 恢复；策略只读
+  owner 顺序、strength/age/stratum 与当前 PE typed feature，不解析 memory/report 文本；
 - request/outcome 幂等、同 key 不同 immutable payload 冲突、同 live session lineage；
 - 同 identity 跨 session 召回与下一 Context Pack 的 outcome/PE settlement lineage；
 - `lifeform-service` 两条薄 HTTP 投影及 venture/historical session guard。
@@ -69,10 +73,10 @@ v1 明确不包含：
 | 对象 | schema | 核心语义 |
 |---|---|---|
 | `VentureContextRequest` | `venture-context-request.v1` | portfolio/cycle/venture/decision identity、closed decision point、confirmed facts、constraints、resource window、uncertainties、typed evidence refs |
-| `VentureContextPackSnapshot` | `venture-context-pack.v1` | content-addressed ACTIVE pack、实际渲染的跨周期经历、source entry/evidence ids、当前不确定性、PE settlement lineage、独立 SHADOW advice |
+| `VentureContextPackSnapshot` | `venture-context-pack.v1` | content-addressed ACTIVE pack、实际渲染的跨周期经历、source entry/evidence ids、当前不确定性、PE settlement 与 content policy decision/credit/update lineage、独立 SHADOW advice |
 | `VentureAdviceSnapshot` | `venture-advice.v1` | opportunity/comparison/experiment/stop 候选、预测区间、证伪条件、evidence/memory lineage；固定 SHADOW、未应用 |
 | `VentureOutcomeReport` | `venture-outcome-report.v1` | Foundry 事后提交的 typed decision、evidence class/kind、verdict、外部引用、多目标结果 |
-| `VentureOutcomeReceipt` | `venture-outcome-receipt.v1` | content-addressed 写入回执、memory/event/environment lineage、学习 route、下一拍结算状态、`source_advice_applied=false` |
+| `VentureOutcomeReceipt` | `venture-outcome-receipt.v1` | content-addressed 写入回执、memory/event/environment lineage、content policy application lineage、学习 route、下一拍结算状态、`source_advice_applied=false` |
 
 ### 3.1 `VentureContextRequest`
 
@@ -158,9 +162,11 @@ Advice 的 estimate range 或模拟器自己的证据 artifact，绝不能填入
    query text 只用于 owner retrieval，不做 evidence/route 分类；
 5. 只解析带精确 `venture-brain` tag 的 canonical
    `venture-experience-record.v1`；venture-tagged 记录损坏时 fail loudly；
-6. 在 `max_context_chars` 边界内按 Memory owner 顺序渲染，并发布实际使用的
-   `source_entry_ids / source_evidence_ref_ids`；无召回时发布明确空状态；
-7. snapshot 使用 `WiringLevel.ACTIVE`。它可以由 Foundry adapter 注入其规划上下文，但不包含
+6. 内容策略用 owner rank、strength、recency、durable indicator 与当前 PE magnitude 五维 typed
+   feature，对非首位 entries 排序；最多提升一个到首位，NOOP 时 byte-exact 保留 owner 顺序；
+7. 在 `max_context_chars` 边界内按策略输出顺序渲染，并发布实际使用的
+   `source_entry_ids / source_evidence_ref_ids` 与 decision/checkpoint lineage；无召回时发布明确空状态；
+8. snapshot 使用 `WiringLevel.ACTIVE`。它可以由 Foundry adapter 注入其规划上下文，但不包含
    SHADOW Advice 的任何候选文本。
 
 Memory entry、检索排序、scope、promotion/decay、checkpoint 与恢复仍唯一属于 `vz-memory`。
@@ -191,7 +197,16 @@ measurement unit 固定为 `foundry_multiobjective_verdict.v1`，并携带 Found
 标量。PE owner 在**下一次新 Context Pack turn** 结算，pack 发布
 `settled_outcome_ids / settled_evidence_ref_ids / pe_magnitude / pe_bootstrap`。
 
-### 4.3 Advice：Steerable 的诚实边界
+若该 field aggregate 引用的 Context Pack 发布内容策略 decision，controller 还把 decision 的
+`source_prediction_id` 写入正式 EnvironmentOutcome。下一拍同时校验 environment outcome、evaluated
+prediction、CreditSnapshot 最近完整四轴 PE 组和 checkpoint id，才允许更新并把新 checkpoint 追加
+回 CMS。simulation/internal_review/machine_check 与单项 field lane 只积累经验，不产生策略 credit。
+
+### 4.3 内容择位与 Advice：Steerable 的诚实边界
+
+内容择位是 Context Pack 内的 ACTIVE、有界干预：输入 entry 集合不变，每拍至多移动一个 entry；
+`content_policy_wiring_level=DISABLED` 是单字段回滚，禁用后恢复 Memory owner 原顺序且不发布
+decision/credit/update。它不改变 Foundry 的商业决策、预算、审批或 actuator 权威。
 
 注入的 `VentureAdviceProvider` 只能返回 frozen `VentureAdviceCandidate`：
 
@@ -249,7 +264,7 @@ Foundry 后续 adapter 应遵循以下顺序：
 1. Foundry 自己完成 source/evidence 校验、资格门与授权，再构造完整
    `venture-context-request.v1`。不要发送私有 ledger、凭据、原文秘密或让 Venture Brain猜 class；
 2. 保存响应的 `context_pack_id / content_sha256 / source_entry_ids /
-   source_evidence_ref_ids / advice.advice_id` 到 Foundry 自己的 adapter lineage；只有
+   source_evidence_ref_ids / content_policy_decision / advice.advice_id` 到 Foundry 自己的 adapter lineage；只有
    `rendered_context` 可作为 ACTIVE planning context，`advice` 只展示或离线比较；
 3. Foundry 做出决定并经原有审批/预算/外部动作链执行；Venture Brain 不在该路径上；
 4. 事后由 Foundry 构造 `venture-outcome-report.v1`：每个 evidence ref 提供 Foundry opaque
@@ -271,8 +286,8 @@ session 同时只能有一个待结算 aggregate。这避免 delayed commercial 
 |---|---|---|
 | Appendable | typed report 追加 scoped episodic memory；配置持久 backend 后跨 session 恢复 | 无 backend 时 Receipt 明示 `memory_persisted=false`；不等于 Foundry ledger |
 | Readable | Context Pack 只读 immutable Memory entries 与同拍 PE snapshot，并发布 source/settlement lineage | 无召回不重建隐藏状态；损坏 canonical record fail loudly |
-| Learnable | 仅 Foundry-qualified field aggregate 走 EnvironmentOutcome→PE；其他 lane 保留 memory/execution | simulation/review/machine/单项 field/LLM judge/采纳/build/deploy/gross revenue 不作 reward |
-| Steerable | Context Pack 可 ACTIVE 地改变下一周期可见经验；Advice 仅 SHADOW | 不证明 production ACTIVE advice；Foundry 可停止消费 pack 立即回滚 |
+| Learnable | 仅 Foundry-qualified field aggregate 走 EnvironmentOutcome→PE，并 exact-join 最近完整四轴 credit 更新 CMS-backed 内容 checkpoint | simulation/review/machine/单项 field/LLM judge/采纳/build/deploy/gross revenue 不作 reward |
+| Steerable | Context Pack 有界内容择位最多提升一个 entry，否则 strict noop；Advice 仅 SHADOW | `content_policy_wiring_level=DISABLED` 恢复 owner 顺序；不证明 residual/production ACTIVE advice |
 
 ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed outcome 再使 PE 可结算，因而闭环
 结构成立；商业 uplift、market validation 或“会赚钱”仍需 Foundry 自己的 loop-external evidence，不能
@@ -281,6 +296,7 @@ ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed
 ## 8. 退出、回滚与残余风险
 
 - 最小回滚：Foundry adapter 停止消费 Context Pack；Advice 本来就是 SHADOW；
+- 策略回滚：`content_policy_wiring_level=DISABLED`，不删历史 checkpoint，重新启用可从 CMS 恢复；
 - service 回滚：取消 venture routes 与 vertical discovery，不影响普通 turns、Coding Brain 或其他
   vertical；
 - learning 回滚：不提交 typed report 即不产生新 memory/event/outcome；已提交 experience append-only，
@@ -297,7 +313,7 @@ ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed
 - contract：version、unknown field、closed enum/pair/role、金额算术、ACTIVE/SHADOW guard；
 - controller：request/outcome 幂等与冲突、same-session/latest-pack lineage、bounded ledger；
 - recall：同 identity 新 session 召回 canonical outcome；
-- learning：下一 pack 发布 field aggregate 的 environment/evidence/PE lineage，其他 lane 无 PE；
+- learning：下一 pack 发布 field aggregate 的 environment/evidence/PE 与 exact policy credit/update lineage，其他 lane 无 PE；
 - isolation：Advice marker 永不进入 ACTIVE context，domain code 不访问 owner store；
 - service：201/200、400/404/409、非 venture 与 historical session boundary；
 - regression：相关 contracts、service、wheel boundary 与 repo static checks。
