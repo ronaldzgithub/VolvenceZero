@@ -215,6 +215,13 @@ v2 policy 学习再增加以下不可绕过的 join：
    每条 credit 只消费一次，参数受 `max_abs_parameter` 约束；
 6. evaluation、benchmark verdict、Advice adoption、LLM judge 和 AutoCompany planner score 没有进入 update API。
 
+排序、择时与参数更新的纯数值部分复用 `lifeform-core` 的
+`bounded_policy`：vertical adapter 只把本 owner 已冻结的
+`candidate_id / action_key / feature_values` 与 checkpoint 投影进去，输出排名、干预概率和有界参数差分。
+`bounded_policy` 不读取 `OperationsStateSnapshot`、自然语言、evidence、authority 或 outcome，也不持久化
+checkpoint；这些语义、exact PE/credit join 与 checkpoint owner 仍唯一属于
+`lifeform-domain-operations`。因此该抽取是可复用执行数学，不是第二个 Operations policy owner。
+
 ### 4.3 多周期证据与晋升
 
 `scripts/run_operations_policy_benchmark.py` 运行固定 seed、固定 typed scenario set、720 个训练周期与 120 个

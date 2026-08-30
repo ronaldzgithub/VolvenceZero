@@ -6,6 +6,14 @@ direction is enforced by ``tests/contracts/test_import_boundaries.py``.
 
 from __future__ import annotations
 
+from lifeform_core.bounded_policy import (
+    BoundedPolicyCandidate,
+    BoundedPolicyDecision,
+    BoundedPolicyRankedCandidate,
+    BoundedPolicyUpdate,
+    apply_bounded_policy_credit,
+    rank_and_gate_bounded_policy,
+)
 from lifeform_core.external_llm import (
     LlmJsonClient,
     OpenAiCompatConfig,
@@ -38,6 +46,10 @@ from volvence_zero.dialogue_trace import (
 )
 
 __all__ = (
+    "BoundedPolicyCandidate",
+    "BoundedPolicyDecision",
+    "BoundedPolicyRankedCandidate",
+    "BoundedPolicyUpdate",
     "DriveLevel",
     "DriveSpec",
     "DialogueExternalOutcomeEvidenceSource",
@@ -63,4 +75,6 @@ __all__ = (
     "VitalsBootstrap",
     "VitalsModule",
     "VitalsSnapshot",
+    "apply_bounded_policy_credit",
+    "rank_and_gate_bounded_policy",
 )

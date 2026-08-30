@@ -9,7 +9,14 @@ language is never parsed here: every feature is reduced from the frozen typed
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+
+from lifeform_core import (
+    BoundedPolicyCandidate,
+    BoundedPolicyDecision,
+    BoundedPolicyRankedCandidate,
+    apply_bounded_policy_credit,
+    rank_and_gate_bounded_policy,
+)
 
 from volvence_zero.credit import CreditRecord, CreditSnapshot
 from volvence_zero.prediction import PredictionErrorSnapshot
@@ -137,23 +144,6 @@ _INITIAL_INTERVENTION_WEIGHTS = (
 
 def _clamp(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
     return max(lower, min(upper, float(value)))
-
-
-def _sigmoid(value: float) -> float:
-    if value >= 0.0:
-        scale = math.exp(-value)
-        return 1.0 / (1.0 + scale)
-    scale = math.exp(value)
-    return scale / (1.0 + scale)
-
-
-def _softmax(values: tuple[float, ...]) -> tuple[float, ...]:
-    if not values:
-        raise ValueError("softmax requires values")
-    maximum = max(values)
-    exponentials = tuple(math.exp(value - maximum) for value in values)
-    denominator = math.fsum(exponentials)
-    return tuple(value / denominator for value in exponentials)
 
 
 def default_operations_policy_checkpoint() -> OperationsPolicyCheckpoint:
@@ -493,16 +483,11 @@ class OperationsPolicy:
         current = checkpoint or default_operations_policy_checkpoint()
         if current.artifact_id != OPERATIONS_POLICY_ARTIFACT_ID:
             raise ValueError("Operations policy artifact mismatch")
-        action_weights = {
-            OperationsAdviceKind(name): weights
-            for name, weights in current.action_weights
-        }
         source_entry_ids = tuple(
             item.memory_entry_id for item in recalled_experiences[:5]
         )
-        generated: list[
-            tuple[OperationsAdviceCandidate, tuple[float, ...], float]
-        ] = []
+        generated: list[OperationsAdviceCandidate] = []
+        policy_candidates: list[BoundedPolicyCandidate] = []
         for division_id in request.division_ids:
             features = _division_features(request, division_id)
             for kind in OperationsAdviceKind:
@@ -514,60 +499,52 @@ class OperationsPolicy:
                     features=features,
                     source_entry_ids=source_entry_ids,
                 )
-                score = math.fsum(
-                    weight * value
-                    for weight, value in zip(
-                        action_weights[kind],
-                        features,
-                        strict=True,
+                generated.append(candidate)
+                policy_candidates.append(
+                    BoundedPolicyCandidate(
+                        candidate_id=candidate.candidate_id,
+                        action_key=kind.value,
+                        feature_values=features,
                     )
                 )
-                generated.append((candidate, features, score))
-        generated.sort(key=lambda item: (-item[2], item[0].candidate_id))
         limit = min(
             len(generated),
             32,
             request.operating_window.maximum_work_orders,
         )
-        selected_pool = tuple(generated[:limit])
-        probabilities = _softmax(tuple(item[2] for item in selected_pool))
+        shared_decision = rank_and_gate_bounded_policy(
+            candidates=tuple(policy_candidates),
+            action_weights=current.action_weights,
+            intervention_weights=current.intervention_weights,
+            intervention_bias=current.intervention_bias,
+            maximum_candidates=limit,
+            intervention_enabled=mode is not OperationsPolicyMode.NOOP,
+        )
+        candidates_by_id = {item.candidate_id: item for item in generated}
         ranked = tuple(
             OperationsRankedCandidate(
-                candidate_id=candidate.candidate_id,
-                rank=index,
-                policy_score=score,
-                selection_probability=probability,
+                candidate_id=item.candidate_id,
+                rank=item.rank,
+                policy_score=item.policy_score,
+                selection_probability=item.selection_probability,
                 feature_values=tuple(
-                    zip(OPERATIONS_POLICY_FEATURE_ORDER, features, strict=True)
+                    zip(
+                        OPERATIONS_POLICY_FEATURE_ORDER,
+                        item.feature_values,
+                        strict=True,
+                    )
                 ),
             )
-            for index, ((candidate, features, score), probability) in enumerate(
-                zip(selected_pool, probabilities, strict=True),
-                start=1,
-            )
+            for item in shared_decision.ranked_candidates
         )
-        candidates = tuple(item[0] for item in selected_pool)
-        recommended = candidates[0].candidate_id
-        intervention_features = selected_pool[0][1]
-        intervention_probability = _sigmoid(
-            math.fsum(
-                weight * value
-                for weight, value in zip(
-                    current.intervention_weights,
-                    intervention_features,
-                    strict=True,
-                )
-            )
-            + current.intervention_bias
+        candidates = tuple(
+            candidates_by_id[item.candidate_id]
+            for item in shared_decision.ranked_candidates
         )
         action = (
             OperationsPolicyAction.INTERVENE
-            if mode is not OperationsPolicyMode.NOOP
-            and intervention_probability > 0.5
+            if shared_decision.intervenes
             else OperationsPolicyAction.NOOP
-        )
-        selected_candidate_id = (
-            recommended if action is OperationsPolicyAction.INTERVENE else ""
         )
         decision = OperationsPolicyDecision.create(
             checkpoint_id=current.checkpoint_id,
@@ -576,9 +553,9 @@ class OperationsPolicy:
             source_prediction_id=source_prediction_id,
             mode=mode,
             action=action,
-            recommended_candidate_id=recommended,
-            selected_candidate_id=selected_candidate_id,
-            intervention_probability=intervention_probability,
+            recommended_candidate_id=shared_decision.recommended_candidate_id,
+            selected_candidate_id=shared_decision.selected_candidate_id,
+            intervention_probability=shared_decision.intervention_probability,
             ranked_candidates=ranked,
             rationale_codes=(
                 "inputs:typed-operations-state-only",
@@ -617,76 +594,45 @@ class OperationsPolicy:
         if noop_credit:
             if decision.action is not OperationsPolicyAction.NOOP:
                 raise ValueError("NOOP credit requires a NOOP policy decision")
-            selected_features = tuple(
-                value for _, value in decision.ranked_candidates[0].feature_values
-            )
-            action_indicator = 0.0
         else:
             if decision.action is not OperationsPolicyAction.INTERVENE:
                 raise ValueError("candidate credit requires an INTERVENE decision")
             if credit.candidate_id != decision.selected_candidate_id:
                 raise ValueError("policy credit candidate lineage mismatch")
-            selected_features = tuple(
-                value
-                for _, value in next(
-                    item
-                    for item in decision.ranked_candidates
-                    if item.candidate_id == credit.candidate_id
-                ).feature_values
-            )
-            action_indicator = 1.0
 
-        cap = checkpoint.max_abs_parameter
-        learning_rate = checkpoint.learning_rate
-        credit_value = credit.signed_prediction_error
-        rows = {name: list(weights) for name, weights in checkpoint.action_weights}
-        if not noop_credit:
-            row_gradients: dict[str, list[float]] = defaultdict(
-                lambda: [0.0] * len(OPERATIONS_POLICY_FEATURE_ORDER)
-            )
-            for ranked_candidate in decision.ranked_candidates:
-                candidate = candidates_by_id[ranked_candidate.candidate_id]
-                indicator = 1.0 if candidate.candidate_id == credit.candidate_id else 0.0
-                scale = learning_rate * credit_value * (
-                    indicator - ranked_candidate.selection_probability
+        shared_decision = BoundedPolicyDecision(
+            ranked_candidates=tuple(
+                BoundedPolicyRankedCandidate(
+                    candidate_id=item.candidate_id,
+                    action_key=candidates_by_id[item.candidate_id].kind.value,
+                    rank=item.rank,
+                    policy_score=item.policy_score,
+                    selection_probability=item.selection_probability,
+                    feature_values=tuple(value for _, value in item.feature_values),
                 )
-                for index, (_, feature) in enumerate(
-                    ranked_candidate.feature_values
-                ):
-                    row_gradients[candidate.kind.value][index] += scale * feature
-            for action_name, gradients in row_gradients.items():
-                rows[action_name] = [
-                    max(-cap, min(cap, value + delta))
-                    for value, delta in zip(
-                        rows[action_name],
-                        gradients,
-                        strict=True,
-                    )
-                ]
-
-        intervention_scale = learning_rate * credit_value * (
-            action_indicator - decision.intervention_probability
+                for item in decision.ranked_candidates
+            ),
+            recommended_candidate_id=decision.recommended_candidate_id,
+            selected_candidate_id=decision.selected_candidate_id,
+            intervention_probability=decision.intervention_probability,
+            intervenes=decision.action is OperationsPolicyAction.INTERVENE,
         )
-        next_intervention_weights = tuple(
-            max(-cap, min(cap, weight + intervention_scale * feature))
-            for weight, feature in zip(
-                checkpoint.intervention_weights,
-                selected_features,
-                strict=True,
-            )
-        )
-        next_intervention_bias = max(
-            -cap,
-            min(cap, checkpoint.intervention_bias + intervention_scale),
+        update = apply_bounded_policy_credit(
+            action_weights=checkpoint.action_weights,
+            intervention_weights=checkpoint.intervention_weights,
+            intervention_bias=checkpoint.intervention_bias,
+            decision=shared_decision,
+            credited_candidate_id=credit.candidate_id,
+            noop_candidate_id=OPERATIONS_POLICY_NOOP_CANDIDATE_ID,
+            signed_credit=credit.signed_prediction_error,
+            learning_rate=checkpoint.learning_rate,
+            max_abs_parameter=checkpoint.max_abs_parameter,
         )
         next_checkpoint = OperationsPolicyCheckpoint.create(
             artifact_id=checkpoint.artifact_id,
-            action_weights=tuple(
-                (kind.value, tuple(rows[kind.value]))
-                for kind in OperationsAdviceKind
-            ),
-            intervention_weights=next_intervention_weights,
-            intervention_bias=next_intervention_bias,
+            action_weights=update.action_weights,
+            intervention_weights=update.intervention_weights,
+            intervention_bias=update.intervention_bias,
             learning_rate=checkpoint.learning_rate,
             max_abs_parameter=checkpoint.max_abs_parameter,
             update_count=checkpoint.update_count + 1,
@@ -694,36 +640,13 @@ class OperationsPolicy:
                 (*checkpoint.processed_credit_ids, credit.credit_id)
             ),
         )
-        old_parameters = tuple(
-            value
-            for _, weights in checkpoint.action_weights
-            for value in weights
-        ) + (*checkpoint.intervention_weights, checkpoint.intervention_bias)
-        new_parameters = tuple(
-            value
-            for _, weights in next_checkpoint.action_weights
-            for value in weights
-        ) + (
-            *next_checkpoint.intervention_weights,
-            next_checkpoint.intervention_bias,
-        )
-        delta_l2 = math.sqrt(
-            math.fsum(
-                (after - before) ** 2
-                for before, after in zip(
-                    old_parameters,
-                    new_parameters,
-                    strict=True,
-                )
-            )
-        )
         receipt = OperationsPolicyUpdateReceipt.create(
             credit_id=credit.credit_id,
             policy_decision_id=decision.policy_decision_id,
             candidate_id=credit.candidate_id,
             previous_checkpoint_id=checkpoint.checkpoint_id,
             next_checkpoint_id=next_checkpoint.checkpoint_id,
-            parameter_delta_l2=delta_l2,
+            parameter_delta_l2=update.parameter_delta_l2,
             update_count=next_checkpoint.update_count,
         )
         return next_checkpoint, receipt
