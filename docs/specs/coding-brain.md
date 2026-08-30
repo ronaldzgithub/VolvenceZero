@@ -144,9 +144,17 @@ v1 advisor 只投影同一 source turn 已发布的 `active_regime` 与
 `lifeform-service` 只做 HTTP 投影和 session/vertical guard，不拥有业务状态：
 
 ```text
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
+
+# 兼容别名
 POST /v1/sessions/{session_id}/coding/context-packs
 POST /v1/sessions/{session_id}/coding/outcomes
 ```
+
+新调用方使用与 Venture/Operations 一致的 `/brain/*` 路径；service 由 session vertical 选择 Coding
+adapter，响应 payload 仍是 Coding owner 的原生 schema。公共 transport 与错误契约见
+[vertical-brain-service.md](./vertical-brain-service.md)。
 
 - session 必须由 `vertical="coding"` 创建；其他 vertical 返回 conflict；
 - historical read-only session 拒绝两条写路径；

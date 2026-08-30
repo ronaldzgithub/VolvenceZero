@@ -215,9 +215,17 @@ Foundry ledger。长期经验只在 Memory owner 中。
 先创建 `vertical="venture"` session，再调用：
 
 ```text
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
+
+# 兼容别名
 POST /v1/sessions/{session_id}/venture/context-packs
 POST /v1/sessions/{session_id}/venture/outcomes
 ```
+
+新 Foundry adapter 使用与 Coding/Operations 一致的 `/brain/*` 路径；payload 与 receipt 仍由 Venture
+contract 唯一解释。公共 transport 与错误契约见
+[vertical-brain-service.md](./vertical-brain-service.md)。
 
 成功状态：首次 publication 为 `201`，完全相同的 idempotent replay 为 `200`。失败状态：
 

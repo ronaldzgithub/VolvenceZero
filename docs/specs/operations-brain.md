@@ -256,9 +256,17 @@ Controller 只拥有进程内 live-session 幂等/lineage ledger：默认每 ses
 创建 `vertical="operations"` session 后调用本地 service 路由：
 
 ```text
+POST /v1/sessions/{session_id}/brain/context-packs
+POST /v1/sessions/{session_id}/brain/outcomes
+
+# 兼容别名
 POST /v1/sessions/{session_id}/operations/context-packs
 POST /v1/sessions/{session_id}/operations/outcomes
 ```
+
+新 AutoCompany adapter 使用与 Coding/Venture 一致的 `/brain/*` 路径；payload、policy lineage 与 receipt
+仍由 Operations contract 唯一解释。公共 transport 与错误契约见
+[vertical-brain-service.md](./vertical-brain-service.md)。
 
 首次 publication 返回 `201`，同 payload replay 返回 `200`。错误：
 

@@ -80,6 +80,10 @@ from lifeform_service.operations_brain_routes import (
 from lifeform_service.operations_policy_activation import (
     build_operations_brain_controller_from_env,
 )
+from lifeform_service.brain_routes import (
+    default_vertical_brain_adapters,
+    register_vertical_brain_routes,
+)
 from lifeform_service.msc_runtime_collector import (
     build_msc_runtime_context_payload,
 )
@@ -391,6 +395,14 @@ def create_app(
     register_operations_brain_routes(
         app,
         controller=resolved_operations_controller,
+    )
+    register_vertical_brain_routes(
+        app,
+        adapters=default_vertical_brain_adapters(
+            coding=coding_brain_controller(app),
+            venture=venture_brain_controller(app),
+            operations=get_operations_brain_controller(app),
+        ),
     )
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
