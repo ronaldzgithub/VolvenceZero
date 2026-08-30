@@ -31,6 +31,8 @@ artifacts/relationship_lab/**/*.csv text eol=lf
 # Foundry Research Lab public seam pins the schema bytes in every handoff and fixture.
 forge/schemas/foundry_research_handoff.schema.json text eol=lf
 forge/contracts/foundry_research_lab_seam/v1/*.json text eol=lf
+forge/schemas/foundry_research_handoff_v2.schema.json text eol=lf
+forge/contracts/foundry_research_lab_seam/v2/**/*.json text eol=lf
 
 # Product Horizon development campaigns retain byte-exact full replay traces,
 # which can exceed GitHub's ordinary blob limit. LFS preserves the raw bytes
