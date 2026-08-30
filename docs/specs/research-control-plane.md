@@ -130,12 +130,30 @@ Approval 精确绑定 `request_id + request file SHA-256`，scope 固定为 `pra
 Task、budget、model、run dir 或 executable 任一改变都必须生成新 Request 并重新 A0，不能修改旧
 Approval。
 
-Portfolio task 的 APPROVE 可额外冻结 `execution_policy`：exact Portfolio id/locator/SHA、study、lane、global
-与 lane active-run 上限、`unknown_active_run_policy=BLOCK` 和 `resume_policy=completed_generation`。审批时必须
-复核 Request 的 exact Demand、ResearchTask、task project、Praxist executable、launch profile 和 run root 都与
-该 study 的 registry mapping 一致。未带 execution policy 的 legacy Approval 保持 host-wide 单 active-run。
+Portfolio task 的 APPROVE 必须冻结 `execution_policy`：exact Portfolio id/locator/SHA、study、lane、global 与
+lane active-run 上限、`unknown_active_run_policy=BLOCK` 和 `resume_policy=completed_generation`。Request 只有一个
+registered membership 时由 owner 确定性附加；多个 membership 必须显式选择并失败关闭，不能因 Portal 或 CLI
+省略参数而生成 legacy Approval。审批时必须复核 Request 的 exact Demand、ResearchTask、task project、Praxist
+executable、launch profile 和 run root 都与该 study 的 registry mapping 一致。只有未登记 Request 才保持
+host-wide 单 active-run。
 
-### 4.3 `forge-research-control-event.v1`
+### 4.3 `forge-research-request-supersession.v1`
+
+Request 冻结后、A0 之前若同一 Praxist source root 的 package tree 发生变化，旧 Request 不得被原地更新，也不得
+继续显示为可审批输入。Demand loop 必须先生成一个只改变
+`bindings.praxist.source_checkout` 的新 exact Request，再在旧 Request 目录写入唯一 create-only Supersession：
+
+- 精确绑定 predecessor/replacement Request id、locator 与 file SHA-256；
+- 记录 before/after source checkout snapshot 和 lifecycle actor；
+- 旧 Request 投影为终局 `SUPERSEDED`，replacement 回到 `AWAITING_RESEARCH_APPROVAL`；
+- 只允许旧 Request 尚无 Approval、Event、Directive 或 handoff；
+- 不携带或推导 A0，replacement 必须接受一次新的 exact A0；
+- task、Demand/Binding lineage、launch profile、run identity、executable 等任何其他字段变化都禁止自动 refresh。
+
+A0 后发生 source drift 必须 fail closed，由人类决定新的研究意图/Request；不能用 Supersession 撤销或迁移已经
+存在的审批。
+
+### 4.4 `forge-research-control-event.v1`
 
 Event 是 create-only append chain，包含 contiguous sequence、previous-event file SHA-256、Request /
 Approval exact bindings、规范化 command receipt 和 run snapshot。正式 event kind：
@@ -156,7 +174,7 @@ Approval exact bindings、规范化 command receipt 和 run snapshot。正式 ev
 命令 receipt 保存 argv、exit code、timeout flag、stdout/stderr digest；不保存进程环境、credential、raw
 stderr 或 token。成功输出只投影 schema 所需的非秘密 lifecycle fields。
 
-### 4.4 `forge-research-control-directive.v1`
+### 4.5 `forge-research-control-directive.v1`
 
 Directive 是 named operator 发出的 create-only 生命周期动作，只允许 `PAUSE | RESUME | CANCEL`。它精确绑定
 Request、A0 Approval 和 operator 当前看到的最后一个 Event file SHA-256；因此旧页面、旧脚本或并发操作者
@@ -173,6 +191,8 @@ Request、A0 Approval 和 operator 当前看到的最后一个 Event file SHA-25
 ```mermaid
 stateDiagram-v2
     [*] --> AWAITING_RESEARCH_APPROVAL: request sealed
+    AWAITING_RESEARCH_APPROVAL --> SUPERSEDED: pre-A0 source drift
+    SUPERSEDED --> [*]: immutable history; replacement is a new Request
     AWAITING_RESEARCH_APPROVAL --> REJECTED: A0 REJECT
     AWAITING_RESEARCH_APPROVAL --> APPROVED: A0 APPROVE
     APPROVED --> WAITING_FOR_CAPACITY: another Praxist run is active
@@ -201,7 +221,8 @@ candidate maturity、Gate ALLOW 或 wiring authority。
 每次 `research-reconcile --once`：
 
 1. 获取全局 control lock，再逐 Request 获取 lock；所有 artifact 重新校验 schema、identity 和 hash chain。
-2. 无 Approval 返回 `AWAITING_RESEARCH_APPROVAL`；REJECT 返回 `REJECTED`，不调用 Praxist。
+2. Superseded Request 返回 `SUPERSEDED`；无 Approval 返回 `AWAITING_RESEARCH_APPROVAL`；REJECT 返回
+   `REJECTED`，这些状态都不调用 Praxist。
 3. 对已启动 Request 只执行 `praxist status --run-id <run_id> --json`。
 4. 对未启动 Request 先执行 `praxist status --active --json`。legacy A0 存在任何 live run 时保持
    `WAITING_FOR_CAPACITY`；Portfolio A0 只把具有同一 exact Portfolio execution policy、合法 start event 和

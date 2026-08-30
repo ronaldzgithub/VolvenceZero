@@ -12,6 +12,7 @@ from volvence_forge.foundation import canonical_json, sha256_bytes, sha256_text
 from volvence_forge.research_portfolio import (
     ResearchPortfolioError,
     inspect_research_portfolio,
+    run_managed_research_loop_once,
     run_research_portfolio_once,
     seal_research_portfolio,
     validate_research_portfolio,
@@ -245,6 +246,41 @@ def test_portfolio_registers_dag_and_blocks_downstream_without_outcome(
     )
     assert result.eligible_study_ids == ()
     assert result.loop.demand_count == 0
+
+
+def test_managed_loop_blocks_registered_ineligible_demands_but_keeps_unregistered(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path)
+    _portfolio(config)
+    unregistered_path = _demand(
+        config,
+        study_id="unregistered_paused",
+        owner="vz-memory",
+        axes=["appendable"],
+    )
+    unregistered = json.loads(unregistered_path.read_text(encoding="utf-8"))
+    unregistered["status"] = "PAUSED"
+    unregistered["demand_id"] = _identity(
+        "research-demand",
+        unregistered,
+        "demand_id",
+    )
+    _write_json(unregistered_path, unregistered)
+
+    result = run_managed_research_loop_once(
+        config=config,
+        backend=NoCallBackend(),
+    )
+
+    assert len(result.portfolio_statuses) == 1
+    assert result.eligible_studies == ()
+    assert [item.study_id for item in result.blocked_studies] == [
+        "reader_validity",
+        "substrate_authority",
+    ]
+    assert result.loop.demand_count == 1
+    assert result.loop.open_demand_count == 0
 
 
 def test_portfolio_seal_is_content_addressed_create_only_and_idempotent(

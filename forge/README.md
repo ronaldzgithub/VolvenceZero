@@ -327,12 +327,12 @@ runtime wiring。完整契约见
 ### A0 自动研究启动控制面
 
 需求驱动发现与研究调度共用 `forge` owner。人类先把完整 Volvence Demand draft 封存到 inbox；之后每次
-`research-loop --once` 只做有上限、可重放的一次 pass：
+`research-managed-loop --once` 只做有上限、可重放的一次 pass，并自动执行已登记 Portfolio 的依赖 blocklist：
 
 ```bash
 forge research-demand-seal 'research/demand_drafts/<name>.json' --json
 
-forge research-loop --once \
+forge research-managed-loop --once \
   --backend codex_sdk \
   --model gpt-5.6-luna \
   --json
@@ -342,8 +342,13 @@ forge research-loop --once \
 ResearchRequest；另一次 A0 人审批准后，后续 pass 才调用既有 targeted reconcile。未变化的 pass 是零模型调用、
 零新 Request、零新 run；`RUN_COMPLETED` 后不会自动 import Candidate 或上架。
 
-仓库根 `start_research_lab.sh` 在 controlled mode 默认周期唤醒该 bounded loop；它不是新 lifecycle owner，
-`--no-auto-research` 可关闭。也可以不启动 Portal，由任意外部 scheduler 调用同一个 `forge research-loop --once`。
+若 Request 冻结后、A0 前 Praxist source package tree 改变，managed loop 会保留旧 Request 并写入 exact
+`forge-research-request-supersession.v1`，生成只更新 source snapshot 的 replacement。旧件进入 `SUPERSEDED`，
+replacement 必须重新 A0；审批不会被自动迁移。A0 后或其他 binding 漂移一律 fail closed。
+
+仓库根 `start_research_lab.sh` 在 controlled mode 默认周期唤醒该 managed bounded loop；它不是新 lifecycle owner，
+`--no-auto-research` 可关闭。也可以不启动 Portal，由任意外部 scheduler 调用同一个
+`forge research-managed-loop --once`。未登记 Demand 仍会被处理；已登记但依赖未满足的 Demand 不会提前发现、提交或调和。
 Praxist 自己托管 detached run。显式控制面入口仍可单独使用：
 
 ```bash

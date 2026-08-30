@@ -33,7 +33,7 @@ _RECONCILABLE_STATES = frozenset(
     {"APPROVED", "PREFLIGHT_RESOLVED", "STARTING", "RUNNING"}
 )
 _TERMINAL_STATES = frozenset(
-    {"REJECTED", "BLOCKED", "RUN_COMPLETED", "RUN_FAILED"}
+    {"REJECTED", "SUPERSEDED", "BLOCKED", "RUN_COMPLETED", "RUN_FAILED"}
 )
 
 
@@ -189,6 +189,8 @@ def run_demand_research_loop_once(
     max_reconciles: int = 8,
     runner: PraxistCommandRunner | None = None,
     allowed_demand_ids: frozenset[str] | None = None,
+    blocked_demand_ids: frozenset[str] | None = None,
+    preferred_demand_ids: tuple[str, ...] = (),
 ) -> ResearchLoopResult:
     """Run one serialized discovery, submission, and approved reconcile pass."""
 
@@ -202,39 +204,92 @@ def run_demand_research_loop_once(
         raise ResearchLoopError(
             f"unsupported research discovery backend: {backend.backend_name!r}"
         )
+    allowed = allowed_demand_ids or frozenset()
+    blocked = blocked_demand_ids or frozenset()
+    if allowed_demand_ids is not None and allowed & blocked:
+        raise ResearchLoopError(
+            "allowed and blocked Demand sets must not overlap"
+        )
+    if len(preferred_demand_ids) != len(set(preferred_demand_ids)):
+        raise ResearchLoopError("preferred Demand identities must be unique")
 
     selected_root = _resolve_demand_root(config, demand_root)
     lock_path = (
         config.paths.artifacts_root / _DISCOVERY_ROOT / ".loop.lock"
     )
     with _exclusive_lock(lock_path):
-        demand_records = _load_demands(
+        all_demand_records = _load_demands(
             config=config,
             demand_root=selected_root,
             max_demands=max_demands,
         )
-        if allowed_demand_ids is not None:
-            known_demand_ids = {
-                str(demand["demand_id"]) for demand, _ in demand_records
-            }
-            unknown = allowed_demand_ids - known_demand_ids
-            if unknown:
-                raise ResearchLoopError(
-                    "allowed Demand set contains identities outside the validated "
-                    f"Demand root: {sorted(unknown)}"
-                )
-            demand_records = tuple(
-                (demand, path)
-                for demand, path in demand_records
-                if demand["demand_id"] in allowed_demand_ids
+        known_demand_ids = {
+            str(demand["demand_id"]) for demand, _ in all_demand_records
+        }
+        constrained_ids = allowed | blocked | set(preferred_demand_ids)
+        unknown = constrained_ids - known_demand_ids
+        if unknown:
+            raise ResearchLoopError(
+                "Demand scheduling set contains identities outside the validated "
+                f"Demand root: {sorted(unknown)}"
             )
+        demand_records = tuple(
+            (demand, path)
+            for demand, path in all_demand_records
+            if (
+                (allowed_demand_ids is None or demand["demand_id"] in allowed)
+                and demand["demand_id"] not in blocked
+            )
+        )
+        selected_demand_ids = {
+            str(demand["demand_id"]) for demand, _ in demand_records
+        }
+        preferred_not_selected = set(preferred_demand_ids) - selected_demand_ids
+        if preferred_not_selected:
+            raise ResearchLoopError(
+                "preferred Demand set contains blocked or disallowed identities: "
+                f"{sorted(preferred_not_selected)}"
+            )
+        preferred_rank = {
+            demand_id: index for index, demand_id in enumerate(preferred_demand_ids)
+        }
+        demand_records = tuple(
+            sorted(
+                demand_records,
+                key=lambda item: (
+                    preferred_rank.get(
+                        str(item[0]["demand_id"]), len(preferred_rank)
+                    ),
+                    str(item[1]),
+                ),
+            )
+        )
+        ignored_demand_refs = frozenset(
+            (
+                path.relative_to(config.paths.repo_root).as_posix(),
+                sha256_bytes(path.read_bytes()),
+            )
+            for demand, path in all_demand_records
+            if str(demand["demand_id"]) not in selected_demand_ids
+        )
         binding_records = _load_bindings(config=config)
-        if allowed_demand_ids is not None:
-            binding_records = tuple(
-                (binding, path)
-                for binding, path in binding_records
-                if binding["demand"]["artifact_id"] in allowed_demand_ids
+        binding_records = tuple(
+            (binding, path)
+            for binding, path in binding_records
+            if binding["demand"]["artifact_id"] in selected_demand_ids
+        )
+        binding_records = tuple(
+            sorted(
+                binding_records,
+                key=lambda item: (
+                    preferred_rank.get(
+                        str(item[0]["demand"]["artifact_id"]),
+                        len(preferred_rank),
+                    ),
+                    str(item[1]),
+                ),
             )
+        )
 
         discoveries: list[ResearchLoopDiscovery] = []
         new_discoveries = 0
@@ -291,6 +346,7 @@ def run_demand_research_loop_once(
         owned_statuses = _discovery_owned_statuses(
             config=config,
             approved_lineages=approved_lineages,
+            ignored_demand_refs=ignored_demand_refs,
         )
         awaiting_a0_count = sum(
             status.state == "AWAITING_RESEARCH_APPROVAL"
@@ -448,6 +504,7 @@ def _discovery_owned_statuses(
         tuple[tuple[str, str], ...],
         tuple[str, str],
     ],
+    ignored_demand_refs: frozenset[tuple[str, str]] = frozenset(),
 ) -> tuple[ResearchControlStatus, ...]:
     statuses = []
     for status in list_research_inbox(config=config):
@@ -468,6 +525,8 @@ def _discovery_owned_statuses(
             (str(ref["locator"]), str(ref["sha256"]))
             for ref in trigger["evidence"]
         )
+        if any(ref in ignored_demand_refs for ref in evidence_lineage):
+            continue
         expected = approved_lineages.get(evidence_lineage)
         if expected is None:
             raise ResearchLoopError(

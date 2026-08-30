@@ -89,10 +89,12 @@ Binding 只授权“把 exact topic 提交到 A0”，不授权 Praxist start。
 
 ## 4. 自动 loop
 
-Research Lab 的自动 worker 每次只做一个有界 `--once` pass：
+Research Lab 的自动 worker 每次只做一个有界 `research-managed-loop --once` pass：
 
 - 对新增或 source hash 改变的 `OPEN` Demand 发起 discovery；
 - 对已有人审 `APPROVE` Binding 但尚无 Request 的条目提交 exact Request；
+- 对 A0 前因 Praxist package tree 漂移而失效的 Request，生成只改变 source-checkout snapshot 的 replacement，
+  将旧件标为 `SUPERSEDED`，并继续等待 replacement 的独立 A0；
 - 对已有人审 A0 APPROVE 的 Request 调用既有 `research-reconcile --once`；
 - 对 running Request 只做 targeted status reconcile；
 - 在 `RUN_COMPLETED` 停止，等待 handoff/import/formal validation，不自动上架。
@@ -100,10 +102,14 @@ Research Lab 的自动 worker 每次只做一个有界 `--once` pass：
 外部 scheduler 只负责周期唤醒。queue truth、幂等 key、审批和 Praxist PID 继续由 Forge/Praxist artifacts 决定。
 未变化的 pass 必须为零模型调用、零新 Request、零新 run。
 
+自动 refresh 仅适用于无 Approval/Event/Directive/handoff 的 pre-A0 Request，且 predecessor/replacement 除
+`bindings.praxist.source_checkout` 外必须逐字段一致。A0 后 source drift、source root 切换或其他 exact binding
+变化都必须 fail closed，worker 不得迁移旧审批。
+
 机器入口为：
 
 ```bash
-forge research-loop --once \
+forge research-managed-loop --once \
   --backend codex_sdk \
   --model gpt-5.6-luna \
   --json
@@ -113,6 +119,10 @@ forge research-loop --once \
 `artifacts/research_discovery/.loop.lock` 串行化。单独的 model consumption 另由 `.discover.lock` 串行化，避免手动
 discover 与 worker 对同一 run key 重复消费。`--max-*` 只能缩放一次 pass 的操作预算，不能改变 Demand/Praxist
 研究预算。
+
+managed worker 每轮先验证全部 sealed Portfolio，并把未满足依赖的 registered Demand 从发现、提交和调和三处
+排除；未登记 Demand 继续沿用本节通用行为。单 Portfolio 手工诊断可使用 `research-portfolio-loop`，但根 launcher
+不得回退到不理解 Portfolio 的通用 `research-loop`。
 
 ## 5. 触发模式
 

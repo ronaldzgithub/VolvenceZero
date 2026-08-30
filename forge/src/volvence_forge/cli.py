@@ -63,6 +63,7 @@ from .research_opportunity import (
 from .research_portfolio import (
     inspect_research_portfolio,
     review_research_study_outcome,
+    run_managed_research_loop_once,
     run_research_portfolio_once,
     seal_research_portfolio,
     validate_research_portfolio,
@@ -361,6 +362,46 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop.add_argument("--max-new-requests", type=int, default=8)
     research_loop.add_argument("--max-reconciles", type=int, default=8)
     research_loop.add_argument("--json", action="store_true")
+
+    managed_loop = subparsers.add_parser(
+        "research-managed-loop",
+        help=(
+            "Run one global bounded pass while enforcing every registered "
+            "Portfolio dependency gate"
+        ),
+    )
+    managed_loop.add_argument(
+        "--once",
+        action="store_true",
+        required=True,
+        help="Acknowledge that this command performs one bounded pass and exits",
+    )
+    managed_loop.add_argument("--portfolio-root", type=Path)
+    managed_loop.add_argument(
+        "--backend",
+        choices=("codex_sdk", "replay"),
+        default="codex_sdk",
+    )
+    managed_loop.add_argument(
+        "--model",
+        default=os.environ.get("FORGE_DISCOVERY_MODEL"),
+        help="Exact Codex model; required for --backend codex_sdk",
+    )
+    managed_loop.add_argument(
+        "--codex-bin",
+        type=Path,
+        default=(
+            Path(os.environ["FORGE_CODEX_BIN"])
+            if os.environ.get("FORGE_CODEX_BIN")
+            else None
+        ),
+    )
+    managed_loop.add_argument("--replay-responses", type=Path)
+    managed_loop.add_argument("--max-demands", type=int, default=128)
+    managed_loop.add_argument("--max-new-discoveries", type=int, default=1)
+    managed_loop.add_argument("--max-new-requests", type=int, default=8)
+    managed_loop.add_argument("--max-reconciles", type=int, default=8)
+    managed_loop.add_argument("--json", action="store_true")
 
     portfolio_seal = subparsers.add_parser(
         "research-portfolio-seal",
@@ -956,6 +997,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"blocked={summary['blocked_count']}"
                 )
             return 2 if result.blocked_count else 0
+        if args.command == "research-managed-loop":
+            result = run_managed_research_loop_once(
+                config=config,
+                backend=_research_discovery_backend(args, parser=parser),
+                portfolio_root=args.portfolio_root,
+                max_demands=args.max_demands,
+                max_new_discoveries=args.max_new_discoveries,
+                max_new_requests=args.max_new_requests,
+                max_reconciles=args.max_reconciles,
+            )
+            payload = result.to_jsonable()
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                summary = payload["loop"]["summary"]
+                print(
+                    "MANAGED_BOUNDED_ONCE: "
+                    f"portfolios={len(result.portfolio_statuses)}; "
+                    f"eligible={len(result.eligible_studies)}; "
+                    f"dependency_blocked={len(result.blocked_studies)}; "
+                    f"new_discoveries={summary['new_discovery_count']}; "
+                    f"new_requests={summary['new_request_count']}; "
+                    f"reconciled={summary['reconciled_count']}; "
+                    f"blocked={summary['blocked_count']}"
+                )
+            return 2 if result.loop.blocked_count else 0
         if args.command == "research-portfolio-seal":
             result = seal_research_portfolio(
                 config=config,
@@ -1257,6 +1324,15 @@ def _research_status_payload(status: ResearchControlStatus) -> dict[str, str | N
         "run_id": status.run_id,
         "run_dir": status.run_dir,
         "monitor_command": status.monitor_command,
+        "supersession_path": (
+            str(status.supersession_path) if status.supersession_path else None
+        ),
+        "replacement_request_id": status.replacement_request_id,
+        "replacement_request_path": (
+            str(status.replacement_request_path)
+            if status.replacement_request_path
+            else None
+        ),
     }
 
 

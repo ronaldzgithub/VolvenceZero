@@ -114,6 +114,9 @@ ROLLED_BACK
 BLOCKED
 ```
 
+同一研究意图在 A0 前发生 Praxist source-checkout drift 时，旧 Request 只读显示为 `SUPERSEDED`，并显式指向新的
+exact Request；产品面必须把 action 导向 replacement 的独立 A0，不能复用旧审批或把两者合并成一个可启动条目。
+
 stage 只是导航视图，不替代 authority。以下状态始终正交显示：
 
 - Praxist maturity/frontier lane；
@@ -243,8 +246,9 @@ Lab 控制本机仓库、Praxist registry 和进程，因此 functional control 
 仍只绑定 loopback，并要求显式 loopback UI Origin、进程级 CSRF、16 KiB body 上限和 exact artifact binding。
 
 仓库根入口 `./start_research_lab.sh` 是本机进程编排器，不是研究 lifecycle owner。运行该脚本本身视为显式选择
-controlled local mode；它启动 API、Web 与一个周期调用 `forge research-loop --once` 的 bounded worker，并在退出时回收
-三个子进程。worker 可以发现新/变化 Demand、提交已有 APPROVE Binding、调和已有 A0 APPROVE Request；它禁止生成
+controlled local mode；它启动 API、Web 与一个周期调用 `forge research-managed-loop --once` 的 bounded worker，
+并在退出时回收三个子进程。worker 每轮验证所有 registered Portfolio，在一个共享预算内阻止依赖未满足的 Demand，
+同时保留未登记 Demand 的通用发现路径；它可以提交已有 APPROVE Binding、调和已有 A0 APPROVE Request，但禁止生成
 Binding/A0 Approval、直接调用任意 `praxist start`、自动 import Candidate 或修改 wiring。`--no-auto-research` 或
 `RESEARCH_LAB_AUTO_RESEARCH=0` 关闭 worker；`--read-only` 同时关闭 worker 和全部 POST delegation。端口已被占用时
 launcher 必须拒绝启动，不能复用或覆盖未知进程。

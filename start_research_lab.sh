@@ -18,7 +18,8 @@ usage() {
 Usage: ./start_research_lab.sh [options]
 
 Starts the loopback Research Lab API, Vinext workbench, and bounded automatic
-research worker in the foreground. The worker never approves Binding or A0.
+research worker in the foreground. The worker enforces registered Portfolio
+dependency gates and never approves Binding or A0.
 
 Options:
   --read-only         Disable all POST command delegation.
@@ -328,11 +329,11 @@ wait_for_url "http://localhost:${RESEARCH_LAB_WEB_PORT}/" "Research Lab Web" 15 
 if [[ "${RESEARCH_LAB_MODE}" == "controlled" && "${RESEARCH_LAB_AUTO_RESEARCH}" == "1" ]]; then
   (
     while true; do
-      echo "[research-lab] automatic research bounded pass"
+      echo "[research-lab] automatic managed research bounded pass"
       if ! PYTHONPATH="${RESEARCH_LAB_ROOT}/forge/src${PYTHONPATH:+:${PYTHONPATH}}" \
         "${RESEARCH_LAB_PYTHON_BIN}" -m volvence_forge.cli \
           --repo-root "${RESEARCH_LAB_ROOT}" \
-          research-loop \
+          research-managed-loop \
           --once \
           --backend codex_sdk \
           --model "${RESEARCH_LAB_DISCOVERY_MODEL}"; then

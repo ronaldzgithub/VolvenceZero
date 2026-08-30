@@ -25,6 +25,7 @@ from volvence_forge.research_control import (
     review_research_request,
     submit_external_research_request,
     submit_research_request,
+    supersede_unreviewed_research_request,
     validate_external_research_descriptor,
     validate_research_request,
 )
@@ -426,6 +427,32 @@ def _fixture(tmp_path: Path) -> ControlFixture:
         task_project=task_project,
         executable=executable,
         run_dir=(tmp_path / "runs" / "run_memory_001").resolve(),
+    )
+
+
+def _source_backed_fixture(fixture: ControlFixture) -> tuple[ControlFixture, Path]:
+    source_root = fixture.executable.parent.parent / "praxist-source"
+    package = source_root / "praxist"
+    package.mkdir(parents=True)
+    runtime = package / "runtime.py"
+    runtime.write_text("REVISION = 1\n", encoding="utf-8")
+    (source_root / "pyproject.toml").write_text(
+        "[project]\nname = 'praxist-fixture'\nversion = '0.0.0'\n",
+        encoding="utf-8",
+    )
+    executable = source_root / "bin/praxist"
+    executable.parent.mkdir()
+    executable.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    executable.chmod(0o755)
+    return (
+        ControlFixture(
+            config=fixture.config,
+            task_manifest=fixture.task_manifest,
+            task_project=fixture.task_project,
+            executable=executable,
+            run_dir=fixture.run_dir,
+        ),
+        runtime,
     )
 
 
@@ -861,6 +888,73 @@ def test_submit_seals_non_authorizing_request_and_inbox_state(tmp_path: Path) ->
     assert [item.request_id for item in list_research_inbox(config=fixture.config)] == [
         result.request_id
     ]
+
+
+def test_pre_a0_source_drift_seals_exact_supersession_without_carrying_approval(
+    tmp_path: Path,
+) -> None:
+    fixture, runtime = _source_backed_fixture(_fixture(tmp_path))
+
+    old = _submit(fixture)
+    runtime.write_text("REVISION = 2\n", encoding="utf-8")
+    replacement = _submit(fixture)
+    assert old.request_id != replacement.request_id
+
+    sealed = supersede_unreviewed_research_request(
+        config=fixture.config,
+        request_path=old.request_path,
+        replacement_request_path=replacement.request_path,
+        superseded_by="forge:demand-discovery-loop.v1",
+        reason="The exact source checkout changed before A0.",
+    )
+    old_status = inspect_research_request(
+        config=fixture.config,
+        request_path=old.request_path,
+    )
+    replacement_status = inspect_research_request(
+        config=fixture.config,
+        request_path=replacement.request_path,
+    )
+    artifact = json.loads(sealed.supersession_path.read_text(encoding="utf-8"))
+
+    assert old_status.state == "SUPERSEDED"
+    assert old_status.supersession_path == sealed.supersession_path
+    assert old_status.replacement_request_id == replacement.request_id
+    assert old_status.replacement_request_path == replacement.request_path.resolve()
+    assert replacement_status.state == "AWAITING_RESEARCH_APPROVAL"
+    assert artifact["change"]["before"]["tree_sha256"] != artifact["change"]["after"][
+        "tree_sha256"
+    ]
+    assert artifact["authority"]["human_a0_carried_forward"] is False
+
+    runner = FakePraxistRunner(fixture)
+    assert reconcile_research_control(
+        config=fixture.config,
+        request_path=old.request_path,
+        runner=runner,
+    )[0].state == "SUPERSEDED"
+    assert runner.calls == []
+    with pytest.raises(ResearchControlError, match="superseded ResearchRequest"):
+        _approve(fixture, old.request_path)
+
+
+def test_pre_a0_source_supersession_refuses_an_a0_reviewed_request(
+    tmp_path: Path,
+) -> None:
+    fixture, runtime = _source_backed_fixture(_fixture(tmp_path))
+    old = _submit(fixture)
+    _approve(fixture, old.request_path)
+    runtime.write_text("REVISION = 2\n", encoding="utf-8")
+    replacement = _submit(fixture)
+
+    with pytest.raises(ResearchControlError, match="A0-reviewed"):
+        supersede_unreviewed_research_request(
+            config=fixture.config,
+            request_path=old.request_path,
+            replacement_request_path=replacement.request_path,
+            superseded_by="forge:demand-discovery-loop.v1",
+            reason="The exact source checkout changed after A0.",
+        )
 
 
 def test_submit_requires_exact_runtime_selection_and_normalizes_codex_native(
@@ -1393,14 +1487,19 @@ def test_portfolio_a0_allows_known_bounded_parallel_runs(tmp_path: Path) -> None
     portfolio, first_demand, second_demand = _portfolio_for_fixtures(first, second)
     first_request = _submit(first, evidence_paths=(first_demand,))
     second_request = _submit(second, evidence_paths=(second_demand,))
-    review_research_request(
+    inferred_approval = review_research_request(
         config=first.config,
         request_path=first_request.request_path,
         reviewed_by="human@example.com",
         reason="Approve study A under the exact portfolio capacity budget.",
-        portfolio_path=portfolio,
-        portfolio_study_id="memory_reader_a",
     )
+    inferred_payload = json.loads(
+        inferred_approval.approval_path.read_text(encoding="utf-8")
+    )
+    assert inferred_payload["execution_policy"]["portfolio"]["artifact_id"] == (
+        json.loads(portfolio.read_text(encoding="utf-8"))["portfolio_id"]
+    )
+    assert inferred_payload["execution_policy"]["study_id"] == "memory_reader_a"
     review_research_request(
         config=second.config,
         request_path=second_request.request_path,

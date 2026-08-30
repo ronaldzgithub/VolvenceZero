@@ -4,6 +4,7 @@
   "oneOf": [
     {"$ref": "#/$defs/request"},
     {"$ref": "#/$defs/external_request"},
+    {"$ref": "#/$defs/supersession"},
     {"$ref": "#/$defs/approval"},
     {"$ref": "#/$defs/directive"},
     {"$ref": "#/$defs/event"}
@@ -441,6 +442,92 @@
             "modification_gate_applicable": {"const": false},
             "runtime_wiring_applicable": {"const": false},
             "evaluation_is_learning_source": {"const": false}
+          }
+        },
+        "created_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "supersession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "supersession_id",
+        "superseded_request",
+        "replacement_request",
+        "change",
+        "record",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "forge-research-request-supersession.v1"},
+        "supersession_id": {
+          "type": "string",
+          "pattern": "^research-request-supersession:[0-9a-f]{64}$"
+        },
+        "superseded_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact_id", "artifact"],
+          "properties": {
+            "artifact_id": {
+              "type": "string",
+              "pattern": "^research-request:[0-9a-f]{64}$"
+            },
+            "artifact": {"$ref": "#/$defs/content_ref"}
+          }
+        },
+        "replacement_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact_id", "artifact"],
+          "properties": {
+            "artifact_id": {
+              "type": "string",
+              "pattern": "^research-request:[0-9a-f]{64}$"
+            },
+            "artifact": {"$ref": "#/$defs/content_ref"}
+          }
+        },
+        "change": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["binding", "reason_code", "before", "after"],
+          "properties": {
+            "binding": {"const": "bindings.praxist.source_checkout"},
+            "reason_code": {"const": "praxist_source_checkout_changed"},
+            "before": {"$ref": "#/$defs/source_checkout_snapshot"},
+            "after": {"$ref": "#/$defs/source_checkout_snapshot"}
+          }
+        },
+        "record": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["superseded_by", "reason"],
+          "properties": {
+            "superseded_by": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pre_a0_only",
+            "human_a0_carried_forward",
+            "research_start_authorized",
+            "formal_validation_authorized",
+            "production_promotion_authorized",
+            "runtime_wiring_changed"
+          ],
+          "properties": {
+            "pre_a0_only": {"const": true},
+            "human_a0_carried_forward": {"const": false},
+            "research_start_authorized": {"const": false},
+            "formal_validation_authorized": {"const": false},
+            "production_promotion_authorized": {"const": false},
+            "runtime_wiring_changed": {"const": false}
           }
         },
         "created_at": {"$ref": "#/$defs/timestamp"}

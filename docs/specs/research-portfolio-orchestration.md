@@ -1,6 +1,6 @@
 # Research Portfolio Orchestration：研究组合登记、依赖与并发编排
 
-> Status: v1 portfolio contract、bounded loop、A0-bound concurrency 与 exact pause/resume/cancel control landed
+> Status: v2 managed worker、A0 anti-bypass、bounded loop、并发与 exact pause/resume/cancel control landed
 > Last updated: 2026-08-30
 > Owner: `volvence_forge`（development-plane scheduling artifacts only）
 > Upstream: [`demand-driven-research-loop.md`](./demand-driven-research-loop.md)
@@ -90,6 +90,7 @@ SHADOW、ACTIVE 或 wiring。一个 study 当前只允许一个 outcome；要重
 - `WAITING_FOR_DEPENDENCIES`
 - `REGISTERED`
 - Research Control 的 A0/start/run states
+- `SUPERSEDED`（仅作为旧 Request 的终局历史；同 study 的新 Request 重新等待 A0）
 - `COMPLETED_ACCEPTED`
 - `REVISION_REQUIRED`
 - `STOPPED_BY_OUTCOME`
@@ -101,9 +102,17 @@ SHADOW、ACTIVE 或 wiring。一个 study 当前只允许一个 outcome；要重
 2. 所有 predecessor 已有 exact `PROCEED` outcome，或该 study 已处于需继续 targeted reconcile 的运行态；
 3. 本 pass 的 discovery/request/reconcile 数量仍在显式上限内。
 
-Research Loop 新增内部 exact Demand allowlist seam；默认 CLI 行为不变。allowlist 中出现未在 validated Demand
-root 的 identity 必须 fail closed。Portfolio 不扫描或提交其他 Demand，也不允许下游课题在前置 scientific
-decision 前被 A0 自动启动。
+Research Loop 同时支持内部 exact allowlist 与 blocklist seam。`research-portfolio-loop` 只处理一个 Portfolio；
+Research Lab 使用 `research-managed-loop --once`，每轮验证 `research/portfolios/*.json`，要求一个 Demand 只能有
+一个 Portfolio scheduling owner，并在一个共享 discovery/request/reconcile 预算内优先处理 eligible studies。
+已登记但未满足依赖、尚未设计 task 或已有终局 outcome 的 Demand 会从 discovery、Binding submission 和已有
+Request reconcile 三处同时排除；未登记 Demand 保持原通用 Research Loop 行为。未知 identity、重复 scheduling
+owner 或歧义 Portfolio 必须 fail closed。
+
+Portfolio status 选择同一 Demand lineage 的唯一 non-terminal Request；`SUPERSEDED` 计为历史终局，不与其 exact
+replacement 构成“双活 Request”。状态投影只读 Request bytes，不把当前 source drift 当作调度授权；managed loop
+在提交阶段重验 bindings，并且只可通过 Research Control 的 pre-A0 Supersession contract 修复。审批和 reconcile
+仍会对 replacement 重算全部 exact bindings。
 
 ## 5. CLI
 
@@ -112,6 +121,8 @@ forge research-portfolio-seal <portfolio-draft.json> [--output <path>] [--json]
 forge research-portfolio-validate <portfolio.json> [--json]
 forge research-portfolio-status <portfolio.json> [--json]
 forge research-portfolio-loop <portfolio.json> --once \
+  --backend codex_sdk --model gpt-5.6-luna [bounded limits...] [--json]
+forge research-managed-loop --once \
   --backend codex_sdk --model gpt-5.6-luna [bounded limits...] [--json]
 forge research-portfolio-review <portfolio.json> \
   --study-id <id> --request <request.json> --evidence <artifact> \
@@ -127,20 +138,23 @@ forge research-approve <request.json> \
 Demand refs、DAG 与 registry mapping，并 create-only 写入 `research/portfolios/<digest>.json`。同 identity 重放
 幂等复用；不同内容不能覆盖既有工件。validate/status/loop 只接受已经具备 exact identity 的 sealed Portfolio。
 
-外部 scheduler 只周期调用 `--once`。Portfolio、Demand、Binding、Approval、Event、Outcome 和 Praxist registry
-共同构成恢复依据，不建立常驻 wrapper、latest mutable JSON 或根目录 queue script。
+外部 scheduler 只周期调用 `research-managed-loop --once`。Portfolio、Demand、Binding、Approval、Event、Outcome
+和 Praxist registry 共同构成恢复依据，不建立 latest mutable JSON 或根目录 queue truth；根 launcher 只托管周期
+子进程，不成为 lifecycle owner。
 
 ## 6. 并发与恢复边界
 
-Portfolio 的 global/lane 并发意图只有在 named human 使用 `research-approve --portfolio --study-id` 时才进入
-exact A0 `execution_policy`。Research Control 会重验 Request 与 Portfolio study 的 exact Demand、mapping、
-ResearchTask、task project、Praxist executable、launch profile 和 run root，然后按以下规则调和：
+Portfolio 的 global/lane 并发意图在 named human APPROVE 时进入 exact A0 `execution_policy`。若 Request 只属于
+一个已登记 study，Research Control 必须自动附加该 exact Portfolio/study；若属于多个则必须要求显式
+`--portfolio/--study-id` 并失败关闭。这样 Portal 或 legacy CLI 不能用省略参数把已登记 task 降级成 host-wide
+legacy A0。Research Control 会重验 Request 与 Portfolio study 的 exact Demand、mapping、ResearchTask、task
+project、Praxist executable、launch profile 和 run root，然后按以下规则调和：
 
 - 同一 exact Portfolio 且已有合法 `START_CONFIRMED` lineage 的 live run 才是“已知 run”；
 - 已知 run 分别计入 `max_active_runs_global` 与 study lane 的 `max_active_runs`；
 - 达到任一上限保持 `WAITING_FOR_CAPACITY`；
 - 未知、out-of-band、legacy A0 或其他 Portfolio 的 active run 按 `BLOCK` 处理；
-- 未携带 Portfolio policy 的 legacy A0 继续 host-wide 单 active-run。
+- 真正未登记进任何 Portfolio 的 legacy A0 继续 host-wide 单 active-run。
 
 resolve 前后各检查一次配额。当前 Praxist 没有跨 client reservation，因此最后一次 check 与 start 之间仍有
 极窄竞争窗；发现超额或未知 run 时 fail closed，不抢占、不自动 stop。

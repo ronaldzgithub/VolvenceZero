@@ -20,6 +20,7 @@ from volvence_forge.foundation import (
 )
 from volvence_forge.research_control import (
     ResearchControlStatus,
+    inspect_research_request,
     review_research_request,
     validate_research_request,
 )
@@ -509,6 +510,73 @@ def test_named_binding_submits_to_a0_without_starting_praxist(tmp_path: Path) ->
     assert repeated.request_path == submitted.request_path
 
 
+def test_bound_submission_reissues_pre_a0_request_after_source_checkout_drift(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    source_root = tmp_path / "praxist-source"
+    executable = source_root / "bin/praxist"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    executable.chmod(0o755)
+    (source_root / "pyproject.toml").write_text(
+        "[project]\nname = 'praxist-fixture'\nversion = '0.0.0'\n",
+        encoding="utf-8",
+    )
+    package = source_root / "praxist"
+    package.mkdir()
+    runtime = package / "runtime.py"
+    runtime.write_text("REVISION = 1\n", encoding="utf-8")
+    registry = yaml.safe_load(fixture.registry_path.read_text(encoding="utf-8"))
+    registry["mappings"][0]["praxist_executable"] = str(executable)
+    fixture.registry_path.write_text(
+        yaml.safe_dump(registry, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    discovery = discover_research_topics(
+        config=fixture.config,
+        demand_path=fixture.demand_path,
+        backend=_backend(fixture),
+    )
+    reviewed = review_research_topic(
+        config=fixture.config,
+        demand_path=fixture.demand_path,
+        proposal_path=discovery.proposal_paths[0],
+        mapping_id="readable_research_v1",
+        registry_path=fixture.registry_path,
+        reviewed_by="Named Research Owner",
+        reason="This exact topic tests the frozen Volvence Demand.",
+        decision="APPROVE",
+    )
+    old = submit_bound_topic_for_a0(
+        config=fixture.config,
+        binding_path=reviewed.binding_path,
+    )
+
+    runtime.write_text("REVISION = 2\n", encoding="utf-8")
+    replacement = submit_bound_topic_for_a0(
+        config=fixture.config,
+        binding_path=reviewed.binding_path,
+    )
+    repeated = submit_bound_topic_for_a0(
+        config=fixture.config,
+        binding_path=reviewed.binding_path,
+    )
+
+    old_status = inspect_research_request(
+        config=fixture.config,
+        request_path=old.request_path,
+    )
+    assert old.request_id != replacement.request_id
+    assert old_status.state == "SUPERSEDED"
+    assert old_status.replacement_request_id == replacement.request_id
+    assert replacement.reused is False
+    assert repeated.reused is True
+    assert repeated.request_id == replacement.request_id
+    assert not (replacement.request_path.parent / "approvals").exists()
+
+
 def test_bounded_loop_waits_for_both_human_gates_before_reconcile(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -680,6 +748,57 @@ def test_bounded_loop_rejects_discovery_owned_request_with_extra_evidence(
             max_new_discoveries=0,
             max_new_requests=0,
         )
+
+
+def test_bounded_loop_excludes_blocked_demand_request_from_reconcile(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    discovered = run_demand_research_loop_once(
+        config=fixture.config,
+        backend=_backend(fixture),
+    )
+    proposal = next((discovered.discoveries[0].run_path.parent / "topics").glob("*.json"))
+    review_research_topic(
+        config=fixture.config,
+        demand_path=fixture.demand_path,
+        proposal_path=proposal,
+        mapping_id="readable_research_v1",
+        registry_path=fixture.registry_path,
+        reviewed_by="Named Research Owner",
+        reason="Bind the exact Demand topic for dependency filtering.",
+        decision="APPROVE",
+    )
+    submitted = run_demand_research_loop_once(
+        config=fixture.config,
+        backend=ReplayResearchDiscoveryBackend(
+            ReplayStructuredBackend(responses=[], model_name="codex-replay")
+        ),
+    )
+    review_research_request(
+        config=fixture.config,
+        request_path=submitted.submissions[0].request_path,
+        reviewed_by="Named A0 Approver",
+        reason="Approve the exact Request before testing dependency exclusion.",
+        decision="APPROVE",
+    )
+    demand_id = json.loads(fixture.demand_path.read_text(encoding="utf-8"))[
+        "demand_id"
+    ]
+
+    blocked = run_demand_research_loop_once(
+        config=fixture.config,
+        backend=ReplayResearchDiscoveryBackend(
+            ReplayStructuredBackend(responses=[], model_name="codex-replay")
+        ),
+        max_new_discoveries=0,
+        max_new_requests=0,
+        blocked_demand_ids=frozenset({demand_id}),
+    )
+
+    assert blocked.demand_count == 0
+    assert blocked.binding_count == 0
+    assert blocked.reconciliations == ()
 
 
 def test_rejected_or_misaligned_topic_cannot_enter_a0(tmp_path: Path) -> None:

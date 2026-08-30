@@ -42,10 +42,31 @@ PORTFOLIO_VERSION = "forge-research-portfolio.v1"
 OUTCOME_VERSION = "forge-research-study-outcome.v1"
 
 _TERMINAL_REQUEST_STATES = frozenset(
-    {"REJECTED", "BLOCKED", "RUN_COMPLETED", "RUN_FAILED", "CANCELLED"}
+    {
+        "REJECTED",
+        "SUPERSEDED",
+        "BLOCKED",
+        "RUN_COMPLETED",
+        "RUN_FAILED",
+        "CANCELLED",
+    }
 )
 _RUNNING_REQUEST_STATES = frozenset(
     {"PREFLIGHT_RESOLVED", "STARTING", "RUNNING", "STOPPING", "RESUMING"}
+)
+_LOOP_ELIGIBLE_STATES = frozenset(
+    {
+        "REGISTERED",
+        "AWAITING_RESEARCH_APPROVAL",
+        "APPROVED",
+        "WAITING_FOR_CAPACITY",
+        "PREFLIGHT_RESOLVED",
+        "STARTING",
+        "RUNNING",
+        "STOPPING",
+        "PAUSED",
+        "RESUMING",
+    }
 )
 
 
@@ -165,6 +186,63 @@ class ResearchPortfolioLoopResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ResearchPortfolioMembership:
+    portfolio_id: str
+    portfolio_path: Path
+    study_id: str
+    demand_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchManagedStudy:
+    portfolio_id: str
+    portfolio_path: Path
+    study_id: str
+    demand_id: str
+    state: str
+
+    def to_jsonable(self) -> dict[str, str]:
+        return {
+            "portfolio_id": self.portfolio_id,
+            "portfolio": str(self.portfolio_path),
+            "study_id": self.study_id,
+            "demand_id": self.demand_id,
+            "state": self.state,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchManagedLoopResult:
+    portfolio_root: Path
+    portfolio_statuses: tuple[ResearchPortfolioStatus, ...]
+    eligible_studies: tuple[ResearchManagedStudy, ...]
+    blocked_studies: tuple[ResearchManagedStudy, ...]
+    loop: ResearchLoopResult
+
+    def to_jsonable(self) -> dict[str, Any]:
+        return {
+            "schema_version": "forge-research-managed-loop-result.v1",
+            "mode": "bounded_once",
+            "portfolio_root": str(self.portfolio_root),
+            "portfolio_count": len(self.portfolio_statuses),
+            "eligible_studies": [item.to_jsonable() for item in self.eligible_studies],
+            "blocked_studies": [item.to_jsonable() for item in self.blocked_studies],
+            "loop": self.loop.to_jsonable(),
+            "portfolio_statuses": [
+                status.to_jsonable() for status in self.portfolio_statuses
+            ],
+            "authority": {
+                "portfolio_dependency_enforced": True,
+                "automatic_human_gates_authorized": False,
+                "automatic_candidate_import_authorized": False,
+                "production_promotion_authorized": False,
+                "runtime_wiring_changed": False,
+                "evaluation_is_learning_source": False,
+            },
+        }
+
+
 def validate_research_portfolio(
     *,
     config: ForgeConfig,
@@ -178,6 +256,47 @@ def validate_research_portfolio(
     if verify_bindings:
         _verify_portfolio_bindings(config, portfolio)
     return portfolio
+
+
+def find_research_portfolio_memberships(
+    *,
+    config: ForgeConfig,
+    request_path: Path,
+    portfolio_root: Path | None = None,
+) -> tuple[ResearchPortfolioMembership, ...]:
+    """Find exact Portfolio studies that own one ResearchRequest Demand lineage."""
+
+    request = validate_research_request(config=config, request_path=request_path)
+    if request["schema_version"] != "forge-research-request.v1":
+        return ()
+    records, _ = _load_registered_portfolios(
+        config=config,
+        portfolio_root=portfolio_root,
+    )
+    memberships: list[ResearchPortfolioMembership] = []
+    for portfolio, path in records:
+        for study in portfolio["studies"]:
+            if not _request_has_demand(request, study["demand"]["artifact"]):
+                continue
+            if study["task_id"] is not None and request["task_id"] != study["task_id"]:
+                raise ResearchPortfolioError(
+                    f"Request task_id does not match registered Portfolio study "
+                    f"{study['study_id']}"
+                )
+            memberships.append(
+                ResearchPortfolioMembership(
+                    portfolio_id=str(portfolio["portfolio_id"]),
+                    portfolio_path=path,
+                    study_id=str(study["study_id"]),
+                    demand_id=str(study["demand"]["artifact_id"]),
+                )
+            )
+    return tuple(
+        sorted(
+            memberships,
+            key=lambda item: (item.portfolio_id, item.study_id),
+        )
+    )
 
 
 def seal_research_portfolio(
@@ -524,22 +643,9 @@ def run_research_portfolio_once(
     _validate_structure(portfolio)
     _verify_portfolio_bindings(config, portfolio)
     before = inspect_research_portfolio(config=config, portfolio_path=resolved)
-    by_status = {status.study_id: status for status in before.studies}
-    eligible_studies: list[dict[str, Any]] = []
-    for study in _topological_studies(portfolio):
-        status = by_status[str(study["study_id"])]
-        dependency_ready = all(
-            by_status[str(dependency)].state == "COMPLETED_ACCEPTED"
-            for dependency in study["depends_on"]
-        )
-        continuing = status.state in _RUNNING_REQUEST_STATES
-        if (
-            study["readiness"] == "RUNNABLE_MAPPING"
-            and (dependency_ready or continuing)
-        ):
-            eligible_studies.append(study)
-
-    eligible_studies.sort(key=lambda item: (int(item["priority"]), str(item["study_id"])))
+    eligible_studies = list(
+        _eligible_portfolio_studies(portfolio=portfolio, status=before)
+    )
     eligible_ids = tuple(str(study["study_id"]) for study in eligible_studies)
     allowed_demand_ids = frozenset(
         str(study["demand"]["artifact_id"]) for study in eligible_studies
@@ -560,6 +666,90 @@ def run_research_portfolio_once(
         loop=loop,
         after=after,
         eligible_study_ids=eligible_ids,
+    )
+
+
+def run_managed_research_loop_once(
+    *,
+    config: ForgeConfig,
+    backend: ResearchDiscoveryBackend,
+    portfolio_root: Path | None = None,
+    max_demands: int = 128,
+    max_new_discoveries: int = 1,
+    max_new_requests: int = 8,
+    max_reconciles: int = 8,
+    runner: PraxistCommandRunner | None = None,
+) -> ResearchManagedLoopResult:
+    """Run one global bounded pass while enforcing every registered Portfolio DAG."""
+
+    records, resolved_root = _load_registered_portfolios(
+        config=config,
+        portfolio_root=portfolio_root,
+    )
+    statuses: list[ResearchPortfolioStatus] = []
+    eligible: list[ResearchManagedStudy] = []
+    blocked: list[ResearchManagedStudy] = []
+    claimed_demands: dict[str, tuple[str, str]] = {}
+
+    for portfolio, path in records:
+        status = inspect_research_portfolio(config=config, portfolio_path=path)
+        statuses.append(status)
+        by_status = {item.study_id: item for item in status.studies}
+        eligible_ids = {
+            str(item["study_id"])
+            for item in _eligible_portfolio_studies(
+                portfolio=portfolio,
+                status=status,
+            )
+        }
+        for study in _topological_studies(portfolio):
+            study_id = str(study["study_id"])
+            demand_id = str(study["demand"]["artifact_id"])
+            prior = claimed_demands.get(demand_id)
+            if prior is not None:
+                raise ResearchPortfolioError(
+                    "one exact Demand may have only one Portfolio scheduling owner: "
+                    f"{demand_id} is claimed by {prior} and "
+                    f"{(portfolio['portfolio_id'], study_id)}"
+                )
+            claimed_demands[demand_id] = (
+                str(portfolio["portfolio_id"]),
+                study_id,
+            )
+            item = ResearchManagedStudy(
+                portfolio_id=str(portfolio["portfolio_id"]),
+                portfolio_path=path,
+                study_id=study_id,
+                demand_id=demand_id,
+                state=by_status[study_id].state,
+            )
+            if study_id in eligible_ids:
+                eligible.append(item)
+            else:
+                blocked.append(item)
+
+    preferred_demand_ids = tuple(item.demand_id for item in eligible)
+    loop = run_demand_research_loop_once(
+        config=config,
+        backend=backend,
+        max_demands=max_demands,
+        max_new_discoveries=max_new_discoveries,
+        max_new_requests=max_new_requests,
+        max_reconciles=max_reconciles,
+        runner=runner,
+        blocked_demand_ids=frozenset(item.demand_id for item in blocked),
+        preferred_demand_ids=preferred_demand_ids,
+    )
+    after = tuple(
+        inspect_research_portfolio(config=config, portfolio_path=path)
+        for _, path in records
+    )
+    return ResearchManagedLoopResult(
+        portfolio_root=resolved_root,
+        portfolio_statuses=after,
+        eligible_studies=tuple(eligible),
+        blocked_studies=tuple(blocked),
+        loop=loop,
     )
 
 
@@ -674,6 +864,85 @@ def review_research_study_outcome(
         outcome_path=destination,
         decision=normalized_decision,
     )
+
+
+def _eligible_portfolio_studies(
+    *,
+    portfolio: Mapping[str, Any],
+    status: ResearchPortfolioStatus,
+) -> tuple[dict[str, Any], ...]:
+    by_status = {item.study_id: item for item in status.studies}
+    eligible: list[dict[str, Any]] = []
+    for study in _topological_studies(portfolio):
+        study_id = str(study["study_id"])
+        current = by_status[study_id]
+        dependencies_ready = all(
+            by_status[str(dependency)].state == "COMPLETED_ACCEPTED"
+            for dependency in study["depends_on"]
+        )
+        continuing = current.state in _RUNNING_REQUEST_STATES
+        if (
+            study["readiness"] == "RUNNABLE_MAPPING"
+            and current.state in _LOOP_ELIGIBLE_STATES
+            and (dependencies_ready or continuing)
+        ):
+            eligible.append(dict(study))
+    eligible.sort(
+        key=lambda item: (int(item["priority"]), str(item["study_id"]))
+    )
+    return tuple(eligible)
+
+
+def _load_registered_portfolios(
+    *,
+    config: ForgeConfig,
+    portfolio_root: Path | None,
+) -> tuple[tuple[tuple[dict[str, Any], Path], ...], Path]:
+    raw_root = portfolio_root or (
+        config.paths.repo_root / "research" / "portfolios"
+    )
+    candidate = raw_root if raw_root.is_absolute() else config.paths.repo_root / raw_root
+    if candidate.is_symlink():
+        raise ResearchPortfolioError(
+            f"research Portfolio registry may not be a symlink: {candidate}"
+        )
+    resolved_root = candidate.expanduser().resolve(strict=False)
+    if not resolved_root.is_relative_to(config.paths.repo_root):
+        raise ResearchPortfolioError(
+            "research Portfolio registry must remain inside the repository"
+        )
+    if not resolved_root.exists():
+        return (), resolved_root
+    if not resolved_root.is_dir():
+        raise ResearchPortfolioError(
+            f"research Portfolio registry must be a directory: {resolved_root}"
+        )
+
+    records: list[tuple[dict[str, Any], Path]] = []
+    identities: set[str] = set()
+    for path in sorted(resolved_root.glob("*.json")):
+        if path.is_symlink():
+            raise ResearchPortfolioError(
+                f"registered research Portfolio may not be a symlink: {path}"
+            )
+        portfolio = validate_research_portfolio(
+            config=config,
+            portfolio_path=path,
+        )
+        identity = str(portfolio["portfolio_id"])
+        if identity in identities:
+            raise ResearchPortfolioError(
+                f"duplicate registered research Portfolio identity: {identity}"
+            )
+        identities.add(identity)
+        records.append((portfolio, path.resolve(strict=True)))
+    records.sort(
+        key=lambda item: (
+            str(item[0]["created_at"]),
+            str(item[0]["portfolio_id"]),
+        )
+    )
+    return tuple(records), resolved_root
 
 
 def _verify_portfolio_bindings(
@@ -818,6 +1087,7 @@ def _portfolio_request_records(
             validate_research_request(
                 config=config,
                 request_path=status.request_path,
+                verify_bindings=False,
             ),
         )
         for status in statuses

@@ -27,8 +27,12 @@ from .foundation import (
     utc_now,
 )
 from .research_control import (
+    ResearchControlError,
+    ResearchRequestBindingDriftError,
     ResearchRequestResult,
+    inspect_research_request,
     submit_research_request,
+    supersede_unreviewed_research_request,
     validate_research_request,
 )
 from .research_opportunity import (
@@ -878,17 +882,57 @@ def submit_bound_topic_for_a0(
     )
     evidence_paths = (demand_path, proposal_path, resolved_binding_path)
     reason = _binding_submission_reason(binding_artifact)
-    existing = _find_bound_request(
+    matches = _find_bound_requests(
         config=config,
-        binding=binding_artifact,
         resolved=resolved,
         evidence_paths=evidence_paths,
         reason=reason,
     )
-    if existing is not None:
+    current: list[ResearchRequestResult] = []
+    stale: list[ResearchRequestResult] = []
+    for match in matches:
+        status = inspect_research_request(
+            config=config,
+            request_path=match.request_path,
+        )
+        if status.state == "SUPERSEDED":
+            continue
+        try:
+            validate_research_request(
+                config=config,
+                request_path=match.request_path,
+            )
+        except ResearchRequestBindingDriftError as exc:
+            if exc.binding != "bindings.praxist.source_checkout":
+                raise ResearchDiscoveryError(
+                    f"bound ResearchRequest has unsupported exact-binding drift: {exc.binding}"
+                ) from exc
+            if status.state != "AWAITING_RESEARCH_APPROVAL":
+                raise ResearchDiscoveryError(
+                    "Praxist source checkout changed after the Request left pre-A0; "
+                    "automatic supersession is forbidden"
+                ) from exc
+            stale.append(match)
+        except ResearchControlError as exc:
+            raise ResearchDiscoveryError(
+                f"bound ResearchRequest is not reusable: {exc}"
+            ) from exc
+        else:
+            current.append(match)
+    if len(current) > 1:
+        raise ResearchDiscoveryError(
+            f"multiple current ResearchRequests match DemandBinding {binding_artifact['binding_id']}"
+        )
+    if current:
+        replacement = current[0]
+        _supersede_stale_bound_requests(
+            config=config,
+            stale=stale,
+            replacement=replacement,
+        )
         return ResearchBoundRequestResult(
-            request_id=existing.request_id,
-            request_path=existing.request_path,
+            request_id=replacement.request_id,
+            request_path=replacement.request_path,
             reused=True,
         )
     created = submit_research_request(
@@ -912,6 +956,11 @@ def submit_bound_topic_for_a0(
         generations=resolved.generations,
         startup_timeout_seconds=resolved.startup_timeout_seconds,
     )
+    _supersede_stale_bound_requests(
+        config=config,
+        stale=stale,
+        replacement=created,
+    )
     return ResearchBoundRequestResult(
         request_id=created.request_id,
         request_path=created.request_path,
@@ -919,14 +968,13 @@ def submit_bound_topic_for_a0(
     )
 
 
-def _find_bound_request(
+def _find_bound_requests(
     *,
     config: ForgeConfig,
-    binding: Mapping[str, Any],
     resolved: ResolvedResearchBinding,
     evidence_paths: Sequence[Path],
     reason: str,
-) -> ResearchRequestResult | None:
+) -> tuple[ResearchRequestResult, ...]:
     expected_evidence = [
         _content_ref(config, path, context="bound Request evidence")
         for path in evidence_paths
@@ -957,11 +1005,26 @@ def _find_bound_request(
                     request_path=request_path.resolve(),
                 )
             )
-    if len(matches) > 1:
-        raise ResearchDiscoveryError(
-            f"multiple ResearchRequests match DemandBinding {binding['binding_id']}"
+    return tuple(matches)
+
+
+def _supersede_stale_bound_requests(
+    *,
+    config: ForgeConfig,
+    stale: Sequence[ResearchRequestResult],
+    replacement: ResearchRequestResult,
+) -> None:
+    for old in sorted(stale, key=lambda item: str(item.request_path)):
+        supersede_unreviewed_research_request(
+            config=config,
+            request_path=old.request_path,
+            replacement_request_path=replacement.request_path,
+            superseded_by=DISCOVERY_LOOP_OWNER,
+            reason=(
+                "The exact Praxist source checkout changed before A0. Preserve the "
+                "immutable Request lineage and require a separate A0 on the replacement."
+            ),
         )
-    return matches[0] if matches else None
 
 
 def _validate_demand_task_alignment(

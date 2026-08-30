@@ -43,6 +43,7 @@ _EXTERNAL_REQUEST_VERSION = "forge-external-research-request.v1"
 _EXTERNAL_HANDOFF_VERSION = "forge-foundry-research-handoff.v1"
 _FOUNDRY_SEAM_VERSION = "foundry-research-lab-seam.v1"
 _APPROVAL_VERSION = "forge-research-approval.v1"
+_SUPERSESSION_VERSION = "forge-research-request-supersession.v1"
 _DIRECTIVE_VERSION = "forge-research-control-directive.v1"
 _EVENT_VERSION = "forge-research-control-event.v1"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -89,6 +90,14 @@ class ResearchControlError(ForgeError):
     """Raised when a research-control artifact or lifecycle boundary is unsafe."""
 
 
+class ResearchRequestBindingDriftError(ResearchControlError):
+    """Raised when a frozen Request binding no longer matches its exact input."""
+
+    def __init__(self, binding: str, message: str) -> None:
+        super().__init__(message)
+        self.binding = binding
+
+
 @dataclass(frozen=True)
 class ResearchRequestResult:
     request_id: str
@@ -100,6 +109,15 @@ class ResearchApprovalResult:
     approval_id: str
     approval_path: Path
     decision: str
+
+
+@dataclass(frozen=True)
+class ResearchSupersessionResult:
+    supersession_id: str
+    supersession_path: Path
+    replacement_request_id: str
+    replacement_request_path: Path
+    reused: bool
 
 
 @dataclass(frozen=True)
@@ -128,6 +146,9 @@ class ResearchControlStatus:
     run_dir: str | None
     monitor_command: str | None
     latest_event_sha256: str | None = None
+    supersession_path: Path | None = None
+    replacement_request_id: str | None = None
+    replacement_request_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -685,6 +706,139 @@ def validate_research_request(
     return request
 
 
+def supersede_unreviewed_research_request(
+    *,
+    config: ForgeConfig,
+    request_path: Path,
+    replacement_request_path: Path,
+    superseded_by: str,
+    reason: str,
+) -> ResearchSupersessionResult:
+    """Retire one pre-A0 Request after exact Praxist source-checkout drift.
+
+    The old Request remains immutable and auditable.  Its replacement is a new
+    exact Request and therefore requires a new, separate A0 decision.
+    """
+
+    actor = _nonempty(
+        superseded_by,
+        "research Request supersession requires a named lifecycle actor",
+    )
+    rationale = _nonempty(
+        reason,
+        "research Request supersession requires a non-empty reason",
+    )
+    old_request, resolved_old, old_sha256 = _load_request(config, request_path)
+    replacement, resolved_replacement, _ = _load_request(
+        config,
+        replacement_request_path,
+    )
+    lock_path = resolved_old.parent / ".supersession.lock"
+    with _exclusive_lock(lock_path):
+        existing = _find_supersession(
+            config=config,
+            request=old_request,
+            request_path=resolved_old,
+            request_sha256=old_sha256,
+        )
+        if existing is not None:
+            artifact, path, _, _ = existing
+            if (
+                artifact["replacement_request"]["artifact_id"]
+                != replacement["request_id"]
+                or artifact["replacement_request"]["artifact"]
+                != _content_ref(
+                    config,
+                    resolved_replacement,
+                    context="replacement research Request",
+                )
+                or artifact["record"]["superseded_by"] != actor
+                or artifact["record"]["reason"] != rationale
+            ):
+                raise ResearchControlError(
+                    "research Request already has a different immutable supersession"
+                )
+            return ResearchSupersessionResult(
+                supersession_id=str(artifact["supersession_id"]),
+                supersession_path=path,
+                replacement_request_id=str(replacement["request_id"]),
+                replacement_request_path=resolved_replacement,
+                reused=True,
+            )
+
+        _assert_unreviewed_request_can_be_superseded(
+            config=config,
+            request=old_request,
+            request_path=resolved_old,
+            request_sha256=old_sha256,
+        )
+        _verify_request_bindings(config, replacement)
+        old_source, replacement_source = _assert_source_refresh_pair(
+            old_request=old_request,
+            replacement_request=replacement,
+        )
+        supersession: dict[str, Any] = {
+            "schema_version": _SUPERSESSION_VERSION,
+            "superseded_request": {
+                "artifact_id": old_request["request_id"],
+                "artifact": _content_ref(
+                    config,
+                    resolved_old,
+                    context="superseded research Request",
+                ),
+            },
+            "replacement_request": {
+                "artifact_id": replacement["request_id"],
+                "artifact": _content_ref(
+                    config,
+                    resolved_replacement,
+                    context="replacement research Request",
+                ),
+            },
+            "change": {
+                "binding": "bindings.praxist.source_checkout",
+                "reason_code": "praxist_source_checkout_changed",
+                "before": old_source,
+                "after": replacement_source,
+            },
+            "record": {
+                "superseded_by": actor,
+                "reason": rationale,
+            },
+            "authority": {
+                "pre_a0_only": True,
+                "human_a0_carried_forward": False,
+                "research_start_authorized": False,
+                "formal_validation_authorized": False,
+                "production_promotion_authorized": False,
+                "runtime_wiring_changed": False,
+            },
+            "created_at": utc_now(),
+        }
+        supersession["supersession_id"] = _artifact_id(
+            "research-request-supersession",
+            supersession,
+            "supersession_id",
+        )
+        _validate_schema(config, supersession, _SUPERSESSION_VERSION)
+        digest = str(supersession["supersession_id"]).partition(":")[2]
+        destination = resolved_old.parent / "supersessions" / f"{digest}.json"
+        _write_immutable_artifact(
+            config=config,
+            destination=destination,
+            payload=supersession,
+            expected_version=_SUPERSESSION_VERSION,
+            identity_field="supersession_id",
+        )
+        return ResearchSupersessionResult(
+            supersession_id=str(supersession["supersession_id"]),
+            supersession_path=destination,
+            replacement_request_id=str(replacement["request_id"]),
+            replacement_request_path=resolved_replacement,
+            reused=False,
+        )
+
+
 def review_research_request(
     *,
     config: ForgeConfig,
@@ -710,9 +864,36 @@ def review_research_request(
             "a rejected A0 may not grant a portfolio execution policy"
         )
     request, resolved_request, request_sha256 = _load_request(config, request_path)
+    if _find_supersession(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+    ) is not None:
+        raise ResearchControlError(
+            "a superseded ResearchRequest cannot receive A0; review its exact replacement"
+        )
     _verify_request_bindings(config, request)
 
     execution_policy: dict[str, Any] | None = None
+    if decision == "APPROVE" and portfolio_path is None:
+        from .research_portfolio import find_research_portfolio_memberships
+
+        memberships = find_research_portfolio_memberships(
+            config=config,
+            request_path=resolved_request,
+        )
+        if len(memberships) > 1:
+            choices = [
+                f"{item.portfolio_id}/{item.study_id}" for item in memberships
+            ]
+            raise ResearchControlError(
+                "ResearchRequest belongs to multiple registered Portfolio studies; "
+                f"an exact --portfolio/--study-id selection is required: {choices}"
+            )
+        if memberships:
+            portfolio_path = memberships[0].portfolio_path
+            portfolio_study_id = memberships[0].study_id
     if portfolio_path is not None and portfolio_study_id is not None:
         from .research_portfolio import build_research_execution_policy
 
@@ -927,6 +1108,21 @@ def inspect_research_request(
     """Project one Request's current state without invoking Praxist."""
 
     request, resolved_request, request_sha256 = _load_request(config, request_path)
+    supersession_record = _find_supersession(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+    )
+    if supersession_record is not None:
+        return _status_from_parts(
+            request,
+            resolved_request,
+            None,
+            (),
+            "SUPERSEDED",
+            supersession=supersession_record,
+        )
     approval_record = _find_approval(
         config=config,
         request=request,
@@ -995,6 +1191,21 @@ def _reconcile_one(
     runner: PraxistCommandRunner,
 ) -> ResearchControlStatus:
     request, resolved_request, request_sha256 = _load_request(config, request_path)
+    supersession_record = _find_supersession(
+        config=config,
+        request=request,
+        request_path=resolved_request,
+        request_sha256=request_sha256,
+    )
+    if supersession_record is not None:
+        return _status_from_parts(
+            request,
+            resolved_request,
+            None,
+            (),
+            "SUPERSEDED",
+            supersession=supersession_record,
+        )
     approval_record = _find_approval(
         config=config,
         request=request,
@@ -3100,6 +3311,180 @@ def _load_directives(
     return tuple(loaded)
 
 
+def _find_supersession(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+) -> tuple[dict[str, Any], Path, str, Path] | None:
+    paths = sorted((request_path.parent / "supersessions").glob("*.json"))
+    if not paths:
+        return None
+    if len(paths) != 1:
+        raise ResearchControlError(
+            f"research Request has conflicting supersession artifacts: {request_path}"
+        )
+    if request["schema_version"] != _REQUEST_VERSION:
+        raise ResearchControlError(
+            "external-domain ResearchRequests do not use Volvence pre-A0 supersession"
+        )
+    path = paths[0]
+    supersession = read_json(path)
+    _validate_schema(config, supersession, _SUPERSESSION_VERSION)
+    if supersession["supersession_id"] != _artifact_id(
+        "research-request-supersession",
+        supersession,
+        "supersession_id",
+    ):
+        raise ResearchControlError(
+            f"research Request supersession identity is invalid: {path}"
+        )
+    expected_name = str(supersession["supersession_id"]).partition(":")[2] + ".json"
+    if path.name != expected_name:
+        raise ResearchControlError(
+            f"research Request supersession filename is not canonical: {path}"
+        )
+    expected_old_ref = {
+        "artifact_id": request["request_id"],
+        "artifact": {
+            "locator": _portable_locator(config, request_path),
+            "sha256": request_sha256,
+        },
+    }
+    if supersession["superseded_request"] != expected_old_ref:
+        raise ResearchControlError(
+            "research Request supersession does not bind its exact predecessor"
+        )
+    replacement_ref = supersession["replacement_request"]
+    replacement_path = _verify_content_ref(
+        config,
+        replacement_ref["artifact"],
+        context="replacement research Request",
+    )
+    replacement, resolved_replacement, _ = _load_request(config, replacement_path)
+    if replacement["request_id"] != replacement_ref["artifact_id"]:
+        raise ResearchControlError(
+            "research Request supersession replacement identity mismatch"
+        )
+    if resolved_replacement == request_path:
+        raise ResearchControlError("research Request cannot supersede itself")
+    before, after = _assert_source_refresh_pair(
+        old_request=request,
+        replacement_request=replacement,
+    )
+    change = supersession["change"]
+    if change["before"] != before or change["after"] != after:
+        raise ResearchControlError(
+            "research Request supersession source-checkout snapshots are not exact"
+        )
+    _assert_unreviewed_request_can_be_superseded(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+        allow_existing_supersession=True,
+    )
+    return (
+        supersession,
+        path.resolve(strict=True),
+        _sha256_file(path, context="research Request supersession"),
+        resolved_replacement,
+    )
+
+
+def _assert_unreviewed_request_can_be_superseded(
+    *,
+    config: ForgeConfig,
+    request: dict[str, Any],
+    request_path: Path,
+    request_sha256: str,
+    allow_existing_supersession: bool = False,
+) -> None:
+    if request["schema_version"] != _REQUEST_VERSION:
+        raise ResearchControlError(
+            "only a Volvence ResearchRequest may use pre-A0 source refresh"
+        )
+    approval = _find_approval(
+        config=config,
+        request=request,
+        request_path=request_path,
+        request_sha256=request_sha256,
+    )
+    if approval is not None:
+        raise ResearchControlError(
+            "an A0-reviewed ResearchRequest cannot be superseded automatically"
+        )
+    if _event_paths(request_path):
+        raise ResearchControlError(
+            "a ResearchRequest with lifecycle events cannot be superseded automatically"
+        )
+    if _directive_paths(request_path):
+        raise ResearchControlError(
+            "a ResearchRequest with control directives cannot be superseded automatically"
+        )
+    if sorted((request_path.parent / "handoffs").glob("*.json")):
+        raise ResearchControlError(
+            "a ResearchRequest with a handoff cannot be superseded automatically"
+        )
+    if not allow_existing_supersession and sorted(
+        (request_path.parent / "supersessions").glob("*.json")
+    ):
+        raise ResearchControlError(
+            "research Request already has an immutable supersession"
+        )
+
+
+def _assert_source_refresh_pair(
+    *,
+    old_request: dict[str, Any],
+    replacement_request: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if old_request["schema_version"] != _REQUEST_VERSION or replacement_request[
+        "schema_version"
+    ] != _REQUEST_VERSION:
+        raise ResearchControlError(
+            "pre-A0 source refresh requires two Volvence ResearchRequests"
+        )
+    old_body = {
+        key: value
+        for key, value in old_request.items()
+        if key not in {"request_id", "created_at"}
+    }
+    replacement_body = {
+        key: value
+        for key, value in replacement_request.items()
+        if key not in {"request_id", "created_at"}
+    }
+    old_bindings = dict(old_body["bindings"])
+    replacement_bindings = dict(replacement_body["bindings"])
+    old_praxist = dict(old_bindings["praxist"])
+    replacement_praxist = dict(replacement_bindings["praxist"])
+    old_source = old_praxist.pop("source_checkout")
+    replacement_source = replacement_praxist.pop("source_checkout")
+    old_bindings["praxist"] = old_praxist
+    replacement_bindings["praxist"] = replacement_praxist
+    old_body["bindings"] = old_bindings
+    replacement_body["bindings"] = replacement_bindings
+    if old_body != replacement_body:
+        raise ResearchControlError(
+            "automatic Request supersession may change only the Praxist source checkout"
+        )
+    if not isinstance(old_source, dict) or not isinstance(replacement_source, dict):
+        raise ResearchControlError(
+            "automatic Request supersession requires source-checkout-backed Praxist inputs"
+        )
+    if old_source["root"] != replacement_source["root"]:
+        raise ResearchControlError(
+            "automatic Request supersession cannot switch Praxist source roots"
+        )
+    if old_source == replacement_source:
+        raise ResearchControlError(
+            "replacement ResearchRequest does not contain source-checkout drift"
+        )
+    return dict(old_source), dict(replacement_source)
+
+
 def _find_approval(
     *,
     config: ForgeConfig,
@@ -3150,8 +3535,11 @@ def _status_from_parts(
     approval_path: Path | None,
     events: tuple[tuple[dict[str, Any], Path, str], ...],
     state: str,
+    *,
+    supersession: tuple[dict[str, Any], Path, str, Path] | None = None,
 ) -> ResearchControlStatus:
     run = _latest_run(events)
+    supersession_artifact = supersession[0] if supersession is not None else None
     return ResearchControlStatus(
         request_id=str(request["request_id"]),
         task_id=str(request["task_id"]),
@@ -3167,6 +3555,13 @@ def _status_from_parts(
             if run is not None and run["monitor_command"] is not None
             else None
         ),
+        supersession_path=supersession[1] if supersession is not None else None,
+        replacement_request_id=(
+            str(supersession_artifact["replacement_request"]["artifact_id"])
+            if supersession_artifact is not None
+            else None
+        ),
+        replacement_request_path=supersession[3] if supersession is not None else None,
     )
 
 
@@ -3264,7 +3659,10 @@ def _verify_request_bindings(config: ForgeConfig, request: dict[str, Any]) -> No
     _resolve_executable(executable)
     current_source = _snapshot_praxist_source_checkout(executable)
     if current_source != request["bindings"]["praxist"]["source_checkout"]:
-        raise ResearchControlError("Praxist source checkout changed after Request submission")
+        raise ResearchRequestBindingDriftError(
+            "bindings.praxist.source_checkout",
+            "Praxist source checkout changed after Request submission",
+        )
 
     profile = request["launch"]["profile"]
     if profile["config_file"] is not None:
