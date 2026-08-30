@@ -1,9 +1,10 @@
 from pathlib import Path
 import copy
+import hashlib
 
 import pytest
 
-from volvence_forge.foundation import SchemaContractError, canonical_json, sha256_text
+from volvence_forge.foundation import SchemaContractError, canonical_json, read_json, sha256_text
 from volvence_forge.foundry_research_handoff_v2 import (
     FoundrySimulationError,
     create_simulation_request,
@@ -54,6 +55,20 @@ def test_v2_chain_is_a0_bound_and_self_contained(tmp_path: Path) -> None:
     path = tmp_path / "handoff.json"
     write_immutable(path, handoff)
     assert verify_simulation_handoff(path)["approval"]["scope"] == "research_runner_start"
+
+
+def test_checked_in_sample_binds_real_subject_bytes() -> None:
+    contract = Path(__file__).resolve().parents[1] / "contracts" / "foundry_research_lab_seam" / "v2"
+    subject = contract / "subject.sample.json"
+    intent = read_json(contract / "intent.example.json")
+    handoff = contract / "simulation_handoff.sample" / "handoff.json"
+    digest = hashlib.sha256(subject.read_bytes()).hexdigest()
+
+    assert digest != "0" * 64
+    assert intent["subject_refs"] == [
+        {"subject_id": "foundry_m5_contract_sample", "sha256": digest}
+    ]
+    assert verify_simulation_handoff(handoff)["intent"] == intent
 
 
 @pytest.mark.parametrize(
