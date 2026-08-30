@@ -87,6 +87,7 @@ from dlaas_platform_launcher import (
     InteractionForwardingLauncherProtocol,
     LauncherProtocol,
     OperationsForwardingLauncherProtocol,
+    VerticalBrainForwardingLauncherProtocol,
 )
 from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
@@ -118,6 +119,11 @@ from lifeform_service.operations_brain_routes import (
     operations_brain_controller,
     publish_operations_context_payload,
     publish_operations_outcome_payload,
+)
+from lifeform_service.brain_routes import (
+    VerticalBrainRouteError,
+    publish_vertical_brain_payload,
+    vertical_brain_adapter,
 )
 from lifeform_service.session_manager import (
     InvalidTemporalForkError,
@@ -345,12 +351,26 @@ def _maybe_wire_training_executor(
 
 
 def _add_operations_brain_routes(app: web.Application) -> None:
-    """Attach explicit ai/session Operations Brain routes and aliases."""
+    """Attach uniform Brain routes plus legacy Operations aliases."""
 
     for prefix in ("/dlaas", "/dlaas/v1"):
         app.router.add_post(
             f"{prefix}/instances/{{ai_id}}/sessions",
             _handle_instance_session_create,
+        )
+        app.router.add_post(
+            (
+                f"{prefix}/instances/{{ai_id}}/sessions/{{session_id}}/"
+                "brain/context-packs"
+            ),
+            _handle_brain_context_pack,
+        )
+        app.router.add_post(
+            (
+                f"{prefix}/instances/{{ai_id}}/sessions/{{session_id}}/"
+                "brain/outcomes"
+            ),
+            _handle_brain_outcome,
         )
         app.router.add_post(
             (
@@ -3178,6 +3198,127 @@ async def _handle_operations_context_pack(request: web.Request) -> web.Response:
 
 async def _handle_operations_outcome(request: web.Request) -> web.Response:
     return await _handle_operations_request(request, operation="outcomes")
+
+
+async def _handle_brain_context_pack(request: web.Request) -> web.Response:
+    return await _handle_brain_request(request, operation="context-packs")
+
+
+async def _handle_brain_outcome(request: web.Request) -> web.Response:
+    return await _handle_brain_request(request, operation="outcomes")
+
+
+async def _handle_brain_request(
+    request: web.Request,
+    *,
+    operation: str,
+) -> web.Response:
+    try:
+        payload = await _read_json_object(request)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_json_body", detail=str(exc))
+    ai_id = request.match_info.get("ai_id", "")
+    session_id = request.match_info.get("session_id", "")
+    if not ai_id:
+        return _json_error(status=400, error="invalid_ai_id", detail="ai_id is required")
+    if not session_id:
+        return _json_error(
+            status=400,
+            error="invalid_session_id",
+            detail="session_id is required",
+        )
+
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, VerticalBrainForwardingLauncherProtocol):
+        try:
+            status, body = await launcher.forward_brain_request(
+                ai_id=ai_id,
+                session_id=session_id,
+                operation=operation,
+                payload=payload,
+            )
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(status=502, error="pod_forward_failed", detail=str(exc))
+        if status < 400:
+            _record_audit(
+                request,
+                event_type=f"brain_{operation.replace('-', '_')}",
+                ai_id=ai_id,
+                session_id=session_id,
+                payload={"routing": "multi_pod_forward"},
+            )
+            _record_usage(
+                request,
+                ai_id=ai_id,
+                metric=f"brain.{operation}",
+                quantity=1,
+            )
+        return web.json_response(body, status=status)
+    if isinstance(launcher, InteractionForwardingLauncherProtocol):
+        return _json_error(
+            status=501,
+            error="pod_brain_forwarding_unavailable",
+            detail="the multi-pod launcher does not expose vertical Brain forwarding",
+        )
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        session = await manager.get_session(session_id)
+        vertical_name = manager.vertical_name_for(session_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except SessionNotFoundError as exc:
+        return _json_error(status=404, error="session_not_found", detail=str(exc))
+    if manager.is_historical_readonly(session_id):
+        return _json_error(
+            status=409,
+            error="historical_session_readonly",
+            detail="vertical Brain writes are disabled for historical read-only sessions",
+        )
+    try:
+        adapter = vertical_brain_adapter(request.app, vertical_name)
+    except KeyError:
+        return _json_error(
+            status=501,
+            error="vertical_brain_unavailable",
+            detail=f"no vertical Brain adapter is registered for {vertical_name!r}",
+        )
+    try:
+        body, created = await publish_vertical_brain_payload(
+            adapter=adapter,
+            operation=operation,
+            session=session,
+            payload=payload,
+        )
+    except VerticalBrainRouteError as exc:
+        return _json_error(status=exc.status, error=exc.code, detail=exc.detail)
+
+    _record_audit(
+        request,
+        event_type=f"brain_{operation.replace('-', '_')}",
+        ai_id=ai_id,
+        session_id=session_id,
+        payload={
+            "routing": "local",
+            "vertical": vertical_name,
+            "created": created,
+        },
+    )
+    _record_usage(
+        request,
+        ai_id=ai_id,
+        metric=f"brain.{vertical_name}.{operation}",
+        quantity=1,
+    )
+    response = web.json_response(body, status=201 if created else 200)
+    response.headers["X-Volvence-Brain"] = vertical_name
+    return response
 
 
 async def _handle_operations_request(

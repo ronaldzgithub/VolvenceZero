@@ -199,16 +199,16 @@ every cognition field as optional. Full structured slots (e.g. the raw
 `relationship_state` / `dual_track` owners) remain available only on the
 admin snapshot-export route, per the readout-vs-raw split below.
 
-## Explicit Sessions And Operations Brain
+## Explicit Sessions And Vertical Brains
 
-AutoCompany integrations use explicit session creation and a dedicated typed
-Operations Brain surface. They do not manufacture a chat/observe interaction
+Coding hosts, Foundry and AutoCompany use the same explicit session and typed
+Brain operation surface. They do not manufacture a chat/observe interaction
 to smuggle a context request through `human_brief` or `structured_context`:
 
 ```http
 POST /dlaas/v1/instances/{ai_id}/sessions
-POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/operations/context-packs
-POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/operations/outcomes
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/context-packs
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/outcomes
 ```
 
 Compatibility aliases omit `/v1`. Session-create accepts only:
@@ -222,22 +222,28 @@ Compatibility aliases omit `/v1`. Session-create accepts only:
 
 The first create returns `201`; replay with the same session/end-user binding
 returns `200`; a different end user for an existing session fails `409
-session_end_user_mismatch`. Operations calls never create a missing session.
-The adopted instance and session must resolve to the `operations` vertical.
+session_end_user_mismatch`. Brain calls never create a missing session. The
+adopted instance fixes the session vertical once; callers cannot override it
+on each Brain request.
 
-Request/report schemas and evidence/authority rules are owned by
+Request/report schemas and evidence/authority rules remain owned by
+[`coding-brain.md`](./coding-brain.md),
+[`venture-brain.md`](./venture-brain.md) and
 [`operations-brain.md`](./operations-brain.md). The platform passes the JSON
-object to the public `lifeform-service` adapter and never imports the domain
-wheel. Both Context Pack and Receipt publish an opaque
-`operations-live-session:*` lineage id. This separates equal caller-supplied
-`session_id` values under different `ai_id` instances; a Context Pack from one
-pair is invalid under another.
+object to the public `lifeform-service` adapter and never interprets domain
+fields. Operations Context Pack and Receipt additionally publish an opaque
+`operations-live-session:*` lineage id. Equal caller-supplied `session_id`
+values under different `ai_id` instances remain isolated.
 
-In multi-pod mode, explicit session creation and both Operations operations are
+In multi-pod mode, explicit session creation and both Brain operations are
 forwarded to the pod owning `ai_id`, exactly like interactions. The child pod
-owns the `SessionManager` and Operations controller ledger; the parent keeps
-only placement, audit, and usage readouts. Missing forwarding capability fails
+owns the `SessionManager` and vertical controller ledger; the parent keeps only
+placement, audit, and usage readouts. Missing forwarding capability fails
 explicitly and never falls back to a parent-local session.
+
+The Operations-specific paths and `forward_operations_request()` remain
+compatibility aliases for existing AutoCompany deployments. New integrations
+use `/brain/*` and `forward_brain_request()`.
 
 ## Adoption Contract
 
@@ -1903,4 +1909,4 @@ contract.
 - Safety boundary injection is accepted only through protocol submission aliases.
 - Catalog endpoints expose composable life blueprints and adoption components.
 - Explicit session creation is idempotent and preserves `ai_id` affinity without a synthetic interaction.
-- Operations Brain context/outcome routes require an existing operations session, preserve live-session/work-order lineage, and follow the owning pod in multi-pod mode.
+- Vertical Brain context/outcome routes require an existing session, preserve each domain's native lineage, and follow the owning pod in multi-pod mode; Operations compatibility aliases remain equivalent.

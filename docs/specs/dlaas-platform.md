@@ -138,3 +138,4 @@ shell 不接受的 capability 由 platform-api 在出站时 degrade 到 `text` +
 
 - 2026-05-09: 初始版本。新增 6 个 `dlaas-platform-*` wheel 占位 + 8 条不变量；slot 占位（`tenant_state` / `contract_state` / `instance_status` / `handoff_ticket_state`）登记到 `docs/DATA_CONTRACT.md`。
 - 2026-08-30: 新增显式 instance session 与 Operations Brain 路由；平台只经 `lifeform-service` 公共 adapter 投影 domain contract，并为 session/context/outcome 补齐 multi-pod sticky forwarding，禁止退化为 interaction 文本路由。
+- 2026-08-30: 将上述 forwarding 抽成 Coding/Venture/Operations 共用的 `forward_brain_request` 与 `/brain/*` 路径；Operations 专用方法和 URL 作为兼容别名保留，parent 继续只做 placement/audit/usage。

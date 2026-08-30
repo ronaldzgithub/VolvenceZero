@@ -286,6 +286,10 @@ DLaaS 以 `(ai_id, session_id)` 路由并提供显式 session create：
 
 ```text
 POST /dlaas/v1/instances/{ai_id}/sessions
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/context-packs
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/outcomes
+
+# 兼容别名
 POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/operations/context-packs
 POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/operations/outcomes
 ```

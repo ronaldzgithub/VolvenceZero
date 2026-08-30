@@ -49,12 +49,25 @@ service 根据 session 冻结的 `vertical_name` 选择 adapter，不接受客�
 
 ## 3. 兼容与项目接线
 
+DLaaS 项目使用同一 operation shape，并以 `(ai_id, session_id)` 保持实例隔离：
+
+```text
+POST /dlaas/v1/instances/{ai_id}/sessions
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/context-packs
+POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/outcomes
+```
+
+multi-pod launcher 只暴露 `forward_brain_request(ai_id, session_id, operation, payload)`，payload 对 parent
+保持 opaque，并转发到 `ai_id` 的 sticky owning pod。parent 不创建 session、controller 或 product-lineage
+副本；缺少该 capability 时返回明确的 `pod_brain_forwarding_unavailable`，不得回落到 parent-local 执行。
+
 原有路径继续注册为兼容别名，错误码也保持 domain-specific，不要求已有调用方一次迁移：
 
 ```text
 /v1/sessions/{session_id}/coding/{context-packs|outcomes}
 /v1/sessions/{session_id}/venture/{context-packs|outcomes}
 /v1/sessions/{session_id}/operations/{context-packs|outcomes}
+/dlaas/v1/instances/{ai_id}/sessions/{session_id}/operations/{context-packs|outcomes}
 ```
 
 新项目统一采用以下步骤：
