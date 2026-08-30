@@ -181,8 +181,23 @@ async def test_all_product_brains_share_one_session_api(monkeypatch) -> None:
     try:
         discovery = await client.get("/v1/brains")
         assert discovery.status == 200
-        names = {item["name"] for item in (await discovery.json())["brains"]}
+        manifests = {
+            item["name"]: item
+            for item in (await discovery.json())["brains"]
+        }
+        names = set(manifests)
         assert names == {"coding", "venture", "operations"}
+        assert all(
+            item["capabilities"]["shared_lifeform_kernel"]
+            for item in manifests.values()
+        )
+        assert manifests["coding"]["capabilities"]["steerable"]["status"] == "shadow"
+        assert manifests["venture"]["capabilities"]["shared_bounded_policy"] is False
+        assert manifests["operations"]["capabilities"]["shared_bounded_policy"] is True
+        assert (
+            manifests["operations"]["capabilities"]["maximum_advice_scope"]
+            == "staging_active"
+        )
     finally:
         await client.close()
 

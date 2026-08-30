@@ -31,7 +31,14 @@ service 根据 session 冻结的 `vertical_name` 选择 adapter，不接受客�
 完全相同的幂等 replay 返回 `200`。
 
 `GET /v1/brains` 返回 `vertical-brain-registry.v1`，列出已安装 adapter、request/report schema version 与
-公共路径。它是能力发现，不是 ACTIVE 授权；具体 advice 的 `WiringLevel` 仍以 domain snapshot 为准。
+公共路径，以及四轴 capability manifest。它是能力发现，不是 ACTIVE 授权；具体 advice 的
+`WiringLevel` 仍以 domain snapshot 为准。manifest 必须同时披露 `shared_lifeform_kernel`、
+`shared_bounded_policy`、每轴 status/mechanism/boundary、`maximum_advice_scope` 和 `claim_scope`。
+
+当前诚实状态是：三个 Brain 都通过 `LifeformSession` 复用 Memory/immutable snapshot/PE owners；Coding 与
+Venture 的 advice 固定 SHADOW，且尚未接共享 bounded-policy；Operations 已接共享 bounded-policy，但默认
+仍是 SHADOW，最高只获 `staging_active`，不等于 production 或完整四能力 thesis。调用方不得仅凭
+`shared_lifeform_kernel=true` 推断 residual steering、ACTIVE advice 或产品 uplift。
 
 公共错误：
 

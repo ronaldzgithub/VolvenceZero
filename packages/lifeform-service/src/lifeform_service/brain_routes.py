@@ -70,6 +70,9 @@ _KNOWN_ADAPTER_ERRORS = (
     OperationsBrainReadOnlyError,
     OperationsBrainSettlementPendingError,
 )
+_CAPABILITY_STATUSES = frozenset(
+    {"active", "shadow", "disabled", "staging_active"}
+)
 
 
 class _JsonContract(Protocol):
@@ -104,6 +107,66 @@ class VerticalBrainRouteError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class BrainCapabilityAxis:
+    """Honest, machine-readable status for one four-able axis."""
+
+    status: str
+    mechanism: str
+    boundary: str
+
+    def __post_init__(self) -> None:
+        if self.status not in _CAPABILITY_STATUSES:
+            raise ValueError(f"unsupported Brain capability status: {self.status!r}")
+        for field_name in ("mechanism", "boundary"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"BrainCapabilityAxis.{field_name} must be non-empty"
+                )
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "mechanism": self.mechanism,
+            "boundary": self.boundary,
+        }
+
+
+@dataclass(frozen=True)
+class VerticalBrainCapabilityManifest:
+    """Capability projection; it never grants wiring or authority."""
+
+    appendable: BrainCapabilityAxis
+    readable: BrainCapabilityAxis
+    learnable: BrainCapabilityAxis
+    steerable: BrainCapabilityAxis
+    shared_lifeform_kernel: bool
+    shared_bounded_policy: bool
+    maximum_advice_scope: str
+    claim_scope: str
+
+    def __post_init__(self) -> None:
+        if not self.shared_lifeform_kernel:
+            raise ValueError("vertical Brain adapters require the shared Lifeform kernel")
+        if self.maximum_advice_scope not in _CAPABILITY_STATUSES:
+            raise ValueError("maximum_advice_scope must be a capability status")
+        if not isinstance(self.claim_scope, str) or not self.claim_scope.strip():
+            raise ValueError("claim_scope must be non-empty")
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "appendable": self.appendable.to_json(),
+            "readable": self.readable.to_json(),
+            "learnable": self.learnable.to_json(),
+            "steerable": self.steerable.to_json(),
+            "shared_lifeform_kernel": self.shared_lifeform_kernel,
+            "shared_bounded_policy": self.shared_bounded_policy,
+            "maximum_advice_scope": self.maximum_advice_scope,
+            "claim_scope": self.claim_scope,
+        }
+
+
+@dataclass(frozen=True)
 class VerticalBrainAdapter:
     """Transport contract joining one vertical owner to the shared routes."""
 
@@ -117,6 +180,7 @@ class VerticalBrainAdapter:
     lineage_errors: tuple[type[Exception], ...]
     readonly_errors: tuple[type[Exception], ...]
     settlement_errors: tuple[type[Exception], ...] = ()
+    capabilities: VerticalBrainCapabilityManifest | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").isalnum():
@@ -128,6 +192,8 @@ class VerticalBrainAdapter:
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value:
                 raise ValueError(f"VerticalBrainAdapter.{field_name} must be non-empty")
+        if not isinstance(self.capabilities, VerticalBrainCapabilityManifest):
+            raise ValueError("VerticalBrainAdapter.capabilities must be explicit")
 
     async def publish_context_payload(
         self,
@@ -162,7 +228,87 @@ class VerticalBrainAdapter:
             "outcome_report_schema_version": self.outcome_report_schema_version,
             "context_path": "/v1/sessions/{session_id}/brain/context-packs",
             "outcome_path": "/v1/sessions/{session_id}/brain/outcomes",
+            "capabilities": self.capabilities.to_json(),
         }
+
+
+def _shared_memory_axis(*, vertical: str) -> BrainCapabilityAxis:
+    return BrainCapabilityAxis(
+        status="active",
+        mechanism=f"typed {vertical} outcomes append through LifeformSession to the Memory owner",
+        boundary="does not replace the external project's source-of-truth ledger",
+    )
+
+
+def _shared_read_axis(*, vertical: str) -> BrainCapabilityAxis:
+    return BrainCapabilityAxis(
+        status="active",
+        mechanism=f"{vertical} Context Packs read immutable Memory and PE owner snapshots",
+        boundary="consumer cannot reconstruct or mutate producer hidden state",
+    )
+
+
+def _coding_capabilities() -> VerticalBrainCapabilityManifest:
+    return VerticalBrainCapabilityManifest(
+        appendable=_shared_memory_axis(vertical="Coding"),
+        readable=_shared_read_axis(vertical="Coding"),
+        learnable=BrainCapabilityAxis(
+            status="active",
+            mechanism="qualified deterministic task outcomes settle through the shared PE path",
+            boundary="no shared bounded-policy checkpoint or product ACTIVE learned gate",
+        ),
+        steerable=BrainCapabilityAxis(
+            status="shadow",
+            mechanism="owner-published regime/action advice readout",
+            boundary="no residual actuation; advice is excluded from ACTIVE rendered context",
+        ),
+        shared_lifeform_kernel=True,
+        shared_bounded_policy=False,
+        maximum_advice_scope="shadow",
+        claim_scope="partial_four_axis_mechanism_no_active_steering",
+    )
+
+
+def _venture_capabilities() -> VerticalBrainCapabilityManifest:
+    return VerticalBrainCapabilityManifest(
+        appendable=_shared_memory_axis(vertical="Venture"),
+        readable=_shared_read_axis(vertical="Venture"),
+        learnable=BrainCapabilityAxis(
+            status="active",
+            mechanism="Foundry-qualified field aggregates settle through the shared PE path",
+            boundary="simulation, judge, adoption and gross revenue are not learning sources",
+        ),
+        steerable=BrainCapabilityAxis(
+            status="shadow",
+            mechanism="typed advisor candidates remain a comparison-only projection",
+            boundary="Foundry retains every decision and actuator; no ACTIVE learned gate",
+        ),
+        shared_lifeform_kernel=True,
+        shared_bounded_policy=False,
+        maximum_advice_scope="shadow",
+        claim_scope="partial_four_axis_mechanism_no_active_steering",
+    )
+
+
+def _operations_capabilities() -> VerticalBrainCapabilityManifest:
+    return VerticalBrainCapabilityManifest(
+        appendable=_shared_memory_axis(vertical="Operations"),
+        readable=_shared_read_axis(vertical="Operations"),
+        learnable=BrainCapabilityAxis(
+            status="active",
+            mechanism="exact PE credit updates the shared bounded-policy math and Operations checkpoint",
+            boundary="only owner-qualified applied outcomes update; evaluation and judge are excluded",
+        ),
+        steerable=BrainCapabilityAxis(
+            status="shadow",
+            mechanism="bounded candidate ranking and logistic timing are SHADOW by default",
+            boundary="ACTIVE requires an exact ModificationGate receipt and is staging-only",
+        ),
+        shared_lifeform_kernel=True,
+        shared_bounded_policy=True,
+        maximum_advice_scope="staging_active",
+        claim_scope="bounded_policy_staging_evidence_not_production_thesis",
+    )
 
 
 def default_vertical_brain_adapters(
@@ -184,6 +330,7 @@ def default_vertical_brain_adapters(
             conflict_errors=(CodingBrainConflictError,),
             lineage_errors=(CodingBrainLineageError,),
             readonly_errors=(CodingBrainReadOnlyError,),
+            capabilities=_coding_capabilities(),
         ),
         VerticalBrainAdapter(
             name="venture",
@@ -196,6 +343,7 @@ def default_vertical_brain_adapters(
             lineage_errors=(VentureBrainLineageError,),
             readonly_errors=(VentureBrainReadOnlyError,),
             settlement_errors=(VentureBrainSettlementPendingError,),
+            capabilities=_venture_capabilities(),
         ),
         VerticalBrainAdapter(
             name="operations",
@@ -208,6 +356,7 @@ def default_vertical_brain_adapters(
             lineage_errors=(OperationsBrainLineageError,),
             readonly_errors=(OperationsBrainReadOnlyError,),
             settlement_errors=(OperationsBrainSettlementPendingError,),
+            capabilities=_operations_capabilities(),
         ),
     )
 
@@ -432,7 +581,9 @@ async def _handle_discovery(request: web.Request) -> web.Response:
 
 
 __all__ = (
+    "BrainCapabilityAxis",
     "VerticalBrainAdapter",
+    "VerticalBrainCapabilityManifest",
     "VerticalBrainRouteError",
     "default_vertical_brain_adapters",
     "publish_vertical_brain_payload",
