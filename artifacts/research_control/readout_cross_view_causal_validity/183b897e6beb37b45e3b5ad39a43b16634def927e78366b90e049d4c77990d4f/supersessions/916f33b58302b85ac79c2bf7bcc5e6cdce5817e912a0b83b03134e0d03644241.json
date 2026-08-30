@@ -1,0 +1,45 @@
+{
+  "authority": {
+    "formal_validation_authorized": false,
+    "human_a0_carried_forward": false,
+    "pre_a0_only": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "change": {
+    "after": {
+      "file_count": 323,
+      "root": "/Users/mengfu/Documents/GitHub/PRAXIST",
+      "tree_sha256": "96eaedc1c83f7048d598d28cd49c1a36cca3f930b619732852031f8d811ad789"
+    },
+    "before": {
+      "file_count": 317,
+      "root": "/Users/mengfu/Documents/GitHub/PRAXIST",
+      "tree_sha256": "44877e2efe8df187927142308ebd88607622a528e6d4982c7bc83ff2e3ccb566"
+    },
+    "binding": "bindings.praxist.source_checkout",
+    "reason_code": "praxist_source_checkout_changed"
+  },
+  "created_at": "2026-08-30T14:58:07.050654Z",
+  "record": {
+    "reason": "The exact Praxist source checkout changed before A0. Preserve the immutable Request lineage and require a separate A0 on the replacement.",
+    "superseded_by": "forge:demand-discovery-loop.v1"
+  },
+  "replacement_request": {
+    "artifact": {
+      "locator": "artifacts/research_control/readout_cross_view_causal_validity/247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d/request.json",
+      "sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0"
+    },
+    "artifact_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d"
+  },
+  "schema_version": "forge-research-request-supersession.v1",
+  "superseded_request": {
+    "artifact": {
+      "locator": "artifacts/research_control/readout_cross_view_causal_validity/183b897e6beb37b45e3b5ad39a43b16634def927e78366b90e049d4c77990d4f/request.json",
+      "sha256": "ee7f362c8acca8217dc1e746f1957b7c0da410df9a8235e7a18499746c61d76f"
+    },
+    "artifact_id": "research-request:183b897e6beb37b45e3b5ad39a43b16634def927e78366b90e049d4c77990d4f"
+  },
+  "supersession_id": "research-request-supersession:916f33b58302b85ac79c2bf7bcc5e6cdce5817e912a0b83b03134e0d03644241"
+}

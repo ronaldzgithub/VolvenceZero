@@ -1,0 +1,51 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "approval_sha256": "dbcc70753f4523a268761ec6f258f5fc87653bf6ce643ac76d5eb1834b51544f",
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "production_promotion_authorized": false,
+    "research_lifecycle_only": true,
+    "runtime_wiring_changed": false
+  },
+  "command": {
+    "argv": [
+      "/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist",
+      "stop",
+      "run_344da49be952560c2c22_e226d82c1d89",
+      "--grace",
+      "300",
+      "--json"
+    ],
+    "exit_code": 0,
+    "phase": "stop",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "d0ec7e12b055a2da2e0d7005c3d9ef7e1cf7b72ac7f36ae9319d13faf8e8bdb0",
+    "timed_out": false
+  },
+  "created_at": "2026-08-30T16:17:01.266108Z",
+  "details": [
+    "Praxist stop returned a successful exact receipt"
+  ],
+  "directive_id": "research-control-directive:5ba4ce09370c5557b24ee322fe265e3f1e7d75b80b63178d187651a67e14a291",
+  "event_id": "research-control-event:65b2be6883efbd88a57f6312097f254a3651c4cc3a6beeb10fb3a45432485cc4",
+  "kind": "STOP_CONFIRMED",
+  "previous_event_sha256": "dfe18c11978e5a84f9b0fd1454e39b395607fb760514fef1e042cafd5fd866fe",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "run": {
+    "findings_total": 15,
+    "generation": 0,
+    "log_file": null,
+    "monitor_command": "praxist --monitor --run-id run_344da49be952560c2c22_e226d82c1d89",
+    "pid": 0,
+    "praxist_state": "stopped",
+    "run_dir": "/Users/mengfu/.local/share/praxist/volvence_runs/run_344da49be952560c2c22_e226d82c1d89",
+    "run_id": "run_344da49be952560c2c22_e226d82c1d89",
+    "source": "stale",
+    "updated_at": "2026-08-30T16:17:01.266074Z"
+  },
+  "schema_version": "forge-research-control-event.v1",
+  "sequence": 13,
+  "state": "PAUSED"
+}

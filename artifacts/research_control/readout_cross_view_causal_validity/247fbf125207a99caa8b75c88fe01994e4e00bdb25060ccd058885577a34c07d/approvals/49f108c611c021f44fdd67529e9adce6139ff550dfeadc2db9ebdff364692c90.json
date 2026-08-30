@@ -1,0 +1,34 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "authority": {
+    "formal_validation_authorized": false,
+    "production_promotion_authorized": false,
+    "research_start_authorized": true,
+    "runtime_wiring_authorized": false
+  },
+  "created_at": "2026-08-30T15:06:35.878865Z",
+  "decision": "APPROVE",
+  "execution_policy": {
+    "concurrency_lane": "steering_foundation",
+    "max_active_runs_global": 2,
+    "max_active_runs_lane": 1,
+    "portfolio": {
+      "artifact": {
+        "locator": "research/portfolios/baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b.json",
+        "sha256": "824f1d69e57e415157ef5122961db644fea72aab0e5ae22667413db55c8f2a2f"
+      },
+      "artifact_id": "research-portfolio:baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b"
+    },
+    "resume_policy": "completed_generation",
+    "study_id": "readout_cross_view_causal_validity",
+    "unknown_active_run_policy": "BLOCK"
+  },
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "review": {
+    "reason": "批准仅启动该有界 Praxist 研究，不授权正式验证、候选上架或 runtime wiring。",
+    "reviewed_by": "Mengfu"
+  },
+  "schema_version": "forge-research-approval.v1",
+  "scope": "praxist_research_start"
+}

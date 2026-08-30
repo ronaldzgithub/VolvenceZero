@@ -1,0 +1,68 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "binding_status": "UNBOUND",
+  "capability_axes": [
+    "readable",
+    "steerable"
+  ],
+  "corpus_sha256": "47bc37c5245ac8d624aa4f6c27cf8b495aa131d5ae8cdf32084250c344dc1f83",
+  "created_at": "2026-08-30T14:13:22.399931Z",
+  "demand": {
+    "artifact": {
+      "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+      "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+    },
+    "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+  },
+  "discovery_run_id": "research-discovery-run:eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439",
+  "proposal_id": "research-topic-proposal:14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a",
+  "schema_version": "forge-research-topic-proposal.v1",
+  "source_refs": [
+    {
+      "claim": "Source facts in lines 32-46: held-out probe accuracy previously coexisted with null steering; coherence, separation, causal patch upper bounds, and dose curves are required before treating a direction as controllable.",
+      "locator": "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+      "sha256": "8e9c1266fb2f9ccbb906dc15261a7def62d2d1ec13442bd849473ef6d0fbd43e"
+    },
+    {
+      "claim": "Source facts in lines 52-65: the P0 primary criteria include signed target action/logit effect and random-control separation, with INSTRUMENT_INVALID when discrimination or random control fails.",
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    },
+    {
+      "claim": "Source facts in lines 74-105: the reliability screen requires direction coherence, class separation, signed per-sample effect, reverse-effect, dose/collapse, already-correct damage, and robustness before more complex control.",
+      "locator": "research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md",
+      "sha256": "62d383c823ce672d8c72ba0b1b8f2ec3f092653b27390dfc2725a5f7422494ca"
+    }
+  ],
+  "topic": {
+    "caveats": [
+      "A positive logit intervention is evidence about the bounded frozen substrate and target-token readout, not proof of user-visible behavioral benefit or PE validity.",
+      "No reader, threshold, model binding, evaluator, or runtime configuration is changed by this topic."
+    ],
+    "demand_relevance": "Directly tests the Steerable axis and the demand's causal connection to the frozen model's next-token decision, including signed target-logit improvement and separation from a matched random direction.",
+    "falsification_signals": [
+      "No non-random reader produces a positive held-out signed target-logit effect, or the sign is inconsistent across views.",
+      "The matched random direction has an indistinguishable effect, or the target effect disappears on held-out wording, format, language, role-order, or counterfactual views; classify causal instrument validity as failed.",
+      "Positive average effect is accompanied by excessive reverse effects, correct-to-wrong flips, or collapse under the bounded patch."
+    ],
+    "hypothesis": "Causal hypothesis: a readable direction that lies in the downstream causal subspace will improve the signed target-token margin under a bounded residual patch across held-out views, while a norm- and layer-matched random direction will not.",
+    "mechanism": "Source facts: the corpus records a prior case where held-out probe accuracy coexisted with null steering and requires direction coherence, class separation, causal upper-bound patching, dose curves, and random-control separation. Test mechanism: patching a consumed residual direction should change the next-token logit in the intended sign; the matched random patch isolates generic norm or perturbation effects.",
+    "research_question": "Does any specified non-random reader produce a bounded, cross-view, signed target-token logit effect that exceeds the matched random-direction effect?",
+    "success_signals": [
+      "At least one non-random reader produces a positive signed target-token margin improvement on held-out identities and every required view.",
+      "The target effect exceeds the matched random-direction effect by the frozen separation threshold, with coherent sign and a bounded dose-response curve.",
+      "Already-correct damage, reverse effects, and collapse remain below their frozen limits while the effect is retained outside the original view."
+    ],
+    "suggested_method": "Using only reader directions selected from the training side, freeze each direction and apply the same bounded residual patch to matched held-out examples. Compare strict noop, each non-random reader direction, and random directions matched for layer, position, norm, and dose. Stratify by semantic identity and view; preregister dose and sign analyses. Measure paired target-token margin change, confidence intervals, per-sample signed effects, reverse-effect rate, already-correct damage, and collapse indicators without using evaluation or human scores as learning signals.",
+    "title": "Causal target-logit effect versus matched random direction"
+  }
+}

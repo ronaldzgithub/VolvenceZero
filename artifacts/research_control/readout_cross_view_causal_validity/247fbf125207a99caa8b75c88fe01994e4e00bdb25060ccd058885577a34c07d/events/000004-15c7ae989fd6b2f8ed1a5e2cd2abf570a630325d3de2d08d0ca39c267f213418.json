@@ -1,0 +1,47 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "approval_sha256": "dbcc70753f4523a268761ec6f258f5fc87653bf6ce643ac76d5eb1834b51544f",
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "production_promotion_authorized": false,
+    "research_lifecycle_only": true,
+    "runtime_wiring_changed": false
+  },
+  "command": {
+    "argv": [
+      "/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist",
+      "resolve",
+      "/Users/mengfu/Documents/GitHub/volvence/research/praxist_tasks/readout_cross_view_causal_validity",
+      "--run-dir",
+      "/Users/mengfu/Documents/GitHub/volvence/artifacts/research_control/readout_cross_view_causal_validity/247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d/preflight",
+      "--agent-system",
+      "codex_sdk",
+      "--runtime",
+      "agent_runtime:codex_sdk",
+      "--codex-native",
+      "--model-provider",
+      "model_provider:openai_compatible",
+      "--model",
+      "gpt-5.6-luna"
+    ],
+    "exit_code": 0,
+    "phase": "resolve",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "51497b57fb966aae921fdbd0c8953d7646abeb38b202248f7397cb2d41341158",
+    "timed_out": false
+  },
+  "created_at": "2026-08-30T15:07:01.344649Z",
+  "details": [
+    "task_project_manifest_sha256=4ac5190ce2dcc21528b06db6ecf22af35c749f64839878bec34c906e032d7976"
+  ],
+  "event_id": "research-control-event:15c7ae989fd6b2f8ed1a5e2cd2abf570a630325d3de2d08d0ca39c267f213418",
+  "kind": "RESOLVE_SUCCEEDED",
+  "previous_event_sha256": "bede7ab6e70c4097f8f029eca4a0a324b20c373390d25d46b394285fcf15f7ca",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "run": null,
+  "schema_version": "forge-research-control-event.v1",
+  "sequence": 4,
+  "state": "PREFLIGHT_RESOLVED"
+}

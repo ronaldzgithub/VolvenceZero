@@ -1,0 +1,25 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "approval_sha256": "dbcc70753f4523a268761ec6f258f5fc87653bf6ce643ac76d5eb1834b51544f",
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "production_promotion_authorized": false,
+    "research_lifecycle_only": true,
+    "runtime_wiring_changed": false
+  },
+  "command": null,
+  "created_at": "2026-08-30T15:07:00.780355Z",
+  "details": [
+    "preflight_dir=/Users/mengfu/Documents/GitHub/volvence/artifacts/research_control/readout_cross_view_causal_validity/247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d/preflight"
+  ],
+  "event_id": "research-control-event:42687b83905b8aacce1f712f58e36816ee34754e611a32241f6cf8c6a2b6577a",
+  "kind": "RESOLVE_INTENT",
+  "previous_event_sha256": "25cda0a074c214cabbe2cca1cf577a1a0735fe80fb5e1b2c958938fee7573fc8",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "run": null,
+  "schema_version": "forge-research-control-event.v1",
+  "sequence": 3,
+  "state": "APPROVED"
+}

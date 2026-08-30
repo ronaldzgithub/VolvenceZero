@@ -1,0 +1,68 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "binding_status": "UNBOUND",
+  "capability_axes": [
+    "readable",
+    "steerable"
+  ],
+  "corpus_sha256": "47bc37c5245ac8d624aa4f6c27cf8b495aa131d5ae8cdf32084250c344dc1f83",
+  "created_at": "2026-08-30T14:13:22.399931Z",
+  "demand": {
+    "artifact": {
+      "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+      "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+    },
+    "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+  },
+  "discovery_run_id": "research-discovery-run:eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439",
+  "proposal_id": "research-topic-proposal:5af39c0804a842aa25e30ab2d273d213dc1e4ab035ef5354707f495555cbb655",
+  "schema_version": "forge-research-topic-proposal.v1",
+  "source_refs": [
+    {
+      "claim": "Source facts in lines 58-69: average gains mix wrong-to-right, already-correct, unsteerable, and reverse-effect samples; formal reporting must include per-instance outcomes, damage, collapse, and dose/layer curves.",
+      "locator": "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+      "sha256": "8e9c1266fb2f9ccbb906dc15261a7def62d2d1ec13442bd849473ef6d0fbd43e"
+    },
+    {
+      "claim": "Source facts in lines 114-128: fixed layer may sacrifice controllability, so oracle headroom should be measured before expanding layer or dose choices.",
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "claim": "Source facts in lines 8-15 and 61-65: model/data conditions and formal arms, seeds, budgets, metrics, thresholds, and kill conditions are frozen before results, with explicit PASS, DOMAIN_LOCAL, and INSTRUMENT_INVALID exits.",
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    }
+  ],
+  "topic": {
+    "caveats": [
+      "Replication remains bounded to the frozen model, corpus, evaluator, and predeclared boundary set; it is not a universal-model or deployment study.",
+      "Per-instance diagnostics remain evaluation-only and cannot become PE, credit, or threshold-tuning signals."
+    ],
+    "demand_relevance": "Tests the demand's minimum normalized qualification margin, weakest-view criterion, direction coherence, and explicit falsification condition that a public-development PASS may fail to replicate or depend on one exact layer/view boundary.",
+    "falsification_signals": [
+      "The mean effect is positive but weakest-view performance fails, or per-instance reverse-effect/right-to-wrong rates exceed limits; classify as DOMAIN_LOCAL or instrument/control failure as applicable.",
+      "A visible public-development PASS fails independent replication, or disappears under a predeclared boundary check without positive headroom.",
+      "Only one exact layer/view boundary passes while neighboring frozen checks fail, so the cross-view causal claim is not established."
+    ],
+    "hypothesis": "Causal hypothesis: genuine readout-control validity will replicate across reader-fit seeds and predeclared nearby layer/view boundaries with positive headroom, while shortcut or oversteer effects will appear as per-instance sign reversals, correct-to-wrong flips, or boundary fragility.",
+    "mechanism": "Source facts: the corpus reports that mean steering can hide rescuable, already-correct, unsteerable, and reverse-effect samples; excessive layers or dose can damage correct inputs or collapse outputs. It also requires frozen arms, seeds, budgets, metrics, thresholds, and kill conditions. Test mechanism: a valid direction should have stable per-instance signs and a positive weakest-view margin rather than relying on one average or exact boundary.",
+    "research_question": "Does a preregistered reader result remain valid at the weakest view, at the per-instance level, and across independent reader-fit repetitions and predeclared boundary checks?",
+    "success_signals": [
+      "The same non-random reader clears the frozen gates across independent repetitions and all held-out views with a non-negative minimum normalized margin.",
+      "Per-instance effects show coherent direction, with reverse-effect and right-to-wrong rates below frozen limits rather than a positive mean masking damage.",
+      "The result replicates under predeclared nearby layer/view checks with positive headroom and is not dependent on one exact boundary."
+    ],
+    "suggested_method": "Select the candidate using only a preregistered training/validation rule, then freeze the model, corpus, evaluator, reader, layer, norm cap, dose, and thresholds. Repeat reader fitting with independent seeds on an untouched held-out identity/view cross-product. Evaluate predeclared neighboring eligible layer/view boundaries at matched norm and dose, without post-result optimization. Report wrong-to-right, right-to-wrong, no-change, reverse-effect, weakest-view accuracy, calibration, Cohen's d, identity retrieval, direction coherence, and replication of the complete gate result.",
+    "title": "Weakest-view, per-instance, and boundary-robust replication"
+  }
+}

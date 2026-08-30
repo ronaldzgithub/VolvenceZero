@@ -1,0 +1,69 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "approval_sha256": "dbcc70753f4523a268761ec6f258f5fc87653bf6ce643ac76d5eb1834b51544f",
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "production_promotion_authorized": false,
+    "research_lifecycle_only": true,
+    "runtime_wiring_changed": false
+  },
+  "command": {
+    "argv": [
+      "/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist",
+      "start",
+      "--task-path",
+      "/Users/mengfu/Documents/GitHub/volvence/research/praxist_tasks/readout_cross_view_causal_validity",
+      "--run-dir",
+      "/Users/mengfu/.local/share/praxist/volvence_runs/run_344da49be952560c2c22_e226d82c1d89",
+      "--daemonize",
+      "--json",
+      "--startup-timeout",
+      "30",
+      "--agent-system",
+      "codex_sdk",
+      "--runtime",
+      "agent_runtime:codex_sdk",
+      "--codex-native",
+      "--model-provider",
+      "model_provider:openai_compatible",
+      "--model",
+      "gpt-5.6-luna",
+      "--strategy",
+      "mixed",
+      "--cohort",
+      "4",
+      "--generations",
+      "3"
+    ],
+    "exit_code": 0,
+    "phase": "start",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "b80a929e837ec03fa50caa77ad1db5c6e714df0c7cdc47e3adb42f18911b7151",
+    "timed_out": false
+  },
+  "created_at": "2026-08-30T15:07:02.305772Z",
+  "details": [
+    "Praxist detached launch returned an exact registry entry"
+  ],
+  "event_id": "research-control-event:19cab7d148887566788de79340b636d1b717efb94023c4d3db40523ea6c69310",
+  "kind": "START_CONFIRMED",
+  "previous_event_sha256": "883d7d77bc264a272e809c4b151e33f22672122e2c21ed2babf2f67d28fce31b",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "run": {
+    "findings_total": null,
+    "generation": null,
+    "log_file": "/Users/mengfu/.local/share/praxist/volvence_runs/run_344da49be952560c2c22_e226d82c1d89/logs/launcher.nohup.log",
+    "monitor_command": "praxist --monitor --run-id run_344da49be952560c2c22_e226d82c1d89",
+    "pid": 30328,
+    "praxist_state": "running",
+    "run_dir": "/Users/mengfu/.local/share/praxist/volvence_runs/run_344da49be952560c2c22_e226d82c1d89",
+    "run_id": "run_344da49be952560c2c22_e226d82c1d89",
+    "source": "registry",
+    "updated_at": "2026-08-30T15:07:01.665042+00:00"
+  },
+  "schema_version": "forge-research-control-event.v1",
+  "sequence": 7,
+  "state": "RUNNING"
+}

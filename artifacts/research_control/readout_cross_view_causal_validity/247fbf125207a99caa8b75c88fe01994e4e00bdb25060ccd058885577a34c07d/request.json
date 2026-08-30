@@ -1,0 +1,319 @@
+{
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_required_after_run": true,
+    "human_research_approval_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false
+  },
+  "bindings": {
+    "praxist": {
+      "executable": {
+        "locator": "/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist",
+        "sha256": "96d98f3b48597504f156c543d6cfe5f59c9a6bf6f82b8406584c2493bed92197"
+      },
+      "source_checkout": {
+        "file_count": 323,
+        "root": "/Users/mengfu/Documents/GitHub/PRAXIST",
+        "tree_sha256": "96eaedc1c83f7048d598d28cd49c1a36cca3f930b619732852031f8d811ad789"
+      }
+    },
+    "research_task": {
+      "locator": "research/tasks/readout_cross_view_causal_validity/task.json",
+      "sha256": "f7dd42663a4d9de54dd1d93d4d678b833900d319e4d796b0b03305f5794c4cbd"
+    },
+    "task_project": {
+      "file_count": 48,
+      "files": [
+        {
+          "bytes": 131,
+          "path": ".gitignore",
+          "sha256": "8162a695d25ff4c7d4768620b5d8474d0471e976f96347183f89b0c85e0f5d93"
+        },
+        {
+          "bytes": 1187,
+          "path": "README.md",
+          "sha256": "0b96b32188c6a29b901013b615b15e7776ba2f09e49468a52034bc3ad3fce9d1"
+        },
+        {
+          "bytes": 73,
+          "path": "__init__.py",
+          "sha256": "1af347551597d9c4c9c753dc191cf12b2653bdac9ae68527d25de3a5c7ee14d2"
+        },
+        {
+          "bytes": 1781,
+          "path": "description.md",
+          "sha256": "ab082e1a2770e0b9dfc2c281b8eefa5e813489422f4f2e331c04436b00da8aed"
+        },
+        {
+          "bytes": 1142,
+          "path": "prompt_base.jinja2",
+          "sha256": "1b089d903bedad5df7fd48ad1d6b6b611fad526e71e43f6c2e0769239df6bf29"
+        },
+        {
+          "bytes": 970,
+          "path": "prompt_generation.jinja2",
+          "sha256": "8243b5b465cd5df782a380422594e1b745f6c42946b5f8c8972bdba797348979"
+        },
+        {
+          "bytes": 1721,
+          "path": "prompt_task.jinja2",
+          "sha256": "002f06568308e23bbe49ed26dc4fd0c7a7dc36af9290ab69c5173a51c1e63853"
+        },
+        {
+          "bytes": 14581,
+          "path": "task.yaml",
+          "sha256": "07f22e6849fdcf2f8f9a2e7ae6027e46facc49d7c3be7ab63df9650b9113e0b5"
+        },
+        {
+          "bytes": 3365,
+          "path": ".praxist/plugins/panel_topologies/readout_cross_view_causal_validity/plugin.yaml",
+          "sha256": "cd21d652d0e461d5539886963c1660b336161fa8a780882b9eb3d419c505d9c8"
+        },
+        {
+          "bytes": 1757,
+          "path": "assets/protocol_intent.md",
+          "sha256": "2921ba3ae76aa9d47cfb530b0561ea7389bbec19f8371e4e311dfc4b1c139e59"
+        },
+        {
+          "bytes": 2294,
+          "path": "assets/resource_plan.md",
+          "sha256": "e20eba8f1f7e68464a9b9a4ba21380603d100233a1f73141e81f2bd16e38e641"
+        },
+        {
+          "bytes": 279,
+          "path": "assets/baseline/reader.json",
+          "sha256": "9d6a00ea9485fc2979e757bb6c5744bc86ae4a95453b931126073605c4fda8fc"
+        },
+        {
+          "bytes": 1234,
+          "path": "assets/baselines/baseline_performance_status.md",
+          "sha256": "2bcc6b9c5ff28c68177e96d546c66f10e8f152bef9af8a08b91a291fb4fad4fd"
+        },
+        {
+          "bytes": 1307,
+          "path": "assets/baselines/curated_baseline_summary.md",
+          "sha256": "49cd862e987014c74e0f560039f6b9406c8e728d86e40bee4c07eca65437d6d8"
+        },
+        {
+          "bytes": 2786,
+          "path": "assets/baselines/results.jsonl",
+          "sha256": "4df295bb6b595c543b5ece6dd088f01a6a95ff4628871a8a075da28e4873b3c2"
+        },
+        {
+          "bytes": 7903,
+          "path": "assets/baselines/baseline_linear_l12.complete/evaluation_summary.json",
+          "sha256": "6af038b25e1a47165504a80a7530fb16dac7c028f5d86fe829f5bb3a38b02a10"
+        },
+        {
+          "bytes": 292,
+          "path": "assets/canaries/linear_l14/reader.json",
+          "sha256": "0729b0ffdd6b87d5fa5ccf7719d11905d23fe51cc12ac0e232710fb9ee237fb4"
+        },
+        {
+          "bytes": 7815,
+          "path": "assets/canaries/linear_l14.complete/evaluation_summary.json",
+          "sha256": "cef8736f98c024c3fcd327ae96d2b9f868574700e411a51923fbd0221cb88d58"
+        },
+        {
+          "bytes": 19604,
+          "path": "assets/dataset_metadata/development_corpus.json",
+          "sha256": "1ff422960e9c933b66d111352a16b5e8d964a43aecc5c0d2985ebe2995069344"
+        },
+        {
+          "bytes": 1174,
+          "path": "assets/harness/reader.schema.json",
+          "sha256": "85dbd37252a2fd9e21b2a370c5002aa73c8035f41b65cb8ed5df990ef9e6d8fe"
+        },
+        {
+          "bytes": 2132,
+          "path": "assets/literature/research_directions.md",
+          "sha256": "4f51d40d4c0a8d64544182b517de3f29340be89b7a1dc1bc64b6ff9631c6ab72"
+        },
+        {
+          "bytes": 1525,
+          "path": "audit_rules/scope_and_evidence/audit.yaml",
+          "sha256": "c4d3262d5142aaa09ba044c2c66dc6c73af657074a564f22b98f31ee185ea14f"
+        },
+        {
+          "bytes": 29,
+          "path": "evaluations/__init__.py",
+          "sha256": "7c9b9998e77724e5020e38c2f79b3015a02bf411857bc281df589f05f71294d0"
+        },
+        {
+          "bytes": 52,
+          "path": "evaluations/cross_view/__init__.py",
+          "sha256": "50d38f8bd23aae45a8617aa1e54441ac9314793a72268dda2703df6972edff20"
+        },
+        {
+          "bytes": 934,
+          "path": "evaluations/cross_view/evaluation.yaml",
+          "sha256": "24f8a112b4a372600881e2248b875836d548234f3744964a02441bbc6c472792"
+        },
+        {
+          "bytes": 42156,
+          "path": "evaluations/cross_view/run.py",
+          "sha256": "dd17de4547cddd00ac985f8eeb83028b52436e9dacf353cec29268cb57c9ccfc"
+        },
+        {
+          "bytes": 652,
+          "path": "roles/analyst/role.yaml",
+          "sha256": "4b02d3299bf9691b239394ae77017037be795c31541720020ea087a6532916f3"
+        },
+        {
+          "bytes": 346,
+          "path": "roles/analyst/skill.md",
+          "sha256": "097e2facc07c9e5ba6c249c7d4e4e64a7c6abc0a5948edaae625897eb4cc81fe"
+        },
+        {
+          "bytes": 919,
+          "path": "roles/builder_pi/role.yaml",
+          "sha256": "bd0b37cf40854aeb8c399ee5f827a5453acb5fbf4cb3cd5c36246d9fc3674f74"
+        },
+        {
+          "bytes": 326,
+          "path": "roles/builder_pi/skill.md",
+          "sha256": "db59883adfb172b7e822a1e989c9f3caef98713692339177aaf2751c15eb3c79"
+        },
+        {
+          "bytes": 623,
+          "path": "roles/chair/role.yaml",
+          "sha256": "c68a09c0ce72051571dbbeed00437368c3f9842999d50520b8bfdf0dfdc7336d"
+        },
+        {
+          "bytes": 329,
+          "path": "roles/chair/skill.md",
+          "sha256": "f26094fb7a7d66cb46dfa6316c93f274db8be48e6f8ef2496520fd4531292527"
+        },
+        {
+          "bytes": 967,
+          "path": "roles/external_validity_pi/role.yaml",
+          "sha256": "e5a5f7b738f421ea539223f9360b4f0a54b0a4572a703376aa3b317c5403f650"
+        },
+        {
+          "bytes": 351,
+          "path": "roles/external_validity_pi/skill.md",
+          "sha256": "057eddfe430a0e91baa4e039cdd8bf6eb22782928b9889076778b6324575b9a6"
+        },
+        {
+          "bytes": 608,
+          "path": "roles/literature_scout/role.yaml",
+          "sha256": "7d48a0d498cb3cda95612359753a958d844fa4c9be793aa94af6a97922738021"
+        },
+        {
+          "bytes": 311,
+          "path": "roles/literature_scout/skill.md",
+          "sha256": "40e22dd665b9e57e0819e153636b0017b00d752159c0f0f0990b2fd268c7127e"
+        },
+        {
+          "bytes": 695,
+          "path": "roles/peer_generalist/role.yaml",
+          "sha256": "69957c0ae62b5c58ec6cfc1032e1f4d3792cbdef81c173b5482472f97042b320"
+        },
+        {
+          "bytes": 344,
+          "path": "roles/peer_generalist/skill.md",
+          "sha256": "1df4f71a5cb1a67674fa385dcfdad60991bf080445eeb72702f5d6fd4038bf68"
+        },
+        {
+          "bytes": 895,
+          "path": "roles/portfolio_pi/role.yaml",
+          "sha256": "1540a97443934e56430d5a394c8e5fbfe8f79a2e0b9a13c71c001c7bf64cdd5d"
+        },
+        {
+          "bytes": 318,
+          "path": "roles/portfolio_pi/skill.md",
+          "sha256": "c05c41754620e6586f42e51a31e476edf5228fed7f7820dfbe87a9e754be59c9"
+        },
+        {
+          "bytes": 945,
+          "path": "roles/skeptic_pi/role.yaml",
+          "sha256": "9af93dd74dda4423449e6d69c141b67564f2ae6a0c8b11207b656f2f7db4012d"
+        },
+        {
+          "bytes": 305,
+          "path": "roles/skeptic_pi/skill.md",
+          "sha256": "2be217e3c4e17b800c96d44bf72ab3b319bb9ee2f3497ce2ebd5404cea2cddfb"
+        },
+        {
+          "bytes": 650,
+          "path": "roles/solver/role.yaml",
+          "sha256": "827436c4efb53c43372f2589fad7b1e92e7bf65936e319fa6f2d6601eae23426"
+        },
+        {
+          "bytes": 327,
+          "path": "roles/solver/skill.md",
+          "sha256": "395a618f042362576bd7166638ad91fe7eba16b5b4f91282a1f0953bb06983e7"
+        },
+        {
+          "bytes": 653,
+          "path": "roles/starter/role.yaml",
+          "sha256": "11489872f76c8db1ad5458969370f9ceb4e3bab88a42685b7e959ae402d2ef95"
+        },
+        {
+          "bytes": 322,
+          "path": "roles/starter/skill.md",
+          "sha256": "616afaf1b7ac3eba624914f7764c45c7d84fd6d502da59f391f6464c9fe4ba51"
+        },
+        {
+          "bytes": 4390,
+          "path": "tests/test_cross_view_evaluator.py",
+          "sha256": "7ddc6001f2c7166120f462788a5f890b1c2a22066c1e55cc0febc370e40993bb"
+        },
+        {
+          "bytes": 3370,
+          "path": "tests/test_task_contracts.py",
+          "sha256": "797dfe3c97f6ae880cd3f1fa380d5c4a83684dbd00a2611609745f49048ef2e5"
+        }
+      ],
+      "manifest_schema_version": "task_project_manifest.v1",
+      "manifest_sha256": "4ac5190ce2dcc21528b06db6ecf22af35c749f64839878bec34c906e032d7976",
+      "root": "/Users/mengfu/Documents/GitHub/volvence/research/praxist_tasks/readout_cross_view_causal_validity",
+      "snapshot_sha256": "947f765c1817821ceb8996ad2c5a3a0cc8cb632aad7a2a114ad4347f85727197",
+      "task_id": "readout_cross_view_causal_validity"
+    }
+  },
+  "claim_id": "claim:readout-cross-view-causal-validity",
+  "created_at": "2026-08-30T14:58:07.015526Z",
+  "launch": {
+    "daemonize": true,
+    "profile": {
+      "agent_system": "codex_sdk",
+      "codex_native": true,
+      "cohort": 4,
+      "config_file": null,
+      "generations": 3,
+      "model": "gpt-5.6-luna",
+      "model_provider": "model_provider:openai_compatible",
+      "runtime": "agent_runtime:codex_sdk",
+      "startup_timeout_seconds": 30,
+      "strategy": "mixed"
+    },
+    "run_dir": "/Users/mengfu/.local/share/praxist/volvence_runs/run_344da49be952560c2c22_e226d82c1d89",
+    "run_id": "run_344da49be952560c2c22_e226d82c1d89",
+    "status_scope": "targeted_run_id"
+  },
+  "owner": "vz-cognition",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "schema_version": "forge-research-request.v1",
+  "task_id": "readout_cross_view_causal_validity",
+  "trigger": {
+    "evidence": [
+      {
+        "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+        "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+      },
+      {
+        "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/topics/14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a.json",
+        "sha256": "beb500058cf512f367e3e6c3194299f1d1fadaed5976ded0f34831d533b267b5"
+      },
+      {
+        "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/bindings/14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a/0ec372e60b618ea105075cb41073d45d7275ab3fc3aeda158135781449911ff2.json",
+        "sha256": "33a9999426bd6e9a6eb3491f216aa48194c4e5bd4ebc77ebfeb1ce6471061fa1"
+      }
+    ],
+    "kind": "typed_signal",
+    "rationale": "Approved DemandBinding research-demand-binding:0ec372e60b618ea105075cb41073d45d7275ab3fc3aeda158135781449911ff2 mapped by readout_cross_view_causal_validity_v1.",
+    "submitted_by": "forge:demand-discovery-loop.v1"
+  }
+}

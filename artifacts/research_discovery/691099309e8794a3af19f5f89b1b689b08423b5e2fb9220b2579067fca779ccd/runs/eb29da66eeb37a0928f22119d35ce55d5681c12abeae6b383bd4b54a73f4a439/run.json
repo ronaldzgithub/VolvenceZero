@@ -1,0 +1,86 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "corpus": {
+    "file_count": 5,
+    "files": [
+      {
+        "bytes": 12574,
+        "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+        "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+      },
+      {
+        "bytes": 12945,
+        "locator": "research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md",
+        "sha256": "62d383c823ce672d8c72ba0b1b8f2ec3f092653b27390dfc2725a5f7422494ca"
+      },
+      {
+        "bytes": 11313,
+        "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+        "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+      },
+      {
+        "bytes": 9420,
+        "locator": "research/continual-deep-learning-2026-08/07_NEGATIVE_RESULTS_AND_RISKS.md",
+        "sha256": "8e9c1266fb2f9ccbb906dc15261a7def62d2d1ec13442bd849473ef6d0fbd43e"
+      },
+      {
+        "bytes": 6701,
+        "locator": "research/continual-deep-learning-2026-08/09_DECISION_REGISTER.md",
+        "sha256": "8a2c5dcc6000aad8b0cb4f2171209555d4d42beeba25e9b30db1342c99e5f72f"
+      }
+    ],
+    "total_bytes": 52953,
+    "tree_sha256": "47bc37c5245ac8d624aa4f6c27cf8b495aa131d5ae8cdf32084250c344dc1f83"
+  },
+  "created_at": "2026-08-30T14:13:22.399931Z",
+  "demand": {
+    "artifact": {
+      "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+      "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+    },
+    "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+  },
+  "execution": {
+    "approval_mode": "deny_all",
+    "backend": "codex_sdk",
+    "model": "gpt-5.6-luna",
+    "prompt_revision": "demand-topic-discovery.v1",
+    "sandbox": "read_only",
+    "turn_limit": 1
+  },
+  "proposals": [
+    {
+      "artifact": {
+        "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/topics/760535ba86f97cb9e1130cb4bee634e3b2bce22a6db5431f270db62a73725763.json",
+        "sha256": "62beb8131b2dab2b1110e0ea0144ba542e70ca84b0001583f47be123dfd64457"
+      },
+      "artifact_id": "research-topic-proposal:760535ba86f97cb9e1130cb4bee634e3b2bce22a6db5431f270db62a73725763"
+    },
+    {
+      "artifact": {
+        "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/topics/14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a.json",
+        "sha256": "beb500058cf512f367e3e6c3194299f1d1fadaed5976ded0f34831d533b267b5"
+      },
+      "artifact_id": "research-topic-proposal:14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a"
+    },
+    {
+      "artifact": {
+        "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/topics/5af39c0804a842aa25e30ab2d273d213dc1e4ab035ef5354707f495555cbb655.json",
+        "sha256": "93bcead8a81c1c36d6d0fb23dda62bd357a793a5ec7f0ebfe3a1f6224d7667b8"
+      },
+      "artifact_id": "research-topic-proposal:5af39c0804a842aa25e30ab2d273d213dc1e4ab035ef5354707f495555cbb655"
+    }
+  ],
+  "run_id": "research-discovery-run:eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439",
+  "run_key": "eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439",
+  "schema_version": "forge-research-discovery-run.v1"
+}

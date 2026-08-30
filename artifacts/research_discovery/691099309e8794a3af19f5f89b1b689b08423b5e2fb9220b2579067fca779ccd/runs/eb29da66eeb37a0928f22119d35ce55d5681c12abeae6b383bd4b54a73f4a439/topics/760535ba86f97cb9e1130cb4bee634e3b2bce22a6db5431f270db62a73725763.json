@@ -1,0 +1,68 @@
+{
+  "authority": {
+    "discovery_only": true,
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "human_a0_required": true,
+    "human_topic_binding_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false
+  },
+  "binding_status": "UNBOUND",
+  "capability_axes": [
+    "readable",
+    "steerable"
+  ],
+  "corpus_sha256": "47bc37c5245ac8d624aa4f6c27cf8b495aa131d5ae8cdf32084250c344dc1f83",
+  "created_at": "2026-08-30T14:13:22.399931Z",
+  "demand": {
+    "artifact": {
+      "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+      "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+    },
+    "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+  },
+  "discovery_run_id": "research-discovery-run:eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439",
+  "proposal_id": "research-topic-proposal:760535ba86f97cb9e1130cb4bee634e3b2bce22a6db5431f270db62a73725763",
+  "schema_version": "forge-research-topic-proposal.v1",
+  "source_refs": [
+    {
+      "claim": "Source facts in lines 60-79: high probe accuracy may read surface shortcuts; the prescribed comparison uses held-out paraphrase, question format, language, and surface-order views with separation, calibration, coherence, retrieval, and causal metrics.",
+      "locator": "research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md",
+      "sha256": "51d1adf7a080c39009361ea4003184d806ce8de348fe4f6100b9f0d80c95c82e"
+    },
+    {
+      "claim": "Source facts in lines 38-72: future-token, RSA-selected, and linear readers should be compared on one frozen activation corpus with cross-format, cross-language, causal, and calibration audits.",
+      "locator": "research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md",
+      "sha256": "62d383c823ce672d8c72ba0b1b8f2ec3f092653b27390dfc2725a5f7422494ca"
+    },
+    {
+      "claim": "Source facts in lines 29-65: P0 defines the five reader arms, the required view perturbations, the primary metrics, and PASS, DOMAIN_LOCAL, and INSTRUMENT_INVALID exits.",
+      "locator": "research/continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md",
+      "sha256": "0ef7d76492494c2ff663250afc28232ff39a16b3a2e3dd8145e50972f0e2cd27"
+    }
+  ],
+  "topic": {
+    "caveats": [
+      "This is bounded evidence for the frozen model, corpus, evaluator, and tested views; it does not establish universal transfer.",
+      "It does not satisfy the demand's separate human-A0 or topic-binding prerequisite and does not authorize qualification, promotion, or runtime changes."
+    ],
+    "demand_relevance": "Directly tests the Readable axis and the demand's held-out semantic-identity, wording, question-format, Chinese, role-order, counterfactual, weakest-view, calibration, retrieval, and coherence requirements.",
+    "falsification_signals": [
+      "Only same-view performance clears while cross-view or weakest-view performance is near chance; classify the result as DOMAIN_LOCAL.",
+      "Same-vs-different separation fails, or the matched random control is indistinguishable from a non-random reader; classify the instrument as INSTRUMENT_INVALID.",
+      "A reader's apparent pass is confined to one wording, format, language, role-order, or counterfactual slice, so cross-view validity is rejected."
+    ],
+    "hypothesis": "Causal hypothesis: a reader that represents the relationship condition itself will retain separation and semantic identity alignment when wording, format, language, role order, and counterfactual form change; a surface shortcut will show a large same-view-to-weakest-view drop.",
+    "mechanism": "Source facts: the corpus warns that high probe accuracy can reflect format, label leakage, common-mode, or output-preparation directions, and specifies linear, difference-of-means, RSA-selected Concept Vector, future-token, and random-control readers across held-out views. Test mechanism: surface-invariant residual structure should preserve cross-view discrimination, calibration, retrieval, and direction coherence.",
+    "research_question": "Which specified reader, if any, preserves relationship-condition readout validity on held-out identities and the full cross-view factorization when fit only on the training view?",
+    "success_signals": [
+      "At least one non-random reader clears every frozen readability gate on the original and all held-out views, with a non-negative minimum normalized margin and a passing weakest-view result.",
+      "Held-out identity retrieval, calibration, and direction coherence remain stable across the factorized view/identity cross-product rather than only in an aggregate mean.",
+      "The matched random subspace fails to reproduce the non-random reader's separation, retrieval, and coherence."
+    ],
+    "suggested_method": "Freeze the model, activation corpus, evaluator, generation settings, reader-fit rule, and thresholds. Fit the five specified arms on training identities and the original view; hold out identities, paraphrases, open-ended versus multiple-choice format, Chinese, role-order perturbations, and counterfactual form, including their cross-product. Report same-vs-different Cohen's d, balanced accuracy, weakest-view accuracy, ECE, 1-NN identity retrieval, and direction coherence. Keep evaluation, human, and judge signals read-only and out of fitting or selection.",
+    "title": "Factorized cross-view validity of relationship-condition readers"
+  }
+}

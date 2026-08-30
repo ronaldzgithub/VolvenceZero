@@ -1,0 +1,47 @@
+{
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_authorized": false,
+    "human_a0_required": true,
+    "production_promotion_authorized": false,
+    "research_start_authorized": false,
+    "runtime_wiring_changed": false,
+    "topic_submission_to_a0_authorized": true
+  },
+  "binding_id": "research-demand-binding:0ec372e60b618ea105075cb41073d45d7275ab3fc3aeda158135781449911ff2",
+  "created_at": "2026-08-30T14:21:17.327573Z",
+  "decision": "APPROVE",
+  "demand": {
+    "artifact": {
+      "locator": "research/demands/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd.json",
+      "sha256": "cdaf811f6833a67289fc47ba9817d6872c776f66a9e336b6ddc0c746b782f238"
+    },
+    "artifact_id": "research-demand:691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd"
+  },
+  "mapping": {
+    "binding_sha256": "e226d82c1d897bbb383c2fce71d604242ccbb5f1a7423f7e0e925d7fa0a17b79",
+    "capability_axes": [
+      "readable",
+      "steerable"
+    ],
+    "mapping_id": "readout_cross_view_causal_validity_v1",
+    "owner": "vz-cognition",
+    "task_id": "readout_cross_view_causal_validity"
+  },
+  "proposal": {
+    "artifact": {
+      "locator": "artifacts/research_discovery/691099309e8794a3af19f5f89b1b689b08423b5e2fb9220b2579067fca779ccd/runs/eb29da66eeb37a0928f22119d35ce55d5681c12abeae6b383bd4b54a73f4a439/topics/14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a.json",
+      "sha256": "beb500058cf512f367e3e6c3194299f1d1fadaed5976ded0f34831d533b267b5"
+    },
+    "artifact_id": "research-topic-proposal:14edb2a0beab354ad7778b12f407c08d4fe7fe6a9d7d8628f0519688315d036a"
+  },
+  "registry": {
+    "locator": "forge/research_task_registry.yaml",
+    "sha256": "8f424ee88d6f0194b51e6edb24aac6ccdfc2ec8a30fb8a13b4e9051e956d8733"
+  },
+  "review": {
+    "reason": "优先验证跨视图 readout 是否具有超过匹配随机方向的有界因果作用。",
+    "reviewed_by": "Mengfu"
+  },
+  "schema_version": "forge-research-demand-binding.v1"
+}

@@ -1,0 +1,41 @@
+{
+  "approval_id": "research-approval:49f108c611c021f44fdd67529e9adce6139ff550dfeadc2db9ebdff364692c90",
+  "approval_sha256": "dbcc70753f4523a268761ec6f258f5fc87653bf6ce643ac76d5eb1834b51544f",
+  "authority": {
+    "evaluation_is_learning_source": false,
+    "formal_validation_performed": false,
+    "production_promotion_authorized": false,
+    "research_lifecycle_only": true,
+    "runtime_wiring_changed": false
+  },
+  "command": {
+    "argv": [
+      "/Users/mengfu/Documents/GitHub/PRAXIST/.venv/bin/praxist",
+      "status",
+      "--active",
+      "--json"
+    ],
+    "exit_code": 0,
+    "phase": "capacity",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "timed_out": false
+  },
+  "created_at": "2026-08-30T15:07:01.532629Z",
+  "details": [
+    "pre-start recheck",
+    "capacity_policy=portfolio:research-portfolio:baaf616c923bc77b3eb38a0fb68ce7a3d8b48bb3c6f9129cd592d67fcbde1f6b",
+    "portfolio_active_run_count=0",
+    "portfolio_lane_active_run_count=steering_foundation:0",
+    "active_run_count=0"
+  ],
+  "event_id": "research-control-event:87abc17e384ef5583d9c9259c0a74f817f1bb15bcc0ec05d000826cf687c1d7e",
+  "kind": "CAPACITY_OBSERVED",
+  "previous_event_sha256": "deaa75207bf08576b86562391a4b68e734cc777c4dd72461704fbea1d29f6b68",
+  "request_id": "research-request:247fbf125207a99caa8b75c88fe01994e4e00bdb25060ccd058885577a34c07d",
+  "request_sha256": "1038e0769a6694aeab8756b56fd288d1b5d5b0814fa87cfffb37e01c5f5f98a0",
+  "run": null,
+  "schema_version": "forge-research-control-event.v1",
+  "sequence": 5,
+  "state": "PREFLIGHT_RESOLVED"
+}
