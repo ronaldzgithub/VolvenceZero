@@ -1353,6 +1353,24 @@ SSOT、division dispatch 或治理 ledger。
 
 ---
 
+### 2.24 Foundry Research Lab v2 公共交接契约（Forge-side，不新增 kernel slot）
+
+**唯一 owner**：Volvence Research Lab/Forge；外部领域 Intent owner 是 Foundry。完整 contract 见
+[`docs/specs/external-research-adapter.md`](./specs/external-research-adapter.md)。
+
+| 构件 | 唯一 owner | 消费/依赖 | WiringLevel 与约束 |
+|---|---|---|---|
+| `foundry-research-lab-intent.v2` | Foundry | objective、不可执行 subject content hashes、budget/stop/acceptance/result policy | 外部输入；runner-agnostic；不得携带 Praxist、SDK、provider、model、run directory 或启动权限 |
+| `forge-external-research-simulation-request.v2` / `forge-research-runner-approval.v2` | Volvence Research Lab/Forge | exact embedded Intent；独立具名 A0 对 exact Request 的 `research_runner_start` 审批 | `OFFLINE_SIMULATION_ONLY`；Foundry 不得 approve、reconcile 或 start runner |
+| `volvence-deterministic-simulation-result.v1` / `forge-research-run-completion.v2` | Volvence Research Lab/Forge | `volvence_deterministic_simulation` 固定 protocol/version/seed；exact Request/Approval lineage | 无网络、无外部动作；只有 `RUN_COMPLETED` 可进入 handoff；不写 PE、credit、memory 或 runtime state |
+| `forge-foundry-research-handoff.v2` | Volvence Research Lab/Forge | 内嵌 Intent、Request、Approval、Completion、Result 与四节点 canonical hash chain | 自包含、离线可验；Foundry 唯一允许操作是 `import_simulation_handoff`；field/revenue/profit/adoption/ACTIVE 全部为 false |
+
+该 seam 是 Forge 离线研究控制面与 Foundry 的版本化边界，不是 Volvence runtime snapshot，也不注册
+§3/§6 slot。它不进入 ModificationGate、Venture/Coding/Operations Brain wiring 或四能力证据晋升；回滚是
+停止发布/导入 v2 bundle，v1 保持只读历史兼容。
+
+---
+
 ## 3. 模块快照契约
 
 ### 3.1 稳定基底层 (Substrate)

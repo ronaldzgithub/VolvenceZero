@@ -45,6 +45,7 @@ from .research_control import (
     submit_research_request,
     validate_external_research_descriptor,
 )
+from .foundry_research_handoff_v2 import verify_simulation_handoff
 from .research_discovery import (
     CodexNativeResearchDiscoveryBackend,
     ReplayResearchDiscoveryBackend,
@@ -240,6 +241,13 @@ def build_parser() -> argparse.ArgumentParser:
     external_handoff.add_argument("--recorded-by", required=True)
     external_handoff.add_argument("--reason", required=True)
     external_handoff.add_argument("--json", action="store_true")
+
+    verify_simulation = subparsers.add_parser(
+        "research-verify-simulation-handoff-v2",
+        help="Read-only verify a Foundry simulation handoff v2",
+    )
+    verify_simulation.add_argument("handoff", type=Path)
+    verify_simulation.add_argument("--json", action="store_true")
 
     research_scan = subparsers.add_parser(
         "research-scan",
@@ -782,6 +790,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"HANDED_OFF_FOR_EXTERNAL_REVIEW: {result.handoff_id}; "
                     f"handoff={result.handoff_path}; evidence=simulation"
                 )
+            return 0
+        if args.command == "research-verify-simulation-handoff-v2":
+            handoff = verify_simulation_handoff(args.handoff)
+            payload = {
+                "schema_version": "forge-foundry-research-handoff-verification.v2",
+                "verified": True,
+                "handoff_id": handoff["handoff_id"],
+            }
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            else:
+                print(f"VERIFIED: {handoff['handoff_id']}")
             return 0
         if args.command == "research-scan":
             result = scan_research_opportunities(

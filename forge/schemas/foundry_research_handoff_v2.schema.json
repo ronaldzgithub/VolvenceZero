@@ -1,0 +1,670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.foundry-research-handoff.v2",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/intent"
+    },
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/approval"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/completion"
+    },
+    {
+      "$ref": "#/$defs/handoff"
+    }
+  ],
+  "$defs": {
+    "s": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z-]+:[0-9a-f]{64}$"
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "intent_id",
+        "objective",
+        "subject_refs",
+        "budget_policy",
+        "stop_policy",
+        "acceptance_policy",
+        "result_policy",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "foundry-research-lab-intent.v2"
+        },
+        "intent_id": {
+          "type": "string",
+          "pattern": "^rli2_[0-9a-f]{16}$"
+        },
+        "objective": {
+          "$ref": "#/$defs/s"
+        },
+        "subject_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subject_id",
+              "sha256"
+            ],
+            "properties": {
+              "subject_id": {
+                "$ref": "#/$defs/s"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha"
+              }
+            }
+          }
+        },
+        "budget_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "stop_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "acceptance_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "result_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_id",
+        "intent",
+        "objective",
+        "subject_refs",
+        "evidence_class",
+        "budget_policy",
+        "stop_policy",
+        "acceptance_policy",
+        "result_policy",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "forge-external-research-simulation-request.v2"
+        },
+        "request_id": {
+          "$ref": "#/$defs/id"
+        },
+        "intent": {
+          "$ref": "#/$defs/intent"
+        },
+        "objective": {
+          "$ref": "#/$defs/s"
+        },
+        "subject_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subject_id",
+              "sha256"
+            ],
+            "properties": {
+              "subject_id": {
+                "$ref": "#/$defs/s"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha"
+              }
+            }
+          }
+        },
+        "evidence_class": {
+          "const": "simulation"
+        },
+        "budget_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "stop_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "acceptance_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "result_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "approval_id",
+        "request_id",
+        "request_sha256",
+        "scope",
+        "decision",
+        "review",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "forge-research-runner-approval.v2"
+        },
+        "approval_id": {
+          "$ref": "#/$defs/id"
+        },
+        "request_id": {
+          "$ref": "#/$defs/id"
+        },
+        "request_sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "scope": {
+          "const": "research_runner_start"
+        },
+        "decision": {
+          "const": "APPROVE"
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reviewed_by",
+            "reason"
+          ],
+          "properties": {
+            "reviewed_by": {
+              "$ref": "#/$defs/s"
+            },
+            "reason": {
+              "$ref": "#/$defs/s"
+            }
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runner_id",
+        "protocol_id",
+        "protocol_version",
+        "seed",
+        "network_allowed",
+        "external_actions_allowed"
+      ],
+      "properties": {
+        "runner_id": {
+          "const": "volvence_deterministic_simulation"
+        },
+        "protocol_id": {
+          "const": "volvence-deterministic-simulation.v1"
+        },
+        "protocol_version": {
+          "const": 1
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "network_allowed": {
+          "const": false
+        },
+        "external_actions_allowed": {
+          "const": false
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "result_id",
+        "request_id",
+        "runner",
+        "evidence_class",
+        "field_claimed",
+        "revenue_claimed",
+        "profit_claimed",
+        "adoption_claimed",
+        "active_claimed",
+        "outcome",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "volvence-deterministic-simulation-result.v1"
+        },
+        "result_id": {
+          "$ref": "#/$defs/id"
+        },
+        "request_id": {
+          "$ref": "#/$defs/id"
+        },
+        "runner": {
+          "$ref": "#/$defs/runner"
+        },
+        "evidence_class": {
+          "const": "simulation"
+        },
+        "field_claimed": {
+          "const": false
+        },
+        "revenue_claimed": {
+          "const": false
+        },
+        "profit_claimed": {
+          "const": false
+        },
+        "adoption_claimed": {
+          "const": false
+        },
+        "active_claimed": {
+          "const": false
+        },
+        "outcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "objective_sha256"
+          ],
+          "properties": {
+            "status": {
+              "const": "deterministic_simulation_completed"
+            },
+            "objective_sha256": {
+              "$ref": "#/$defs/sha"
+            }
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "completion_id",
+        "request_id",
+        "approval_id",
+        "runner",
+        "state",
+        "result_id",
+        "result_sha256",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "forge-research-run-completion.v2"
+        },
+        "completion_id": {
+          "$ref": "#/$defs/id"
+        },
+        "request_id": {
+          "$ref": "#/$defs/id"
+        },
+        "approval_id": {
+          "$ref": "#/$defs/id"
+        },
+        "runner": {
+          "$ref": "#/$defs/runner"
+        },
+        "state": {
+          "const": "RUN_COMPLETED"
+        },
+        "result_id": {
+          "$ref": "#/$defs/id"
+        },
+        "result_sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "sha256"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/id"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network_allowed",
+        "external_actions_allowed",
+        "simulation_only",
+        "field_claimed",
+        "revenue_claimed",
+        "profit_claimed",
+        "adoption_claimed",
+        "active_claimed",
+        "volvence_promotion_eligible",
+        "modification_gate_applicable",
+        "runtime_wiring_applicable",
+        "foundry_approve_allowed",
+        "foundry_reconcile_allowed",
+        "foundry_runner_start_allowed"
+      ],
+      "properties": {
+        "network_allowed": {
+          "const": false
+        },
+        "external_actions_allowed": {
+          "const": false
+        },
+        "simulation_only": {
+          "const": true
+        },
+        "field_claimed": {
+          "const": false
+        },
+        "revenue_claimed": {
+          "const": false
+        },
+        "profit_claimed": {
+          "const": false
+        },
+        "adoption_claimed": {
+          "const": false
+        },
+        "active_claimed": {
+          "const": false
+        },
+        "volvence_promotion_eligible": {
+          "const": false
+        },
+        "modification_gate_applicable": {
+          "const": false
+        },
+        "runtime_wiring_applicable": {
+          "const": false
+        },
+        "foundry_approve_allowed": {
+          "const": false
+        },
+        "foundry_reconcile_allowed": {
+          "const": false
+        },
+        "foundry_runner_start_allowed": {
+          "const": false
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "handoff_id",
+        "contract",
+        "intent",
+        "request",
+        "approval",
+        "run_completion",
+        "result",
+        "hash_chain",
+        "consumer_permissions",
+        "authority",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "forge-foundry-research-handoff.v2"
+        },
+        "handoff_id": {
+          "$ref": "#/$defs/id"
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_version",
+            "schema_sha256",
+            "producer_owner",
+            "consumer_domain"
+          ],
+          "properties": {
+            "contract_version": {
+              "const": "foundry-research-lab-seam.v2"
+            },
+            "schema_sha256": {
+              "$ref": "#/$defs/sha"
+            },
+            "producer_owner": {
+              "const": "volvence_labs.research_lab"
+            },
+            "consumer_domain": {
+              "const": "foundry"
+            }
+          }
+        },
+        "intent": {
+          "$ref": "#/$defs/intent"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "approval": {
+          "$ref": "#/$defs/approval"
+        },
+        "run_completion": {
+          "$ref": "#/$defs/completion"
+        },
+        "result": {
+          "$ref": "#/$defs/result"
+        },
+        "hash_chain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "request",
+            "approval",
+            "run_completion",
+            "result",
+            "chain_sha256"
+          ],
+          "properties": {
+            "request": {
+              "$ref": "#/$defs/artifact_ref"
+            },
+            "approval": {
+              "$ref": "#/$defs/artifact_ref"
+            },
+            "run_completion": {
+              "$ref": "#/$defs/artifact_ref"
+            },
+            "result": {
+              "$ref": "#/$defs/artifact_ref"
+            },
+            "chain_sha256": {
+              "$ref": "#/$defs/sha"
+            }
+          }
+        },
+        "consumer_permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowed_operations",
+            "prohibited_operations"
+          ],
+          "properties": {
+            "allowed_operations": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "import_simulation_handoff"
+                }
+              ],
+              "items": false
+            },
+            "prohibited_operations": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "approve_research_request"
+                },
+                {
+                  "const": "reconcile_research_control"
+                },
+                {
+                  "const": "start_research_runner"
+                },
+                {
+                  "const": "import_volvence_candidate"
+                },
+                {
+                  "const": "modify_runtime_wiring"
+                }
+              ],
+              "items": false
+            }
+          }
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

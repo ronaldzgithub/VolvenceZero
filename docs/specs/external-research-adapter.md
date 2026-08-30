@@ -154,6 +154,32 @@ exact id/hash；server 只构造固定 argv，owner 成功后重新 collect 并�
 
 ## 5. 兼容、迁移与回滚
 
+### 5.1 Additive v2 deterministic simulation seam
+
+`foundry-research-lab-seam.v2` is additive: v1 remains read-only compatible and is
+not rewritten.  Its public producer input is the strict, runner-agnostic
+`foundry-research-lab-intent.v2` in `forge/schemas/foundry_research_handoff_v2.schema.json`.
+It contains only `objective`, named `subject_refs`, and `budget_policy` /
+`stop_policy` / `acceptance_policy` / `result_policy`; it contains no Praxist
+task, plugin, executable, run directory, config, SDK, provider, model, cohort,
+or generation choice.  Foundry publishes this Intent and later performs only
+`import_simulation_handoff`.
+
+Research Lab creates a Request, then a separately callable named A0 Approval
+whose exact scope is `research_runner_start`, then selects and runs the
+Volvence-owned `volvence_deterministic_simulation` runner.  The runner has a
+fixed protocol/version/seed and zero network/external-action authority.  Only
+after `RUN_COMPLETED` may it seal a v2 handoff.  The public handoff embeds the
+exact Intent, Request, Approval, Completion, and Result plus canonical hashes;
+offline Foundry verification never follows a locator or reads a Volvence
+checkout, owner store, event directory, or run directory.  All field, revenue,
+profit, adoption, and ACTIVE claims are explicitly false.
+
+The verifier is read-only (`forge research-verify-simulation-handoff-v2`); the
+fixture generator is for controlled sample production only and does not grant
+Foundry the right to create A0 approvals.  Rollback is to stop publishing or
+importing v2 bundles; no runtime wiring exists.
+
 - 现有 `forge-research-task.v1`、`research-submit`、A0、promotion pipeline 和 Portal 卡片保持兼容；
 - external Request 只新增一个 request schema branch，共享 Approval/Event/调和实现；
 - 根 launcher 检出 sibling Foundry schema 时只注册 read-only root，不扫描、审批或自动提交 Intent；
