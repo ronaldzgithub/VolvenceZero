@@ -78,6 +78,23 @@ def _require_string_tuple(
     return values
 
 
+def _strict_mapping(
+    name: str,
+    value: object,
+    *,
+    fields: frozenset[str],
+) -> Mapping[str, object]:
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise ValueError(f"{name} has invalid shape")
+    return value
+
+
+def _array(name: str, value: object) -> tuple[object, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be an array")
+    return tuple(value)
+
+
 @dataclass(frozen=True)
 class BoundedContentCandidate:
     """One opaque memory entry projected by its owning adapter."""
@@ -282,6 +299,37 @@ class BoundedContentRankedCandidate:
     selection_probability: float
     feature_values: tuple[tuple[str, float], ...]
 
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "BoundedContentRankedCandidate":
+        fields = frozenset(
+            {
+                "entry_id",
+                "rank",
+                "policy_score",
+                "selection_probability",
+                "feature_values",
+            }
+        )
+        _strict_mapping("ranked candidate", payload, fields=fields)
+        features: list[tuple[str, float]] = []
+        for item in _array("feature_values", payload["feature_values"]):
+            row = _strict_mapping(
+                "feature_values[]",
+                item,
+                fields=frozenset({"name", "value"}),
+            )
+            features.append((row["name"], row["value"]))
+        return cls(
+            entry_id=payload["entry_id"],
+            rank=payload["rank"],
+            policy_score=payload["policy_score"],
+            selection_probability=payload["selection_probability"],
+            feature_values=tuple(features),
+        )
+
     def to_json(self) -> dict[str, object]:
         return {
             "entry_id": self.entry_id,
@@ -335,6 +383,74 @@ class BoundedContentPolicyDecision:
                 raise ValueError("selected entry must be promoted to first position")
         elif self.output_entry_ids != self.input_entry_ids or self.selected_entry_id:
             raise ValueError("NOOP must preserve exact owner order")
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "BoundedContentPolicyDecision":
+        fields = frozenset(
+            {
+                "schema_version",
+                "policy_decision_id",
+                "content_sha256",
+                "checkpoint_id",
+                "checkpoint_update_count",
+                "source_prediction_id",
+                "input_entry_ids",
+                "output_entry_ids",
+                "recommended_entry_id",
+                "selected_entry_id",
+                "intervention_probability",
+                "intervened",
+                "ranked_candidates",
+            }
+        )
+        _strict_mapping("content policy decision", payload, fields=fields)
+        if payload["schema_version"] != CONTENT_POLICY_DECISION_SCHEMA_VERSION:
+            raise ValueError("unsupported bounded content decision schema")
+        decision = cls(
+            policy_decision_id=payload["policy_decision_id"],
+            content_sha256=payload["content_sha256"],
+            checkpoint_id=payload["checkpoint_id"],
+            checkpoint_update_count=payload["checkpoint_update_count"],
+            source_prediction_id=payload["source_prediction_id"],
+            input_entry_ids=tuple(_array("input_entry_ids", payload["input_entry_ids"])),
+            output_entry_ids=tuple(
+                _array("output_entry_ids", payload["output_entry_ids"])
+            ),
+            recommended_entry_id=payload["recommended_entry_id"],
+            selected_entry_id=payload["selected_entry_id"],
+            intervention_probability=payload["intervention_probability"],
+            intervened=payload["intervened"],
+            ranked_candidates=tuple(
+                BoundedContentRankedCandidate.from_json(
+                    _strict_mapping(
+                        "ranked_candidates[]",
+                        item,
+                        fields=frozenset(
+                            {
+                                "entry_id",
+                                "rank",
+                                "policy_score",
+                                "selection_probability",
+                                "feature_values",
+                            }
+                        ),
+                    )
+                )
+                for item in _array(
+                    "ranked_candidates",
+                    payload["ranked_candidates"],
+                )
+            ),
+        )
+        core = decision.to_json()
+        core.pop("policy_decision_id")
+        core.pop("content_sha256")
+        if _digest(core) != decision.content_sha256:
+            raise ValueError("bounded content decision digest mismatch")
+        return decision
 
     @classmethod
     def create(
@@ -436,6 +552,55 @@ class BoundedContentPolicyCredit:
             raise ValueError("observed_at_ms must be a non-negative integer")
 
     @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "BoundedContentPolicyCredit":
+        fields = frozenset(
+            {
+                "schema_version",
+                "credit_id",
+                "policy_decision_id",
+                "credited_candidate_id",
+                "prediction_id",
+                "settlement_ref",
+                "signed_prediction_error",
+                "source_credit_record_ids",
+                "observed_at_ms",
+            }
+        )
+        _strict_mapping("content policy credit", payload, fields=fields)
+        if payload["schema_version"] != CONTENT_POLICY_CREDIT_SCHEMA_VERSION:
+            raise ValueError("unsupported bounded content credit schema")
+        credit = cls(
+            credit_id=payload["credit_id"],
+            policy_decision_id=payload["policy_decision_id"],
+            credited_candidate_id=payload["credited_candidate_id"],
+            prediction_id=payload["prediction_id"],
+            settlement_ref=payload["settlement_ref"],
+            signed_prediction_error=payload["signed_prediction_error"],
+            source_credit_record_ids=tuple(
+                _array(
+                    "source_credit_record_ids",
+                    payload["source_credit_record_ids"],
+                )
+            ),
+            observed_at_ms=payload["observed_at_ms"],
+        )
+        expected = cls.create(
+            policy_decision_id=credit.policy_decision_id,
+            credited_candidate_id=credit.credited_candidate_id,
+            prediction_id=credit.prediction_id,
+            settlement_ref=credit.settlement_ref,
+            signed_prediction_error=credit.signed_prediction_error,
+            source_credit_record_ids=credit.source_credit_record_ids,
+            observed_at_ms=credit.observed_at_ms,
+        )
+        if credit.credit_id != expected.credit_id:
+            raise ValueError("bounded content credit digest mismatch")
+        return credit
+
+    @classmethod
     def create(
         cls,
         *,
@@ -491,6 +656,41 @@ class BoundedContentPolicyUpdateReceipt:
     next_checkpoint_id: str
     parameter_delta_l2: float
     update_count: int
+
+    @classmethod
+    def from_json(
+        cls,
+        payload: Mapping[str, object],
+    ) -> "BoundedContentPolicyUpdateReceipt":
+        fields = frozenset(
+            {
+                "schema_version",
+                "update_id",
+                "credit_id",
+                "policy_decision_id",
+                "previous_checkpoint_id",
+                "next_checkpoint_id",
+                "parameter_delta_l2",
+                "update_count",
+            }
+        )
+        _strict_mapping("content policy update", payload, fields=fields)
+        if payload["schema_version"] != CONTENT_POLICY_UPDATE_SCHEMA_VERSION:
+            raise ValueError("unsupported bounded content update schema")
+        receipt = cls(
+            update_id=payload["update_id"],
+            credit_id=payload["credit_id"],
+            policy_decision_id=payload["policy_decision_id"],
+            previous_checkpoint_id=payload["previous_checkpoint_id"],
+            next_checkpoint_id=payload["next_checkpoint_id"],
+            parameter_delta_l2=payload["parameter_delta_l2"],
+            update_count=payload["update_count"],
+        )
+        core = receipt.to_json()
+        core.pop("update_id")
+        if receipt.update_id != f"bounded-content-policy-update:{_digest(core)}":
+            raise ValueError("bounded content update digest mismatch")
+        return receipt
 
     def to_json(self) -> dict[str, object]:
         return {

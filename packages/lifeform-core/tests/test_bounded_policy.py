@@ -157,3 +157,6 @@ def test_bounded_content_policy_preserves_noop_and_learns_exact_credit() -> None
         type(checkpoint).from_json(next_checkpoint.to_json())
         == next_checkpoint
     )
+    assert type(decision).from_json(decision.to_json()) == decision
+    assert type(credit).from_json(credit.to_json()) == credit
+    assert type(receipt).from_json(receipt.to_json()) == receipt
