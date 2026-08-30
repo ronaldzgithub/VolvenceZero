@@ -73,6 +73,7 @@ _EXPECTED_IDS = {
     "forge-research-approval.v1": "approval_id",
     "forge-research-control-event.v1": "event_id",
     "forge-external-research-handoff.v1": "handoff_id",
+    "forge-foundry-research-handoff.v1": "handoff_id",
     "forge-research-candidate.v1": "candidate_id",
     "forge-research-promotion-receipt.v1": "receipt_id",
     "forge-volvence-research-demand.v1": "demand_id",
@@ -1340,9 +1341,18 @@ class ResearchLabCollector:
             return None
         if not paths:
             return None
+        raw_handoff = self._load_json_object(paths[0], "external handoff", warnings)
+        if raw_handoff is None:
+            return None
+        handoff_version = raw_handoff.get("schema_version")
+        if handoff_version not in {
+            "forge-external-research-handoff.v1",
+            "forge-foundry-research-handoff.v1",
+        }:
+            handoff_version = "forge-foundry-research-handoff.v1"
         handoff = self._load_artifact(
             paths[0],
-            "forge-external-research-handoff.v1",
+            handoff_version,
             "external handoff",
             warnings,
         )
@@ -1373,6 +1383,83 @@ class ResearchLabCollector:
                 )
             )
             return None
+        if handoff.payload.get("schema_version") == "forge-foundry-research-handoff.v1":
+            contract = handoff.payload.get("contract")
+            hash_chain = handoff.payload.get("hash_chain")
+            permissions = handoff.payload.get("consumer_permissions")
+            approval_binding = handoff.payload.get("approval")
+            event_binding = handoff.payload.get("terminal_event")
+            schema_path = self.repo_root / "forge" / "schemas" / "foundry_research_handoff.schema.json"
+            schema_ref = contract.get("schema") if isinstance(contract, Mapping) else None
+            live_schema_sha = _sha256_file(schema_path) if schema_path.is_file() else None
+            chain_body = (
+                {key: value for key, value in hash_chain.items() if key != "chain_sha256"}
+                if isinstance(hash_chain, Mapping)
+                else None
+            )
+            chain_request = hash_chain.get("request") if isinstance(hash_chain, Mapping) else None
+            chain_approval = hash_chain.get("approval") if isinstance(hash_chain, Mapping) else None
+            chain_run = hash_chain.get("run_completion") if isinstance(hash_chain, Mapping) else None
+            expected_chain_sha = (
+                hashlib.sha256(_canonical_json(chain_body)).hexdigest()
+                if chain_body is not None
+                else None
+            )
+            if (
+                not isinstance(contract, Mapping)
+                or contract.get("contract_version") != "foundry-research-lab-seam.v1"
+                or contract.get("producer_owner") != "volvence_forge.research_control"
+                or contract.get("consumer_domain") != "foundry"
+                or not isinstance(schema_ref, Mapping)
+                or schema_ref.get("sha256") != live_schema_sha
+                or not isinstance(approval_binding, Mapping)
+                or control.approval is None
+                or approval_binding.get("approval_id") != control.approval.ref.artifact_id
+                or approval_binding.get("sha256") != control.approval.ref.sha256
+                or approval_binding.get("decision") != "APPROVE"
+                or approval_binding.get("reviewed_by") in {None, ""}
+                or not isinstance(event_binding, Mapping)
+                or control.event is None
+                or event_binding.get("event_id") != control.event.ref.artifact_id
+                or event_binding.get("sha256") != control.event.ref.sha256
+                or event_binding.get("state") != "RUN_COMPLETED"
+                or not isinstance(hash_chain, Mapping)
+                or not isinstance(chain_request, Mapping)
+                or chain_request.get("sha256") != request.ref.sha256
+                or not isinstance(chain_approval, Mapping)
+                or chain_approval.get("sha256") != approval_binding.get("sha256")
+                or not isinstance(chain_run, Mapping)
+                or chain_run.get("sha256") != event_binding.get("sha256")
+                or hash_chain.get("result") != result.get("artifact")
+                or hash_chain.get("chain_sha256") != expected_chain_sha
+                or authority.get("foundry_approve_allowed") is not False
+                or authority.get("foundry_reconcile_allowed") is not False
+                or authority.get("foundry_praxist_start_allowed") is not False
+                or permissions
+                != {
+                    "allowed_operations": ["import_simulation_handoff"],
+                    "prohibited_operations": [
+                        "approve_research_request",
+                        "reconcile_research_control",
+                        "start_praxist",
+                        "import_volvence_candidate",
+                        "modify_runtime_wiring",
+                    ],
+                }
+            ):
+                warnings.append(
+                    PortalWarning(
+                        code="FOUNDRY_HANDOFF_CHAIN_INVALID",
+                        message=(
+                            "Foundry handoff does not preserve its named A0, RUN_COMPLETED, "
+                            "four-hash chain, or import-only consumer boundary"
+                        ),
+                        source="control",
+                        severity=WarningSeverity.ERROR,
+                        task_id=task_id,
+                    )
+                )
+                return None
         return handoff
 
     def _external_declared_ref(
@@ -2455,6 +2542,7 @@ def _source_for_version(version: str) -> str:
         or "approval" in version
         or "control-event" in version
         or "external-research-handoff" in version
+        or "foundry-research-handoff" in version
     ):
         return "control"
     if version == "forge-research-task.v1":

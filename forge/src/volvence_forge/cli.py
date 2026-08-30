@@ -650,14 +650,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 recorded_by=args.recorded_by,
                 reason=args.reason,
             )
+            handoff = json.loads(result.handoff_path.read_text(encoding="utf-8"))
             payload = {
-                "schema_version": "forge-external-research-handoff-result.v1",
+                "schema_version": "forge-foundry-research-handoff-result.v1",
                 "state": "HANDED_OFF_FOR_EXTERNAL_REVIEW",
+                "contract_version": handoff["contract"]["contract_version"],
+                "contract_schema_sha256": handoff["contract"]["schema"]["sha256"],
                 "handoff_id": result.handoff_id,
                 "handoff": str(result.handoff_path),
                 "handoff_sha256": sha256_bytes(result.handoff_path.read_bytes()),
                 "result": str(result.result_path),
                 "result_sha256": sha256_bytes(result.result_path.read_bytes()),
+                "hash_chain": handoff["hash_chain"],
+                "consumer_permissions": handoff["consumer_permissions"],
                 "evidence_class": "simulation",
                 "adoption_mode": "proposal_only",
                 "volvence_promotion_eligible": False,

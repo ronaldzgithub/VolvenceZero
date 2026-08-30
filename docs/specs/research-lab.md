@@ -43,7 +43,8 @@ Lab 不成为新的研究、验证、gate 或 wiring owner。它只做两件事�
 “批准”动作仍必须产生与 CLI 完全相同的 exact-bound Approval/receipt。
 
 外部领域走一条不与 Volvence promotion 混合的轨道：Foundry `foundry-research-lab-intent.v1` 经 external
-descriptor 形成 exact Request，复用 A0/Praxist 调和，完成后终止于 immutable simulation handoff。该轨道没有
+descriptor 形成 exact Request，复用 A0/Research Lab runner 调和，完成后终止于
+`forge-foundry-research-handoff.v1` immutable simulation handoff。该轨道没有
 Candidate、ModificationGate、SHADOW、ACTIVE 或 runtime wiring。完整协议见
 [`external-research-adapter.md`](./external-research-adapter.md)。
 
@@ -54,9 +55,9 @@ Candidate、ModificationGate、SHADOW、ACTIVE 或 runtime wiring。完整协议
 | FailurePattern / Opportunity / routing | `volvence_forge.research_opportunity` | 只读；可委托一次 bounded scan |
 | ResearchDemand / DiscoveryRun / TopicProposal / DemandBinding | `volvence_forge.research_discovery` | 只读；可委托 exact named-human topic binding |
 | ResearchRequest / Approval / Event | `volvence_forge.research_control` | 只读；可提交 exact A0 review 与 reconcile |
-| Foundry Intent / budget / evidence class / adoption | Foundry | 只读 exact binding；Lab 不重分类、不采纳、不 apply |
+| Foundry Intent / budget / evidence class / adoption | Foundry | 只读 exact binding；Lab 不重分类、不采纳、不 apply；Foundry consumer 只可导入 completed handoff |
 | external descriptor / simulation handoff | `volvence_forge.research_control` | 可委托 submit/handoff；不转入 Volvence promotion |
-| task resolution、run、generation、frontier | Praxist | 只读 targeted status；启动只经 approved Forge reconcile |
+| task resolution、run、generation、frontier | Research Lab/Forge 选择的 runner（当前 Praxist） | 只读 targeted status；启动只经 approved Forge reconcile，Foundry 不可直连 |
 | candidate import / formal validation / gate receipt | Forge promotion pipeline + named validator/Gate | 只读；可委托 exact import/authorize |
 | runtime wiring | target owner | 只读 receipt；Lab 不直接 mutate |
 | Labs probe CAS / experimental promotions | `volvence_labs` | 保留为实验域，不冒充 production authority |
@@ -128,6 +129,9 @@ Research completion 不自动进入 formal validation；formal PASS 不自动进
 `research_mode=external_simulation` 时，`RESEARCH_COMPLETE` 是 Lab 轨道终点：缺 handoff 只开放
 `record_external_handoff`，handoff sealed 后不开放 Candidate/A1/A2。其 authority readout 对 formal、Gate 与
 wiring 显式显示 `external_domain_owned/not_applicable`，不能借用 Volvence stage 文案暗示上线权限。
+公共 handoff 必须通过 request/approval/run-completion/result 四节点 hash chain 校验，且具名 A0、
+`RUN_COMPLETED` 与 import-only consumer permissions 缺一即不进入 completed view。Lab 保留历史 v1 只读兼容，
+但不得把 legacy artifact 当作 Foundry M5 新合同重新发布。
 
 Praxist status 的 `completed` 是 process lifecycle readout，不等于 committed handoff。Lab 只在 completed run 的固定
 `<run_dir>/volvence_handoff.json` 读取 `forge-praxist-candidate-handoff.v1`，并核对 `task_id/run_id`；缺失、schema

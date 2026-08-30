@@ -12,7 +12,7 @@ import pytest
 
 from volvence_forge.config import ForgeConfig, ForgePaths
 from volvence_forge.cli import main
-from volvence_forge.foundation import canonical_json, sha256_bytes, sha256_text
+from volvence_forge.foundation import SchemaStore, canonical_json, sha256_bytes, sha256_text
 from volvence_forge.research_control import (
     CommandExecution,
     ResearchControlError,
@@ -29,6 +29,29 @@ from volvence_forge.research_control import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_foundry_public_handoff_fixture_freezes_import_only_hash_chain() -> None:
+    schema_path = REPO_ROOT / "forge/schemas/foundry_research_handoff.schema.json"
+    fixture_path = REPO_ROOT / "forge/contracts/foundry_research_lab_seam/v1/handoff.fixture.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    SchemaStore(schema_path.parent).validate(payload, schema_path.name)
+    assert payload["contract"]["schema"]["sha256"] == _sha(schema_path)
+    chain = payload["hash_chain"]
+    chain_body = {key: value for key, value in chain.items() if key != "chain_sha256"}
+    assert chain["chain_sha256"] == sha256_text(canonical_json(chain_body))
+    identity_body = {
+        key: value for key, value in payload.items() if key not in {"handoff_id", "created_at"}
+    }
+    assert payload["handoff_id"] == (
+        f"external-research-handoff:{sha256_text(canonical_json(identity_body))}"
+    )
+    assert payload["approval"]["reviewed_by"] == "Named A0 Reviewer"
+    assert payload["terminal_event"]["state"] == "RUN_COMPLETED"
+    assert payload["consumer_permissions"]["allowed_operations"] == [
+        "import_simulation_handoff"
+    ]
 
 
 def test_subprocess_runner_sanitizes_codex_native_provider_overrides(
@@ -703,6 +726,7 @@ def test_running_request_reaches_terminal_completion_without_promotion_authority
 
 def test_foundry_intent_uses_shared_lifecycle_and_seals_simulation_handoff(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     fixture = _fixture(tmp_path)
     descriptor_path = _external_descriptor(fixture)
@@ -763,13 +787,72 @@ def test_foundry_intent_uses_shared_lifecycle_and_seals_simulation_handoff(
         reason="Return simulation evidence to Foundry for its own review.",
     )
     handoff = json.loads(handoff_result.handoff_path.read_text(encoding="utf-8"))
+    assert handoff["schema_version"] == "forge-foundry-research-handoff.v1"
+    assert handoff["contract"]["contract_version"] == "foundry-research-lab-seam.v1"
+    schema_path = fixture.config.paths.forge_root / "schemas/foundry_research_handoff.schema.json"
+    assert handoff["contract"]["schema"]["sha256"] == _sha(schema_path)
     assert handoff["request"]["request_id"] == submitted.request_id
     assert handoff["descriptor"]["descriptor_id"] == descriptor["descriptor_id"]
+    assert handoff["approval"]["decision"] == "APPROVE"
+    assert handoff["approval"]["scope"] == "praxist_research_start"
+    assert handoff["approval"]["reviewed_by"] == "human@example.com"
+    assert handoff["terminal_event"]["state"] == "RUN_COMPLETED"
     assert handoff["result"]["evidence_class"] == "simulation"
     assert handoff["result"]["adoption_mode"] == "proposal_only"
+    chain = handoff["hash_chain"]
+    chain_body = {key: value for key, value in chain.items() if key != "chain_sha256"}
+    assert chain["chain_sha256"] == sha256_text(canonical_json(chain_body))
+    assert chain["request"]["sha256"] == handoff["request"]["sha256"]
+    assert chain["approval"]["sha256"] == handoff["approval"]["sha256"]
+    assert chain["run_completion"]["sha256"] == handoff["terminal_event"]["sha256"]
+    assert chain["result"] == handoff["result"]["artifact"]
+    assert handoff["consumer_permissions"] == {
+        "allowed_operations": ["import_simulation_handoff"],
+        "prohibited_operations": [
+            "approve_research_request",
+            "reconcile_research_control",
+            "start_praxist",
+            "import_volvence_candidate",
+            "modify_runtime_wiring",
+        ],
+    }
+    assert handoff["authority"]["foundry_approve_allowed"] is False
+    assert handoff["authority"]["foundry_reconcile_allowed"] is False
+    assert handoff["authority"]["foundry_praxist_start_allowed"] is False
     assert handoff["authority"]["volvence_promotion_eligible"] is False
     assert handoff["authority"]["modification_gate_applicable"] is False
     assert handoff["authority"]["runtime_wiring_applicable"] is False
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(fixture.config.paths.repo_root),
+            "--transcripts-root",
+            str(fixture.config.paths.transcripts_root),
+            "research-handoff-external",
+            str(submitted.request_path),
+            "--recorded-by",
+            "lab-operator@example.com",
+            "--reason",
+            "Return simulation evidence to Foundry for its own review.",
+            "--json",
+        ]
+    )
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert cli_payload["schema_version"] == "forge-foundry-research-handoff-result.v1"
+    assert cli_payload["contract_version"] == "foundry-research-lab-seam.v1"
+    assert cli_payload["contract_schema_sha256"] == _sha(schema_path)
+    assert cli_payload["hash_chain"] == handoff["hash_chain"]
+    assert cli_payload["consumer_permissions"] == handoff["consumer_permissions"]
+
+    with pytest.raises(ResearchControlError, match="already has an immutable handoff"):
+        record_external_research_handoff(
+            config=fixture.config,
+            request_path=submitted.request_path,
+            recorded_by="different-operator@example.com",
+            reason="A changed handoff must not overwrite the sealed artifact.",
+        )
 
 
 def test_external_descriptor_fails_closed_on_budget_or_result_escape(tmp_path: Path) -> None:

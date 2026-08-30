@@ -35,11 +35,13 @@ from .research_promotion import validate_research_task
 
 SCHEMA_NAME = "research_control.schema.json"
 EXTERNAL_SCHEMA_NAME = "external_research.schema.json"
+FOUNDRY_HANDOFF_SCHEMA_NAME = "foundry_research_handoff.schema.json"
 
 _REQUEST_VERSION = "forge-research-request.v1"
 _EXTERNAL_DESCRIPTOR_VERSION = "forge-external-research-descriptor.v1"
 _EXTERNAL_REQUEST_VERSION = "forge-external-research-request.v1"
-_EXTERNAL_HANDOFF_VERSION = "forge-external-research-handoff.v1"
+_EXTERNAL_HANDOFF_VERSION = "forge-foundry-research-handoff.v1"
+_FOUNDRY_SEAM_VERSION = "foundry-research-lab-seam.v1"
 _APPROVAL_VERSION = "forge-research-approval.v1"
 _EVENT_VERSION = "forge-research-control-event.v1"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -532,8 +534,38 @@ def record_external_research_handoff(
 
     external = request["external_domain"]
     descriptor_ref = request["bindings"]["external_descriptor"]
+    result_ref = _absolute_content_ref(
+        result_path,
+        context="external simulation result",
+    )
+    contract_schema_ref = _absolute_content_ref(
+        config.paths.forge_root / "schemas" / FOUNDRY_HANDOFF_SCHEMA_NAME,
+        context="Foundry research handoff schema",
+    )
+    hash_chain: dict[str, Any] = {
+        "request": {
+            "artifact_id": request["request_id"],
+            "sha256": request_sha256,
+        },
+        "approval": {
+            "artifact_id": approval["approval_id"],
+            "sha256": approval_sha256,
+        },
+        "run_completion": {
+            "artifact_id": terminal_event["event_id"],
+            "sha256": terminal_sha256,
+        },
+        "result": result_ref,
+    }
+    hash_chain["chain_sha256"] = sha256_text(canonical_json(hash_chain))
     handoff: dict[str, Any] = {
         "schema_version": _EXTERNAL_HANDOFF_VERSION,
+        "contract": {
+            "contract_version": _FOUNDRY_SEAM_VERSION,
+            "schema": contract_schema_ref,
+            "producer_owner": "volvence_forge.research_control",
+            "consumer_domain": "foundry",
+        },
         "descriptor": {
             "descriptor_id": external["descriptor_id"],
             "artifact": descriptor_ref,
@@ -545,10 +577,14 @@ def record_external_research_handoff(
         "approval": {
             "approval_id": approval["approval_id"],
             "sha256": approval_sha256,
+            "scope": approval["scope"],
+            "decision": approval["decision"],
+            "reviewed_by": approval["review"]["reviewed_by"],
         },
         "terminal_event": {
             "event_id": terminal_event["event_id"],
             "sha256": terminal_sha256,
+            "state": terminal_event["state"],
         },
         "external_domain": {
             "adapter_id": external["adapter_id"],
@@ -564,10 +600,7 @@ def record_external_research_handoff(
             "run_dir": run["run_dir"],
         },
         "result": {
-            "artifact": _absolute_content_ref(
-                result_path,
-                context="external simulation result",
-            ),
+            "artifact": result_ref,
             "evidence_class": "simulation",
             "adoption_mode": "proposal_only",
             "market_validation_claimed": False,
@@ -577,7 +610,9 @@ def record_external_research_handoff(
             "recorded_by": recorder,
             "reason": rationale,
         },
-        "authority": _external_authority(),
+        "hash_chain": hash_chain,
+        "consumer_permissions": _foundry_consumer_permissions(),
+        "authority": _foundry_handoff_authority(),
         "created_at": utc_now(),
     }
     handoff["handoff_id"] = _artifact_id(
@@ -589,7 +624,7 @@ def record_external_research_handoff(
         config,
         handoff,
         _EXTERNAL_HANDOFF_VERSION,
-        schema_name=EXTERNAL_SCHEMA_NAME,
+        schema_name=FOUNDRY_HANDOFF_SCHEMA_NAME,
     )
     handoff_digest = str(handoff["handoff_id"]).partition(":")[2]
     destination = resolved_request.parent / "handoffs" / f"{handoff_digest}.json"
@@ -604,7 +639,7 @@ def record_external_research_handoff(
         payload=handoff,
         expected_version=_EXTERNAL_HANDOFF_VERSION,
         identity_field="handoff_id",
-        schema_name=EXTERNAL_SCHEMA_NAME,
+        schema_name=FOUNDRY_HANDOFF_SCHEMA_NAME,
     )
     return ExternalResearchHandoffResult(
         handoff_id=str(handoff["handoff_id"]),
@@ -2336,6 +2371,28 @@ def _external_authority() -> dict[str, bool]:
         "volvence_promotion_eligible": False,
         "modification_gate_applicable": False,
         "runtime_wiring_applicable": False,
+    }
+
+
+def _foundry_consumer_permissions() -> dict[str, Any]:
+    return {
+        "allowed_operations": ["import_simulation_handoff"],
+        "prohibited_operations": [
+            "approve_research_request",
+            "reconcile_research_control",
+            "start_praxist",
+            "import_volvence_candidate",
+            "modify_runtime_wiring",
+        ],
+    }
+
+
+def _foundry_handoff_authority() -> dict[str, bool]:
+    return {
+        **_external_authority(),
+        "foundry_approve_allowed": False,
+        "foundry_reconcile_allowed": False,
+        "foundry_praxist_start_allowed": False,
     }
 
 

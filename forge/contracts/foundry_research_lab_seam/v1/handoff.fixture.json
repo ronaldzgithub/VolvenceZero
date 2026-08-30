@@ -1,0 +1,114 @@
+{
+  "schema_version": "forge-foundry-research-handoff.v1",
+  "handoff_id": "external-research-handoff:3c072ec080436b6a0d6e4f484b7f9125dc70485b0f60423221f7e8c2940761af",
+  "contract": {
+    "contract_version": "foundry-research-lab-seam.v1",
+    "schema": {
+      "locator": "forge/schemas/foundry_research_handoff.schema.json",
+      "sha256": "8687bc7b9c6337b37566a5c9d6508c2f15ddd102c0e1a75d81d824991d7cbc0e"
+    },
+    "producer_owner": "volvence_forge.research_control",
+    "consumer_domain": "foundry"
+  },
+  "descriptor": {
+    "descriptor_id": "external-research-descriptor:1111111111111111111111111111111111111111111111111111111111111111",
+    "artifact": {
+      "locator": "artifacts/research_lab/foundry-descriptor.json",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "request": {
+    "request_id": "research-request:3333333333333333333333333333333333333333333333333333333333333333",
+    "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "approval": {
+    "approval_id": "research-approval:5555555555555555555555555555555555555555555555555555555555555555",
+    "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "scope": "praxist_research_start",
+    "decision": "APPROVE",
+    "reviewed_by": "Named A0 Reviewer"
+  },
+  "terminal_event": {
+    "event_id": "research-control-event:7777777777777777777777777777777777777777777777777777777777777777",
+    "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+    "state": "RUN_COMPLETED"
+  },
+  "external_domain": {
+    "adapter_id": "foundry-research-lab-intent.v1",
+    "domain": {
+      "domain_id": "foundry",
+      "task_id": "foundry_bounded_optimizer",
+      "intent_id": "rli_0123456789abcdef"
+    },
+    "ownership": {
+      "research_intent": "foundry",
+      "budget": "foundry",
+      "evidence_classification": "foundry",
+      "result_adoption": "foundry",
+      "human_application": "foundry"
+    }
+  },
+  "run": {
+    "run_id": "foundry-simulation-001",
+    "run_dir": "artifacts/praxist_runs/foundry-simulation-001"
+  },
+  "result": {
+    "artifact": {
+      "locator": "artifacts/praxist_runs/foundry-simulation-001/result.json",
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "evidence_class": "simulation",
+    "adoption_mode": "proposal_only",
+    "market_validation_claimed": false,
+    "adoption_status": "pending_external_human_review"
+  },
+  "review": {
+    "recorded_by": "Named Lab Operator",
+    "reason": "Return exact simulation evidence for Foundry import and human review."
+  },
+  "hash_chain": {
+    "request": {
+      "artifact_id": "research-request:3333333333333333333333333333333333333333333333333333333333333333",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "approval": {
+      "artifact_id": "research-approval:5555555555555555555555555555555555555555555555555555555555555555",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "run_completion": {
+      "artifact_id": "research-control-event:7777777777777777777777777777777777777777777777777777777777777777",
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "result": {
+      "locator": "artifacts/praxist_runs/foundry-simulation-001/result.json",
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "chain_sha256": "182f8f557fee70118064b9c7d6eb437bae321056b6aea9a949612c513fa4f914"
+  },
+  "consumer_permissions": {
+    "allowed_operations": [
+      "import_simulation_handoff"
+    ],
+    "prohibited_operations": [
+      "approve_research_request",
+      "reconcile_research_control",
+      "start_praxist",
+      "import_volvence_candidate",
+      "modify_runtime_wiring"
+    ]
+  },
+  "authority": {
+    "external_actions_allowed": false,
+    "foundry_checkout_write_allowed": false,
+    "foundry_ledger_write_allowed": false,
+    "direct_apply_allowed": false,
+    "productzero_start_allowed": false,
+    "volvence_promotion_eligible": false,
+    "modification_gate_applicable": false,
+    "runtime_wiring_applicable": false,
+    "foundry_approve_allowed": false,
+    "foundry_reconcile_allowed": false,
+    "foundry_praxist_start_allowed": false
+  },
+  "created_at": "2026-08-30T00:06:00Z"
+}

@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.foundry-research-handoff.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "handoff_id",
+    "contract",
+    "descriptor",
+    "request",
+    "approval",
+    "terminal_event",
+    "external_domain",
+    "run",
+    "result",
+    "review",
+    "hash_chain",
+    "consumer_permissions",
+    "authority",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-foundry-research-handoff.v1"},
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^external-research-handoff:[0-9a-f]{64}$"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "schema",
+        "producer_owner",
+        "consumer_domain"
+      ],
+      "properties": {
+        "contract_version": {"const": "foundry-research-lab-seam.v1"},
+        "schema": {"$ref": "forge.external-research.v1#/$defs/content_ref"},
+        "producer_owner": {"const": "volvence_forge.research_control"},
+        "consumer_domain": {"const": "foundry"}
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["descriptor_id", "artifact"],
+      "properties": {
+        "descriptor_id": {
+          "type": "string",
+          "pattern": "^external-research-descriptor:[0-9a-f]{64}$"
+        },
+        "artifact": {"$ref": "forge.external-research.v1#/$defs/content_ref"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_id", "sha256"],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^research-request:[0-9a-f]{64}$"
+        },
+        "sha256": {"$ref": "forge.external-research.v1#/$defs/sha256"}
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id",
+        "sha256",
+        "scope",
+        "decision",
+        "reviewed_by"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^research-approval:[0-9a-f]{64}$"
+        },
+        "sha256": {"$ref": "forge.external-research.v1#/$defs/sha256"},
+        "scope": {"const": "praxist_research_start"},
+        "decision": {"const": "APPROVE"},
+        "reviewed_by": {"type": "string", "minLength": 1}
+      }
+    },
+    "terminal_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "sha256", "state"],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "pattern": "^research-control-event:[0-9a-f]{64}$"
+        },
+        "sha256": {"$ref": "forge.external-research.v1#/$defs/sha256"},
+        "state": {"const": "RUN_COMPLETED"}
+      }
+    },
+    "external_domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter_id", "domain", "ownership"],
+      "properties": {
+        "adapter_id": {"const": "foundry-research-lab-intent.v1"},
+        "domain": {"$ref": "forge.external-research.v1#/$defs/domain"},
+        "ownership": {"$ref": "forge.external-research.v1#/$defs/ownership"}
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "run_dir"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "run_dir": {"type": "string", "minLength": 1}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact",
+        "evidence_class",
+        "adoption_mode",
+        "market_validation_claimed",
+        "adoption_status"
+      ],
+      "properties": {
+        "artifact": {"$ref": "forge.external-research.v1#/$defs/content_ref"},
+        "evidence_class": {"const": "simulation"},
+        "adoption_mode": {"const": "proposal_only"},
+        "market_validation_claimed": {"const": false},
+        "adoption_status": {"const": "pending_external_human_review"}
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorded_by", "reason"],
+      "properties": {
+        "recorded_by": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "hash_chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "approval",
+        "run_completion",
+        "result",
+        "chain_sha256"
+      ],
+      "properties": {
+        "request": {"$ref": "#/$defs/artifact_hash"},
+        "approval": {"$ref": "#/$defs/artifact_hash"},
+        "run_completion": {"$ref": "#/$defs/artifact_hash"},
+        "result": {"$ref": "forge.external-research.v1#/$defs/content_ref"},
+        "chain_sha256": {"$ref": "forge.external-research.v1#/$defs/sha256"}
+      }
+    },
+    "consumer_permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_operations", "prohibited_operations"],
+      "properties": {
+        "allowed_operations": {
+          "type": "array",
+          "prefixItems": [{"const": "import_simulation_handoff"}],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "prohibited_operations": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "approve_research_request"},
+            {"const": "reconcile_research_control"},
+            {"const": "start_praxist"},
+            {"const": "import_volvence_candidate"},
+            {"const": "modify_runtime_wiring"}
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 5
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_actions_allowed",
+        "foundry_checkout_write_allowed",
+        "foundry_ledger_write_allowed",
+        "direct_apply_allowed",
+        "productzero_start_allowed",
+        "volvence_promotion_eligible",
+        "modification_gate_applicable",
+        "runtime_wiring_applicable",
+        "foundry_approve_allowed",
+        "foundry_reconcile_allowed",
+        "foundry_praxist_start_allowed"
+      ],
+      "properties": {
+        "external_actions_allowed": {"const": false},
+        "foundry_checkout_write_allowed": {"const": false},
+        "foundry_ledger_write_allowed": {"const": false},
+        "direct_apply_allowed": {"const": false},
+        "productzero_start_allowed": {"const": false},
+        "volvence_promotion_eligible": {"const": false},
+        "modification_gate_applicable": {"const": false},
+        "runtime_wiring_applicable": {"const": false},
+        "foundry_approve_allowed": {"const": false},
+        "foundry_reconcile_allowed": {"const": false},
+        "foundry_praxist_start_allowed": {"const": false}
+      }
+    },
+    "created_at": {"$ref": "forge.external-research.v1#/$defs/timestamp"}
+  },
+  "$defs": {
+    "artifact_hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "sha256"],
+      "properties": {
+        "artifact_id": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "forge.external-research.v1#/$defs/sha256"}
+      }
+    }
+  }
+}

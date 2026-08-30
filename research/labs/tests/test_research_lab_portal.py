@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import threading
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
@@ -26,6 +27,7 @@ from volvence_labs.portal import (
 FIXED_NOW = datetime(2026, 8, 29, 14, 30, tzinfo=timezone.utc)
 TASK_ID = "example_research_task"
 EXTERNAL_TASK_ID = "external_0123456789abcdef"
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _write_json(path: Path, payload: object) -> str:
@@ -337,17 +339,24 @@ def _make_external_request(
                 "approval_id": approval_id,
                 "request_id": request_id,
                 "request_sha256": request_sha,
+                "scope": "praxist_research_start",
                 "decision": "APPROVE",
+                "review": {
+                    "reviewed_by": "Foundry A0 Reviewer",
+                    "reason": "Approve this exact simulation run only.",
+                },
                 "authority": {"research_start_authorized": True},
                 "created_at": "2026-08-30T00:01:00Z",
             },
         )
+    event_id = "research-control-event:" + "1" * 64
+    event_sha = None
     if completed:
-        _write_json(
+        event_sha = _write_json(
             root / "events/000001-event.json",
             {
                 "schema_version": "forge-research-control-event.v1",
-                "event_id": "research-control-event:" + "1" * 64,
+                "event_id": event_id,
                 "sequence": 1,
                 "request_id": request_id,
                 "state": "RUN_COMPLETED",
@@ -363,22 +372,82 @@ def _make_external_request(
             },
         )
     if handed_off:
-        if approval_sha is None:
-            raise AssertionError("handoff fixture requires approval")
+        if approval_sha is None or event_sha is None:
+            raise AssertionError("handoff fixture requires approval and RUN_COMPLETED event")
+        schema_path = repo / "forge/schemas/foundry_research_handoff.schema.json"
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(
+            REPO_ROOT / "forge/schemas/foundry_research_handoff.schema.json",
+            schema_path,
+        )
+        result_ref = {
+            "locator": str(run_dir / "result.json"),
+            "sha256": hashlib.sha256((run_dir / "result.json").read_bytes()).hexdigest(),
+        }
+        hash_chain = {
+            "request": {"artifact_id": request_id, "sha256": request_sha},
+            "approval": {"artifact_id": approval_id, "sha256": approval_sha},
+            "run_completion": {"artifact_id": event_id, "sha256": event_sha},
+            "result": result_ref,
+        }
+        hash_chain["chain_sha256"] = hashlib.sha256(
+            json.dumps(
+                hash_chain,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
         _write_json(
             root / "handoffs/handoff.json",
             {
-                "schema_version": "forge-external-research-handoff.v1",
+                "schema_version": "forge-foundry-research-handoff.v1",
                 "handoff_id": "external-research-handoff:" + "2" * 64,
+                "contract": {
+                    "contract_version": "foundry-research-lab-seam.v1",
+                    "schema": {
+                        "locator": str(schema_path),
+                        "sha256": hashlib.sha256(schema_path.read_bytes()).hexdigest(),
+                    },
+                    "producer_owner": "volvence_forge.research_control",
+                    "consumer_domain": "foundry",
+                },
                 "request": {"request_id": request_id, "sha256": request_sha},
+                "approval": {
+                    "approval_id": approval_id,
+                    "sha256": approval_sha,
+                    "scope": "praxist_research_start",
+                    "decision": "APPROVE",
+                    "reviewed_by": "Foundry A0 Reviewer",
+                },
+                "terminal_event": {
+                    "event_id": event_id,
+                    "sha256": event_sha,
+                    "state": "RUN_COMPLETED",
+                },
                 "result": {
+                    "artifact": result_ref,
                     "evidence_class": "simulation",
                     "adoption_mode": "proposal_only",
+                },
+                "hash_chain": hash_chain,
+                "consumer_permissions": {
+                    "allowed_operations": ["import_simulation_handoff"],
+                    "prohibited_operations": [
+                        "approve_research_request",
+                        "reconcile_research_control",
+                        "start_praxist",
+                        "import_volvence_candidate",
+                        "modify_runtime_wiring",
+                    ],
                 },
                 "authority": {
                     "volvence_promotion_eligible": False,
                     "modification_gate_applicable": False,
                     "runtime_wiring_applicable": False,
+                    "foundry_approve_allowed": False,
+                    "foundry_reconcile_allowed": False,
+                    "foundry_praxist_start_allowed": False,
                 },
                 "created_at": "2026-08-30T00:06:00Z",
             },
@@ -752,6 +821,46 @@ def test_external_simulation_track_stops_at_immutable_foundry_handoff(tmp_path: 
     assert after.evidence.development == "simulation_handoff_sealed"
     handoff = next(ref for ref in after.bindings if ref.kind == "external handoff")
     assert handoff.artifact_id == "external-research-handoff:" + "2" * 64
+
+
+def test_foundry_handoff_hash_chain_drift_fails_closed_in_lab_view(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    request_path, _ = _make_external_request(
+        tmp_path,
+        approved=True,
+        completed=True,
+        handed_off=True,
+    )
+    handoff_path = request_path.parent / "handoffs/handoff.json"
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["hash_chain"]["result"]["sha256"] = "0" * 64
+    _write_json(handoff_path, handoff)
+
+    snapshot = _collector(tmp_path, []).collect()
+    item = snapshot.get_task(EXTERNAL_TASK_ID)
+    assert item is not None
+    assert item.evidence.development == "simulation_completed"
+    assert not any(ref.kind == "external handoff" for ref in item.bindings)
+    assert any(warning.code == "FOUNDRY_HANDOFF_CHAIN_INVALID" for warning in item.warnings)
+
+
+def test_foundry_handoff_live_schema_pin_drift_fails_closed_in_lab_view(tmp_path: Path) -> None:
+    _make_task(tmp_path)
+    _make_external_request(
+        tmp_path,
+        approved=True,
+        completed=True,
+        handed_off=True,
+    )
+    schema_path = tmp_path / "forge/schemas/foundry_research_handoff.schema.json"
+    schema_path.write_text('{"drifted":true}\n', encoding="utf-8")
+
+    snapshot = _collector(tmp_path, []).collect()
+    item = snapshot.get_task(EXTERNAL_TASK_ID)
+    assert item is not None
+    assert item.evidence.development == "simulation_completed"
+    assert not any(ref.kind == "external handoff" for ref in item.bindings)
+    assert any(warning.code == "FOUNDRY_HANDOFF_CHAIN_INVALID" for warning in item.warnings)
 
 
 def test_request_without_approval_is_awaiting_a0(tmp_path: Path) -> None:

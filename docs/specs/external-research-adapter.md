@@ -1,14 +1,15 @@
 # External Research Adapter：Foundry → Research Lab simulation seam
 
-> Status: v1 implemented
+> Status: v1.1 implemented；Foundry-facing immutable handoff/hash-chain contract frozen
 > Last updated: 2026-08-30
 > Owner: `volvence_forge.research_control`（exact lifecycle）与 `volvence_labs.portal`（local transport/view）
 > Domain contract: `foundry-research-lab-intent.v1`
 
 ## 1. 决策摘要
 
-Research Lab 允许兄弟仓库把领域研究意图接入现有 Praxist 控制面，但不要求外部领域伪装成
-`forge-research-task.v1`，也不复制 Praxist lifecycle：
+Research Lab 允许兄弟仓库把领域研究意图接入其受控运行器控制面，但不要求外部领域伪装成
+`forge-research-task.v1`，也不复制 Research Lab lifecycle。Praxist 是当前由 Research Lab/Forge 在具名
+A0 后选择的可替换运行器，不是 Foundry 的控制面或可直连依赖：
 
 ```text
 Foundry ResearchLabIntent
@@ -20,8 +21,8 @@ Foundry ResearchLabIntent
   → Foundry-owned validation / proposal / named-human apply
 ```
 
-Foundry 继续拥有研究意图、预算、证据分类、结果采纳和人审应用。Research Lab/Forge 只拥有 Request、A0、
-Praxist 调和及 handoff。外部结果固定为 `simulation + proposal_only`，永不进入 Volvence Candidate、
+Foundry 继续拥有研究意图、预算、证据分类、结果采纳和人审应用。Research Lab/Forge 唯一拥有 Request、A0、
+受控运行器调和及 handoff；本版本的运行器实现是 Praxist。外部结果固定为 `simulation + proposal_only`，永不进入 Volvence Candidate、
 `ModificationGate`、`DISABLED/SHADOW/ACTIVE` 或 runtime wiring。
 
 这是 offline development/control plane，不注册 `docs/DATA_CONTRACT.md` runtime slot，也不构成四能力轴效果证据。
@@ -61,19 +62,32 @@ Approval 与 Event 不另建外部分支：external Request 原样复用
 `forge-research-approval.v1` 和 `forge-research-control-event.v1`，以及现有 capacity、doctor、resolve、
 `START_INTENT` crash boundary、daemonized start 和 targeted status 实现。
 
-### 2.3 Handoff：`forge-external-research-handoff.v1`
+### 2.3 Public Handoff：`forge-foundry-research-handoff.v1`
 
 Handoff 只能在 exact A0 APPROVE 且 terminal Event 为 `RUN_COMPLETED` 后创建。它精确绑定 descriptor、Request
-file SHA、Approval SHA、terminal Event SHA、run id/dir 和固定 result bytes，并固定：
+file SHA、Approval SHA、terminal Event SHA、run id/dir 和固定 result bytes，并发布
+`request → approval → run_completion → result` 四节点 SHA-256 chain 及其 canonical `chain_sha256`。A0 节点同时
+发布当前 runner scope `praxist_research_start`、`decision=APPROVE / reviewed_by=<named human>`；scope 是
+Research Lab/Forge 选择 Praxist 的审计记录，不能授权 Foundry 调用 Praxist。Foundry 不需要从状态文案猜测独立审批是否存在；
+`run_completion.state` 固定为 `RUN_COMPLETED`，不得用 running/failed status 形成 handoff。
+
+公共 schema 是 `forge/schemas/foundry_research_handoff.schema.json`，协议版本是
+`foundry-research-lab-seam.v1`；可移植 consumer fixture 位于
+`forge/contracts/foundry_research_lab_seam/v1/handoff.fixture.json`。handoff 同时固定：
 
 - `evidence_class = simulation`；
 - `adoption_mode = proposal_only`；
 - `market_validation_claimed = false`；
 - `adoption_status = pending_external_human_review`；
 - Volvence promotion、ModificationGate、runtime wiring 全部 false。
+- Foundry consumer 唯一允许的 seam 操作是 `import_simulation_handoff`；`approve_research_request`、
+  `reconcile_research_control`、`start_praxist`、Volvence Candidate import 与 runtime wiring 修改全部禁止。
 
 同一 Request 只允许一份 immutable handoff；不同内容的第二份 handoff fail closed。Forge 不从该 handoff
 创建 Candidate，Foundry 后续如何验证、形成 proposal 或人审 apply 不在本协议权限内。
+
+历史 `forge-external-research-handoff.v1` 仍可由 Lab 只读 collector 识别，但新 producer 只发布上述公共版本；
+Foundry M5 consumer 不应实现或扩大 legacy lifecycle 权限。
 
 ## 3. 稳定 CLI
 
@@ -97,8 +111,14 @@ forge research-handoff-external /absolute/path/to/request.json \
   --json
 ```
 
-两个 external 命令都输出稳定 JSON result，包含 artifact id/path/SHA 和 `simulation` authority readout。CLI 不接受
-raw extra argv；Praxist 参数只能来自冻结的 Intent/descriptor。
+两个 external 命令都输出稳定 JSON result，包含 artifact id/path/SHA 和 `simulation` authority readout。handoff
+命令输出 `forge-foundry-research-handoff-result.v1`，额外给出 contract version/schema SHA、完整 hash chain 与
+consumer permissions。CLI 不接受 raw extra argv；Praxist 参数只能来自冻结的 Intent/descriptor。
+
+这些 CLI 是 Research Lab/Forge producer/operator seam，不是 Foundry 内嵌 control client。Foundry 只发布 Intent，
+并在链末导入 handoff；它不得调用 `research-approve`、`research-reconcile` 或任何 `praxist start`。A0、runner selection
+与受控 run 始终由 Research Lab/Forge owner 执行；未来替换 runner 必须由 Lab 新建并版本化该 owner contract，不能在
+Foundry 增加直连分支。
 
 ## 4. Loopback API
 
@@ -137,7 +157,8 @@ exact id/hash；server 只构造固定 argv，owner 成功后重新 collect 并�
 - 现有 `forge-research-task.v1`、`research-submit`、A0、promotion pipeline 和 Portal 卡片保持兼容；
 - external Request 只新增一个 request schema branch，共享 Approval/Event/调和实现；
 - 根 launcher 检出 sibling Foundry schema 时只注册 read-only root，不扫描、审批或自动提交 Intent；
-- Foundry thin client 只需生成 descriptor 并调用 CLI 或 loopback API，不导入 Volvence Python internals；
+- Foundry ingress 只需发布 Intent；Lab operator 生成/提交 descriptor。Foundry consumer 只按公共 schema 导入
+  completed handoff，不导入 Volvence Python internals 或 lifecycle CLI；
 - 停用时移除 `--external-domain-root` 即关闭新 ingress；既有 Request/Event/handoff 保留审计史；
 - 回滚本包不需要 wiring downgrade，因为外部轨道从未获得 Volvence runtime authority。
 
