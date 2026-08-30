@@ -480,10 +480,14 @@ class VentureBrainController:
                 ),
                 timestamp_ms=observed_at_ms,
             )
-            venture_entries = tuple(entry for entry in retrieval.entries if "venture-brain" in entry.tags)[
-                : request.memory_limit
-            ]
-            experiences = tuple(_experience_from_memory(entry) for entry in venture_entries)
+            venture_entries = tuple(entry for entry in retrieval.entries if "venture-brain" in entry.tags)
+            retrieved_experiences = tuple(_experience_from_memory(entry) for entry in venture_entries)
+            experiences = tuple(
+                experience
+                for experience in retrieved_experiences
+                if experience.portfolio_id == request.portfolio_id
+                and (not request.venture_id or experience.venture_id == request.venture_id)
+            )[: request.memory_limit]
             rendered, included_experiences, truncated = _render_context(
                 request=request,
                 experiences=experiences,

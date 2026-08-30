@@ -18,6 +18,12 @@ dependencies = [
     "lifeform-core==0.1.*",
 ]
 
+[project.scripts]
+venture-foundry-contract = "lifeform_domain_venture.foundry_public_contract:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["lifeform_domain_venture*"]
+
+[tool.setuptools.package-data]
+lifeform_domain_venture = ["fixtures/*.json", "schemas/*.json"]

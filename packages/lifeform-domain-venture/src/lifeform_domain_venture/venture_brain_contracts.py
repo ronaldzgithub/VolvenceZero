@@ -30,6 +30,7 @@ class VentureDecisionPoint(str, Enum):
     OPPORTUNITY_BRAINSTORM = "opportunity_brainstorm"
     CANDIDATE_COMPARISON = "candidate_comparison"
     EXPERIMENT_PLANNING = "experiment_planning"
+    PRODUCT_DESIGN = "product_design"
     PORTFOLIO_REVIEW = "portfolio_review"
     MONITOR_ATTRIBUTION = "monitor_attribution"
     STOP_REVIEW = "stop_review"

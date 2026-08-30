@@ -313,6 +313,53 @@ async def test_http_rejects_non_venture_and_historical_sessions(
     historical = await client.post(
         "/v1/sessions/venture-historical/venture/context-packs",
         json=_context_payload(request_id="historical-request"),
+        headers={"X-Alpha-User": "foundry-1"},
     )
     assert historical.status == 409
     assert (await historical.json())["error"] == "historical_session_readonly"
+
+
+async def test_http_alpha_session_rejects_missing_or_cross_user_scope(
+    aiohttp_client,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("VZ_ATTACH_DEFAULT_MCP_BUNDLE", "0")
+    vertical = _try_venture()
+    assert vertical is not None
+    app = create_app(
+        vertical=vertical,
+        alpha_config=AlphaServiceConfig(
+            enabled=True,
+            memory_scope_root_dir=str(tmp_path),
+            alpha_users=frozenset({"foundry-owner", "foundry-other"}),
+        ),
+    )
+    client = await aiohttp_client(app)
+    created = await client.post(
+        "/v1/sessions",
+        json={"session_id": "venture-owner", "user_id": "foundry-owner"},
+    )
+    assert created.status == 201
+
+    missing = await client.post(
+        "/v1/sessions/venture-owner/venture/context-packs",
+        json=_context_payload(request_id="missing-user"),
+    )
+    assert missing.status == 400
+    assert (await missing.json())["error"] == "missing_venture_user_scope"
+
+    other = await client.post(
+        "/v1/sessions/venture-owner/venture/context-packs",
+        json=_context_payload(request_id="cross-user"),
+        headers={"X-Alpha-User": "foundry-other"},
+    )
+    assert other.status == 403
+    assert (await other.json())["error"] == "venture_user_scope_forbidden"
+
+    owner = await client.post(
+        "/v1/sessions/venture-owner/venture/context-packs",
+        json=_context_payload(request_id="owner-user"),
+        headers={"X-Alpha-User": "foundry-owner"},
+    )
+    assert owner.status == 201

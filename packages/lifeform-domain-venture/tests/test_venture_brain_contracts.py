@@ -195,6 +195,23 @@ def test_context_request_is_versioned_strict_frozen_and_lineage_checked() -> Non
 
 
 @pytest.mark.parametrize(
+    "decision_point",
+    (
+        "opportunity_brainstorm",
+        "candidate_comparison",
+        "experiment_planning",
+        "product_design",
+        "portfolio_review",
+        "monitor_attribution",
+        "stop_review",
+    ),
+)
+def test_foundry_v1_decision_points_are_closed_and_complete(decision_point: str) -> None:
+    payload = {**_context_payload(), "decision_point": decision_point}
+    assert VentureContextRequest.from_json(payload).decision_point.value == decision_point
+
+
+@pytest.mark.parametrize(
     ("outcome_kind", "evidence_class", "role"),
     (
         ("simulation_result", "field", "field_observation"),

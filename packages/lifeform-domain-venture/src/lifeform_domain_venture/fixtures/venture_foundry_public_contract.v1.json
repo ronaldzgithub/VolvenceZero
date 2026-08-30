@@ -1,0 +1,79 @@
+{
+  "schema_version": "venture-foundry-public-contract.v1",
+  "producer": "lifeform-domain-venture",
+  "consumer": "foundry",
+  "request_schema_version": "venture-context-request.v1",
+  "context_pack_schema_version": "venture-context-pack.v1",
+  "advice_schema_version": "venture-advice.v1",
+  "outcome_report_schema_version": "venture-outcome-report.v1",
+  "outcome_receipt_schema_version": "venture-outcome-receipt.v1",
+  "decision_points": [
+    "opportunity_brainstorm",
+    "candidate_comparison",
+    "experiment_planning",
+    "product_design",
+    "portfolio_review",
+    "monitor_attribution",
+    "stop_review"
+  ],
+  "exposure_contract": {
+    "owner": "foundry",
+    "pairing_arms": [
+      "off",
+      "shadow"
+    ],
+    "pairing_required": true,
+    "required_exposure_fields": [
+      "cohort_id",
+      "arm",
+      "user_id",
+      "portfolio_id",
+      "decision_id",
+      "decision_point"
+    ],
+    "producer_exchange_lineage_fields": [
+      "context_pack_id",
+      "content_sha256",
+      "advice.advice_id",
+      "advice.applied"
+    ],
+    "producer_assigns_cohort": false,
+    "producer_reports_effectiveness": false
+  },
+  "advice_contract": {
+    "wiring_level": "shadow",
+    "applied": false,
+    "active_allowed": false,
+    "adoption_is_learning_signal": false
+  },
+  "outcome_contract": {
+    "typed_decision_field": "decision",
+    "delayed_business_outcome_field": "commercial_outcome",
+    "pe_eligible_pair": {
+      "evidence_class": "field",
+      "outcome_kind": "field_experiment_result"
+    },
+    "settlement_point": "next_new_context_pack"
+  },
+  "isolation_contract": {
+    "user_scope_source": "lifeform_session_identity",
+    "portfolio_scope_source": "request.portfolio_id",
+    "cross_user_recall_allowed": false,
+    "cross_portfolio_recall_allowed": false
+  },
+  "rollback_contract": {
+    "owner": "foundry",
+    "fallback_mode": "off",
+    "stop_consuming_context_pack_is_rollback": true,
+    "service_failure_auto_activation_allowed": false
+  },
+  "production_activation_contract": {
+    "effectiveness_result": "candidate_only",
+    "approval_authority": "foundry_named_human",
+    "producer_activation_api_exposed": false,
+    "producer_self_approval_allowed": false,
+    "advice_active_allowed": false
+  },
+  "contract_id": "venture-foundry-public-contract:4e62542427c1038ad6a7cdae52fe749376942eba8cae04d35b4a8824b2faee78",
+  "content_sha256": "4e62542427c1038ad6a7cdae52fe749376942eba8cae04d35b4a8824b2faee78"
+}

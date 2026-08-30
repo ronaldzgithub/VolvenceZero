@@ -44,6 +44,8 @@ v1 包含：
   event、content address、identity scope 和 `WiringLevel`；
 - 严格、版本化、frozen 的 request/pack/advice/report/receipt 合同；所有 HTTP 输入及嵌套对象
   拒绝未知字段、未知 enum 和非法 evidence-class/outcome-kind pair；
+- 内容寻址的 `venture-foundry-public-contract.v1` producer 清单、JSON Schema、fixture 和只读
+  `venture-foundry-contract show|validate` CLI，供 Foundry 独立 pin/复验；
 - Context Pack 可 `ACTIVE`，但只由 Foundry typed request 与 owner-published memory/PE readout
   构成；Advice 在 v1 永久 `SHADOW` 且 `applied=false`；
 - request/outcome 幂等、同 key 不同 immutable payload 冲突、同 live session lineage；
@@ -81,7 +83,7 @@ v1 明确不包含：
 - `request_id / portfolio_id / cycle_id / venture_id / decision_id`；`venture_id` 允许空字符串，
   用于 portfolio-level 决策，但字段本身不能省略；
 - `decision_point`：`opportunity_brainstorm / candidate_comparison /
-  experiment_planning / portfolio_review / monitor_attribution / stop_review`；
+  experiment_planning / product_design / portfolio_review / monitor_attribution / stop_review`；
 - 至少一个 `confirmed_fact` 和一个 `constraint`；fact 必须引用 request 中存在的 evidence ref；
 - `resource_window`：currency、maximum total cost、start/end 和 maximum experiments；
 - 当前 `uncertainties`：显式概率上下界及可选 evidence lineage；
@@ -146,6 +148,28 @@ Advice 的 estimate range 或模拟器自己的证据 artifact，绝不能填入
 六项 realized cost 可直接映射同名六项，并在尚未独立核算 delivery 时显式传 `delivery_minor=0`；不得把
 估算值填进 realized 字段。
 
+### 3.5 Foundry producer 公共清单
+
+`lifeform_domain_venture.foundry_public_contract` 发布
+`venture-foundry-public-contract.v1`。当前 content SHA-256 为
+`4e62542427c1038ad6a7cdae52fe749376942eba8cae04d35b4a8824b2faee78`；清单同时绑定五个
+HTTP 对象版本、七个 closed decision point，以及以下跨仓边界：
+
+- OFF/SHADOW cohort 与逐 decision-point exposure 由 Foundry 拥有；配对键至少包含
+  `cohort_id / arm / user_id / portfolio_id / decision_id / decision_point`，producer 不分配 cohort、
+  不计算 effectiveness；
+- Advice 固定 `wiring_level=shadow / applied=false`，Advice adoption 不是学习信号；
+- typed `decision` 与 delayed `commercial_outcome` 仍走 report/receipt；只有
+  `field + field_experiment_result` 在下一次新 Context Pack 结算；
+- user scope 来自 Lifeform session identity，portfolio scope 来自 `request.portfolio_id`；两者都禁止
+  cross-scope recall；
+- fallback/rollback 与 production activation 属于 Foundry。effectiveness 最多产生
+  `candidate_only`，需要 Foundry 具名人审批；producer 不暴露 activation API，也不能自批。
+
+JSON Schema 与 fixture 随 wheel 打包在 `schemas/`、`fixtures/`。CLI 只显示或验证清单，不连接服务、
+不写 Foundry ledger，也不改变任何 wiring。该清单是 host-facing projection，不新增 kernel slot，故不在
+`docs/DATA_CONTRACT.md` 注册第二 owner。
+
 ## 4. Owner、状态与学习路径
 
 ### 4.1 Context Pack：Appendable + Readable
@@ -154,7 +178,9 @@ Advice 的 estimate range 或模拟器自己的证据 artifact，绝不能填入
    PE-eligible outcome 的正式结算点；
 2. 只读该 turn 发布的 `prediction_error` public snapshot；
 3. 只经 `LifeformSession.retrieve_memory()` 查询 `Track.WORLD` 的 `EPISODIC + DURABLE`；
-4. facets 仅由 portfolio/venture identity、closed decision point 和 fact kind 确定性构造；
+4. facets 仅由 portfolio/venture identity、closed decision point 和 fact kind 确定性构造；Memory owner
+   返回后，controller 还会按 canonical record 的 exact `portfolio_id` 以及非空 `venture_id` 再过滤，
+   任何 recalled body 都不能跨 portfolio/venture 进入 pack；
    query text 只用于 owner retrieval，不做 evidence/route 分类；
 5. 只解析带精确 `venture-brain` tag 的 canonical
    `venture-experience-record.v1`；venture-tagged 记录损坏时 fail loudly；
@@ -232,13 +258,19 @@ POST /v1/sessions/{session_id}/venture/outcomes
 | 409 | `venture_context_lineage_error` | unknown/cross-session/stale Context Pack、decision/currency 不匹配 |
 | 409 | `venture_settlement_pending` | 前一个 field aggregate 尚未由下一 Context Pack turn 结算 |
 
+alpha service 额外要求每个 Venture route 携带 `X-Alpha-User`，并与 session 创建时绑定的 end user
+逐次核对。缺 header 返回 `400 missing_venture_user_scope`；跨用户或不在 allowlist 返回
+`403 venture_user_scope_forbidden`。该检查发生在取得 Lifeform session/Brain 之前，避免已知 session id
+成为跨用户访问能力；实现只读取 owner binding 元数据做等值核对，不取得 Lifeform session 或 Brain。
+
 Service 只解析 JSON、执行 session guard 并投影 controller；不保存业务状态，也不访问 Foundry。
 
 ## 6. Foundry adapter 精确接线
 
 Foundry 后续 adapter 应遵循以下顺序：
 
-1. Foundry 自己完成 source/evidence 校验、资格门与授权，再构造完整
+1. Foundry 先 pin 并用只读 CLI/JSON Schema 验证 `venture-foundry-public-contract.v1`，再自行完成
+   source/evidence 校验、资格门与授权并构造完整
    `venture-context-request.v1`。不要发送私有 ledger、凭据、原文秘密或让 Venture Brain猜 class；
 2. 保存响应的 `context_pack_id / content_sha256 / source_entry_ids /
    source_evidence_ref_ids / advice.advice_id` 到 Foundry 自己的 adapter lineage；只有
@@ -273,6 +305,8 @@ ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed
 ## 8. 退出、回滚与残余风险
 
 - 最小回滚：Foundry adapter 停止消费 Context Pack；Advice 本来就是 SHADOW；
+- SHADOW 服务不可用时的 OFF fallback、逐决策点 cohort 和 activation candidate 都由 Foundry 记录；
+  producer 不把 fallback 自动提升为 ACTIVE，也没有 production activation endpoint；
 - service 回滚：取消 venture routes 与 vertical discovery，不影响普通 turns、Coding Brain 或其他
   vertical；
 - learning 回滚：不提交 typed report 即不产生新 memory/event/outcome；已提交 experience append-only，
@@ -287,9 +321,12 @@ ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed
 ## 9. 验收
 
 - contract：version、unknown field、closed enum/pair/role、金额算术、ACTIVE/SHADOW guard；
+- public manifest：固定 hash、JSON Schema/fixture/CLI 一致、七个 decision point、OFF/SHADOW exposure owner
+  与 candidate-only activation 边界；
 - controller：request/outcome 幂等与冲突、same-session/latest-pack lineage、bounded ledger；
 - recall：同 identity 新 session 召回 canonical outcome；
 - learning：下一 pack 发布 field aggregate 的 environment/evidence/PE lineage，其他 lane 无 PE；
-- isolation：Advice marker 永不进入 ACTIVE context，domain code 不访问 owner store；
+- isolation：Advice marker 永不进入 ACTIVE context，domain code 不访问 owner store，user/portfolio recall
+  与 alpha route access 均不可跨 scope；
 - service：201/200、400/404/409、非 venture 与 historical session boundary；
 - regression：相关 contracts、service、wheel boundary 与 repo static checks。

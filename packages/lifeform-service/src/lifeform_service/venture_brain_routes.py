@@ -16,6 +16,7 @@ from lifeform_domain_venture import (
     VentureContextRequest,
     VentureOutcomeReport,
 )
+from lifeform_service.alpha import AlphaServiceConfig
 from lifeform_service.dto import ErrorResponse
 from lifeform_service.session_manager import SessionManager
 
@@ -70,6 +71,22 @@ async def _json_object(request: web.Request) -> dict[str, Any]:
 async def _venture_session(request: web.Request):
     manager: SessionManager = request.app["session_manager"]
     session_id = request.match_info["session_id"]
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if alpha.enabled:
+        raw_user = request.headers.get("X-Alpha-User")
+        if not isinstance(raw_user, str) or not raw_user.strip():
+            return None, _error(
+                400,
+                "missing_venture_user_scope",
+                "X-Alpha-User is required for alpha Venture Brain requests",
+            )
+        user_id = raw_user.strip()
+        if not alpha.is_allowed(user_id) or manager.session_end_user(session_id) != user_id:
+            return None, _error(
+                403,
+                "venture_user_scope_forbidden",
+                "Venture Brain session does not belong to the authenticated user",
+            )
     vertical_name = manager.vertical_name_for(session_id)
     if vertical_name != "venture":
         return None, _error(
