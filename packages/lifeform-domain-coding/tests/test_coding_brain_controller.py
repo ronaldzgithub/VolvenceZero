@@ -318,6 +318,14 @@ async def test_content_position_policy_updates_only_after_exact_next_turn_pe() -
     assert decision.source_prediction_id
     assert set(decision.output_entry_ids) == set(decision.input_entry_ids)
     assert policy_pack.source_entry_ids == decision.output_entry_ids
+    with pytest.raises(
+        ValueError,
+        match="source_entry_ids must match content policy output order",
+    ):
+        replace(
+            policy_pack,
+            source_entry_ids=tuple(reversed(policy_pack.source_entry_ids)),
+        )
     receipt = await controller.record_outcome(
         session=session,
         report=CodingOutcomeReport(

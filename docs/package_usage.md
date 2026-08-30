@@ -1,6 +1,6 @@
 # Volvence Package Usage
 
-> Status: current 40-wheel package map and stable entry points
+> Status: current 41-wheel package map and stable entry points
 > Last updated: 2026-08-30
 
 ## 1. 安装与稳定入口

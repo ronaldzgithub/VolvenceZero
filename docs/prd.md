@@ -66,20 +66,21 @@
 | 真实人物数字复生 | 已逝历史人物（Einstein 等）/ 在世授权人物 | 一手资料引证、覆盖图、不知拒答、style/stance 双层保真 |
 | 私域长程顾问 | 母婴 / 教育 / 健康等私域 LTV 路径 | 关系阶段 playbook 漂移（PE-driven，不靠日历切）、boundary policy、apprentice/teach 通道 |
 
-**当前已落地的八个垂直**：
+**当前已落地的九个垂直**：
 
 | Vertical | Archetype | Drive set / 特殊机制 |
 |---|---|---|
 | `lifeform-domain-emogpt` | 关系陪伴 | `bond_warmth` / `user_engagement` / `conversation_continuity` |
 | `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`；`direction_certainty` 在 `guided_exploration` regime 下使用**负向 recharge**，证明 drive 层支持非单调激励 |
 | `lifeform-domain-venture` | Foundry 商业认知侧车 | reviewed evidence discipline / falsification / multi-objective outcome priors；Foundry 保留 Accounting、ledger、审批、最终状态与外部动作 |
+| `lifeform-domain-operations` | AutoCompany 运营认知侧车 | frozen state / bounded candidate ranking / typed work-order outcome；AutoCompany 保留 OKR、预算、审批、dispatch 与治理 |
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`；reviewed `CharacterSoulProfile` 编译为 `DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；`HistoricalFigureProfile` + 多源 `FigureCorpusSource` (papers/letters/lectures/notebooks) → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯（语气 / 立场 / 引证 / 不知拒答） |
 | `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals` (PE-driven)，不靠关键词匹配 / 不按日历天数硬切 |
 | `lifeform-domain-repair30` | 现场维修助手 | 先诊断后更换、断电/高危安全门、部件与程序引证经验编译进既有 application owners |
 | `lifeform-domain-digital-employee` | 数字员工 | 任务 / SOP / 工具边界经验；只经 Brain facade、contracts 与 ModificationGate 进入内核 |
 
-八个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
+九个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
 
 
 ## 4. 系统需求
@@ -504,7 +505,7 @@
 **当前已实现**：
 
 - `lifeform-core`：Tick/Scene/Followup 引擎 + Vitals always-on PE 源 + Lifeform/LifeformSession facade
-- 八个 vertical 共存：`lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-venture` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor` / `lifeform-domain-repair30` / `lifeform-domain-digital-employee`，独立 domain package / scenarios / artifacts；通过 import-boundary tests 强制互不反向依赖
+- 九个 vertical 共存：`lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-venture` / `lifeform-domain-operations` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor` / `lifeform-domain-repair30` / `lifeform-domain-digital-employee`，独立 domain package / scenarios / artifacts；通过 import-boundary tests 强制互不反向依赖
 - `lifeform-evolution`：scripted benchmark + multi-round / regime-calibrator / super-loop 训练管线 + R12 family-report / 多轮 delta-vs-baseline acceptance
 - `lifeform-service`：aiohttp 服务 + vertical registry 自动发现 + 单 substrate 多 session 共享 + 冻结校验
 - `lifeform-expression`：prompt 渲染层（不是内核职责）
@@ -530,18 +531,20 @@ typed ContextRequest
   -> immutable Receipt / settlement lineage
 ```
 
-**当前已实现的两个 Domain Brain**：
+**当前已实现的三个 Domain Brain**：
 
 | Domain Brain | 外部权威边界 | PE eligible evidence | Spec |
 |---|---|---|---|
 | Coding Brain | host 独占文件、shell、测试执行、review、VCS/PR 与部署 | 仅 typed test/build/CI 的确定性 verified/regressed oracle | [coding-brain.md](./specs/coding-brain.md) |
 | Venture Brain | Foundry 独占来源核验、资格门、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作 | 仅 Foundry-qualified `field_experiment_result` 多目标 verdict；simulation/review/machine check/毛收入不能晋升 | [venture-brain.md](./specs/venture-brain.md) |
+| Operations Brain | AutoCompany 独占 OKR、预算、审批、工作单 SSOT、division dispatch 与治理 | 仅 qualified `field_operation_result`；SHADOW 不学习，production 不允许 ACTIVE | [operations-brain.md](./specs/operations-brain.md) |
 
 **关键不变量**：
 
 - Domain Brain 是 lifeform-side 产品投影，不是第二套 `Brain`、第二记忆或第二策略 owner；
 - controller 只拥有有界 live-session 幂等/lineage，只经 `LifeformSession` facade 读写正式 owner；
-- Context Pack 可以 ACTIVE，Advice 在 v1 固定 SHADOW 且不得进入 ACTIVE `rendered_context`；
+- Coding/Venture 的有界内容 Context Pack 可以 ACTIVE，Advice 固定 SHADOW 且不得进入 ACTIVE
+  `rendered_context`；Operations 默认 SHADOW，仅 exact gate receipt 可授权 staging ACTIVE；
 - evidence class、outcome kind、route、decision 由 strict typed contract 决定，禁止文本关键词推断；
 - evaluation、LLM judge、建议采纳、构建成功、本机部署健康和毛收入不得直接成为学习源；
 - service 只做 session/vertical guard 与 HTTP projection，不读 owner store，不拥有 host 私有状态。
@@ -796,7 +799,7 @@ F1–F6 目标框架不能冒充所有指标均有 production ground truth。
 
 **验证**：每新加一个 vertical 内核未被改动；service registry 自动发现所有 vertical；vertical 间 drive 集合互不重叠；单 substrate runtime 共享时 fail-loud 校验冻结不变量
 
-**当前状态**：已交付。八个 vertical 共存：`emogpt`、`coding`、`venture`、`character`、
+**当前状态**：已交付。九个 vertical 共存：`emogpt`、`coding`、`venture`、`operations`、`character`、
 `figure`、`growth-advisor`、`repair30`、`digital-employee`。`lifeform-service` 提供
 aiohttp facade 并校验 substrate sharing；vertical 仍是 data + light glue。
 
@@ -927,6 +930,7 @@ leaderboard/治理与公开 footprint 仍以 `known-debts.md` 为准，不能写
 | 垂直（companion） | `lifeform-domain-emogpt` | 关系陪伴 archetype |
 | 垂直（Coding Brain / pair-programmer） | `lifeform-domain-coding` | 工程结对 archetype + host-facing strict context/outcome sidecar（含负向 recharge） |
 | 垂直（Venture Brain） | `lifeform-domain-venture` | Foundry-facing 商业认知侧车；strict evidence/outcome contract + identity-scoped recall |
+| 垂直（Operations Brain） | `lifeform-domain-operations` | AutoCompany-facing 运营认知侧车；frozen state + bounded policy + typed work-order lineage |
 | 垂直（虚构角色） | `lifeform-domain-character` | reviewed `CharacterSoulProfile` 编译为 standard vertical 输入 |
 | 垂直（真实人物） | `lifeform-domain-figure` | 一手资料 → `FigureArtifactBundle`；L1/L2 corpus cleaning + verification + L3/L4 retrieval / coverage |
 | 垂直（私域 LTV） | `lifeform-domain-growth-advisor` | reviewed `GrowthAdvisorProfile` + onboarding-arc playbook 漂移（PE-driven phase via `BehaviorProtocol.TemporalArc.progression_signals`） |

@@ -300,20 +300,22 @@ Brain facade 与 typed submit API 进入脑核，episode 终局复用 `dialogue_
 
 ### 7.1 Domain Brain 产品投影
 
-Coding Brain 与 Venture Brain 是四能力轴在外部产品 host 上的两种正式投影，不是新增第五条能力轴，
+Coding、Venture 与 Operations Brain 是四能力轴在外部产品 host 上的三种正式投影，不是新增第五条能力轴，
 也不是第二套内核：
 
-| 能力轴 | Domain Brain 统一实现 | Coding Brain | Venture Brain |
-|---|---|---|---|
-| Appendable | typed outcome 经 `LifeformSession` facade 追加 identity-scoped memory；controller 不建第二 store | test/review/VCS experience | simulation/review/machine/field commercial experience，保留多目标结果 |
-| Readable | 只读 owner 发布的 immutable Memory / PE 状态，生成 content-addressed ACTIVE Context Pack | memory-first coding context + settlement refs | 跨周期商业经历、当前不确定性、source/evidence lineage |
-| Learnable | 只有合格 typed environment outcome 可在下一 Context Pack turn 进入 PE；evaluation/judge 不回灌 | 确定性 test/build/CI oracle exact-join 最近完整四轴 PE credit，更新 CMS-backed 内容 checkpoint | Foundry-qualified `field_experiment_result` exact-join四轴 credit，更新 CMS-backed 内容 checkpoint |
-| Steerable | Context Pack 可 ACTIVE；Advice v1 固定 SHADOW、`applied=false` 且不进入 ACTIVE rendered context | 有界内容择位最多提升一个 entry，否则 strict noop；regime/action readout只作比较 | 有界内容择位最多提升一个 entry，否则 strict noop；商业 advice 只作比较 |
+| 能力轴 | Domain Brain 统一实现 | Coding Brain | Venture Brain | Operations Brain |
+|---|---|---|---|---|
+| Appendable | typed outcome 经 `LifeformSession` facade 追加 identity-scoped memory；controller 不建第二 store | test/review/VCS experience | simulation/review/machine/field commercial experience，保留多目标结果 | progress/cost/incident/field operation experience，保留 work-order lineage |
+| Readable | 只读 owner 发布的 immutable Memory / PE 状态，生成 content-addressed Context Pack | memory-first coding context + settlement refs | 跨周期商业经历、当前不确定性、source/evidence lineage | frozen operations state、候选、selection 与 settlement lineage |
+| Learnable | 只有合格 typed environment outcome 可在下一 Context Pack turn 进入 PE；evaluation/judge 不回灌 | 确定性 test/build/CI oracle exact-join 最近完整四轴 PE credit，更新 CMS-backed 内容 checkpoint | Foundry-qualified `field_experiment_result` exact-join 四轴 credit，更新 CMS-backed 内容 checkpoint | qualified `field_operation_result` exact-join PE/credit；SHADOW 不在线更新 |
+| Steerable | 干预必须有界、可回滚且不取得 host actuator authority | ACTIVE 内容择位最多提升一个 entry，否则 strict noop；regime/action readout 只作比较 | ACTIVE 内容择位最多提升一个 entry，否则 strict noop；商业 advice 只作比较 | 默认 SHADOW；仅 exact gate receipt 可授权 staging ACTIVE，production 强制 SHADOW |
 
 Host 权威不随 Context Pack 转移：coding host 继续拥有 repo、工具、review、VCS/部署；Foundry 继续拥有
-来源核验、evidence class、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作。
+来源核验、evidence class、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作；
+AutoCompany 继续拥有 OKR、预算、审批、工作单 SSOT、division dispatch 与治理。
 controller 只拥有有界 live-session 幂等/lineage，service 只做 HTTP projection。完整边界见
-[Coding Brain](./specs/coding-brain.md) 与 [Venture Brain](./specs/venture-brain.md)。
+[Coding Brain](./specs/coding-brain.md)、[Venture Brain](./specs/venture-brain.md) 与
+[Operations Brain](./specs/operations-brain.md)。
 
 ---
 
@@ -365,6 +367,7 @@ A1 判词收窄后，编程域 [coding-lab lane](./specs/coding-lab.md) 升格�
 | 编程域持续学习证据 lane | [specs/coding-lab.md](./specs/coding-lab.md) |
 | Coding Brain 产品侧车 | [specs/coding-brain.md](./specs/coding-brain.md) |
 | Venture Brain 产品侧车 | [specs/venture-brain.md](./specs/venture-brain.md) |
+| Operations Brain 产品侧车 | [specs/operations-brain.md](./specs/operations-brain.md) |
 | 人类验证锚（非学习源） | [specs/steering-human-anchor.md](./specs/steering-human-anchor.md) |
 | R1–R15 设计源头 | [next_gen_emogpt.md](./next_gen_emogpt.md) |
 | 证据与晋升路线 | [evaluation.md](./evaluation.md)、[主线提升方案](./moving%20forward/主线提升方案_2026-08.md) |

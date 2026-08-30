@@ -5,7 +5,7 @@
 
 ## 一句话结论
 
-Volvence 已形成 40-wheel、契约驱动、可持久化和可回滚的持续适应系统；基础 owner
+Volvence 已形成 41-wheel、契约驱动、可持久化和可回滚的持续适应系统；基础 owner
 主链与低风险控制路径大多已接入 production wiring，learned backend 和多个
 SHADOW learner 也有真实实现。但 2026-07-31 的 #92 总 EXIT 没有通过，权威判词是
 `thesis-rejected`：局部机制与局部证据成立，不等于整体 thesis、learned takeover、
@@ -13,14 +13,15 @@ SHADOW learner 也有真实实现。但 2026-07-31 的 #92 总 EXIT 没有通过
 
 ## 1. 当前系统形状
 
-- 40 个 wheel：8 个 `vz-*`、20 个 `lifeform-*`、6 个 `dlaas-platform-*`、
+- 41 个 wheel：8 个 `vz-*`、21 个 `lifeform-*`、6 个 `dlaas-platform-*`、
   6 个 `companion-*`；完整清单见 [package_usage.md](./package_usage.md)，总数以
   `packages/*/pyproject.toml` 为准。
-- 8 个产品 vertical：companion/emogpt、coding、venture、character、figure、
+- 9 个产品 vertical：companion/emogpt、coding、venture、operations、character、figure、
   growth-advisor、repair30、digital-employee。
-- 2 个正式 Domain Brain 产品侧车：Coding Brain 与 Venture Brain。两者都发布 ACTIVE Context
-  Pack、固定 SHADOW advice，并经 typed outcome 把合格环境事实接回下一拍 PE；它们不复制 kernel
-  owner，也不接管 coding host 或 Foundry 的执行/治理权。
+- 3 个正式 Domain Brain 产品侧车：Coding、Venture 与 Operations。Coding/Venture 发布 ACTIVE
+  有界内容 Context Pack 且 advice 固定 SHADOW；Operations 默认 SHADOW，只允许 exact
+  `ModificationGate` receipt 约束下的 staging ACTIVE。三者都经 typed outcome 把合格环境事实接回
+  下一拍 PE，不复制 kernel owner，也不接管 host 的执行、审批或治理权。
 - kernel 的唯一业务编排层是 `vz-runtime`；跨模块正式交换只走不可变 snapshot。
 - World / Self、PE / credit / evaluation、online-fast / session-medium /
   background-slow / rare-heavy 的职责仍严格分层。
@@ -37,9 +38,9 @@ SHADOW learner 也有真实实现。但 2026-07-31 的 #92 总 EXIT 没有通过
 | Semantic owners | 9 类语义 owner、typed proposal/event 路径、hydration 与 snapshot consumer 已齐；LLM 只产 proposal |
 | Social cognition | multi-party identity、ToM 四轨、role、common-ground、group 与 social PE 的 owner/contract 已实现；真实语义 runtime 和行为证据仍受 gate 约束 |
 | Application | domain knowledge、case memory、playbook、boundary、experience consolidation/fast prior 的 owner 路径已实现 |
-| Lifeform | vitals、affordance、thinking、ingestion、expression、protocol uptake、MCP bridge、synthetic data 与八个 vertical 已分 wheel |
+| Lifeform | vitals、affordance、thinking、ingestion、expression、protocol uptake、MCP bridge、synthetic data 与九个 vertical 已分 wheel |
 | Evaluation | cheap `evaluation` ACTIVE；`evaluation_mid` SHADOW；expensive/cross-generation DISABLED；evaluation 始终是 readout/gate，不是学习源 |
-| Product loop | Relationship Memory Console 已有 proposal/correction 闭环；Coding Brain 与 Venture Brain 已有 strict ContextRequest→ACTIVE ContextPack/SHADOW Advice→typed OutcomeReport/Receipt 闭环，并复用 identity-scoped Memory 与下一拍 PE；P5 七日 continuity 聚合未落地 |
+| Product loop | Relationship Memory Console 已有 proposal/correction 闭环；Coding/Venture/Operations Brain 已有 strict ContextRequest→ContextPack/Advice→typed OutcomeReport/Receipt 闭环，并复用 identity-scoped Memory 与下一拍 PE；ProductZero、Foundry、AutoCompany 的外部 adapter 已分别接入 Coding、Venture、Operations；P5 七日 continuity 聚合未落地 |
 
 此前列为“尚缺”的 session-held credit、thinking advisory、9/9 semantic proposal、
 group product consumer、owner hydration、affordance invoker 与 protocol runtime 接缝，
@@ -60,6 +61,8 @@ WiringLevel 和证据门决定。
 | Temporal SSL/runtime、Internal RL、CMS Torch | DISABLED | 没有获得 production promotion |
 | RL runtime modulation | `0.0` | learned RL 不影响默认生产行为 |
 | Live substrate mutation | false | base 冻结；artifact 更新只能走 offline/rare-heavy gate |
+| Coding / Venture 内容择位 | ACTIVE | 只允许 Context Pack 内最多提升一个 owner entry；Advice 仍 SHADOW |
+| Operations ranking / timing | SHADOW；staging 可凭 exact receipt ACTIVE | production 强制 SHADOW，不取得 dispatch authority |
 
 `RuntimeModule.default_wiring_level` 与 `FinalRolloutConfig` 是两个明确的 SSOT：前者是
 模块安全默认，后者是 production rollout override。看到模块类写 SHADOW，不能据此
@@ -97,8 +100,10 @@ Digital Ant ecology 的 fresh station1-v4 最终为 `BLOCK`：alignment `3/4`，
 - World / Self predictive model 的更高容量、compositional/counterfactual 表示；
 - memory retrieval ranking、tension/lesson extraction 等 learned 候选的进一步 owner 化；
 - Relationship Memory Console 的独立 UI、P5 七日 continuity aggregator 与 P6 自动 apply；
-- Foundry 的 Venture adapter、Coding/Venture 跨进程持久幂等 ledger、合格 advisor evidence 与任何
-  Advice ACTIVE 晋升；当前 advice 均不得成为 actuator；
+- 三个外部调用项目已完成 adapter 迁移：ProductZero→Coding、Foundry→Venture、
+  AutoCompany→Operations；调用端各自持久化 lineage/receipt，且不把 Brain advice 当 actuator；
+- Brain service/controller 自身的 live Context Pack 幂等 ledger 仍是进程内状态；service restart 后
+  调用端必须请求新 pack。合格 advisor 现场证据与任何 Advice production ACTIVE 晋升仍未完成；
 - DLaaS、Companion Bench、Figure/Growth Advisor 的具体开放项以
   [known-debts.md](./known-debts.md) 为准；
 - 跨模态 latent action basis、开放环境因果结构发现和 mesa-objective detection 仍属研究目标。

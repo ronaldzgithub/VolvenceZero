@@ -165,7 +165,8 @@ Advice 的 estimate range 或模拟器自己的证据 artifact，绝不能填入
 6. 内容策略用 owner rank、strength、recency、durable indicator 与当前 PE magnitude 五维 typed
    feature，对非首位 entries 排序；最多提升一个到首位，NOOP 时 byte-exact 保留 owner 顺序；
 7. 在 `max_context_chars` 边界内按策略输出顺序渲染，并发布实际使用的
-   `source_entry_ids / source_evidence_ref_ids` 与 decision/checkpoint lineage；无召回时发布明确空状态；
+   `source_entry_ids / source_evidence_ref_ids` 与 decision/checkpoint lineage；存在 decision 时契约强制
+   `source_entry_ids == content_policy_decision.output_entry_ids`；无召回时发布明确空状态；
 8. snapshot 使用 `WiringLevel.ACTIVE`。它可以由 Foundry adapter 注入其规划上下文，但不包含
    SHADOW Advice 的任何候选文本。
 
@@ -259,7 +260,7 @@ Service 只解析 JSON、执行 session guard 并投影 controller；不保存�
 
 ## 6. Foundry adapter 精确接线
 
-Foundry 后续 adapter 应遵循以下顺序：
+Foundry 已落地的 adapter 遵循以下顺序：
 
 1. Foundry 自己完成 source/evidence 校验、资格门与授权，再构造完整
    `venture-context-request.v1`。不要发送私有 ledger、凭据、原文秘密或让 Venture Brain猜 class；
@@ -303,8 +304,9 @@ ACTIVE Context Pack 可能改变 Foundry 后续规划信息，后续真实 typed
   删除必须走 Memory owner 的显式用户数据操作；
 - v1 没有持久幂等 ledger；进程 crash 发生在外部收到 Receipt 前时，Foundry 必须以自身 adapter
   ledger 核对后请求新 pack，不得猜测写入是否发生；
-- Foundry 当前 realized-cost schema 与本合同新增的 `delivery_minor` 需在 adapter 显式映射；未核算时
-  只能传零，不能用 estimated delivery cost；
+- Foundry adapter 已冻结 strict report/receipt 与独立 append-only lineage ledger；Accounting 到完整
+  `venture-outcome-report.v1` 的自动聚合仍属于 workflow automation，当前由调用端显式提供 typed report。
+  未核算 `delivery_minor` 时只能传零，不能用 estimated delivery cost；
 - 任何 Advice ACTIVE、并行 delayed outcome、多币种聚合或商业 actuator 都必须新 schema、独立 evidence、
   `ModificationGate` 与单字段 `WiringLevel` 晋升，不得静默改变 v1。
 

@@ -100,12 +100,12 @@ flowchart TB
 - `companion-*` 拥有公开标准、benchmark、reference harness、CAMEL baseline、
   trajectory generation 与 encoder scaffold；benchmark readout 不回灌 kernel。
 
-## 4. 40-wheel 现状
+## 4. 41-wheel 现状
 
 | Family | Count | Wheels |
 |---|---:|---|
 | `vz-*` | 8 | contracts, substrate, temporal, memory, cognition, application, runtime, embodiment-ant |
-| `lifeform-*` | 20 | core, affordance, thinking, ingestion, expression, service, evolution, cultivation, protocol-runtime, mcp-bridge, openai-compat, synthetic-data, domain-emogpt, domain-coding, domain-venture, domain-character, domain-figure, domain-growth-advisor, domain-repair30, domain-digital-employee |
+| `lifeform-*` | 21 | core, affordance, thinking, ingestion, expression, service, evolution, cultivation, protocol-runtime, mcp-bridge, openai-compat, synthetic-data, domain-emogpt, domain-coding, domain-venture, domain-operations, domain-character, domain-figure, domain-growth-advisor, domain-repair30, domain-digital-employee |
 | `dlaas-platform-*` | 6 | contracts, registry, launcher, api, ops, eval |
 | `companion-*` | 6 | standard, bench, ref-harness, camel-baseline, trajgen, encoder |
 
@@ -113,13 +113,14 @@ flowchart TB
 `vz-pe-credit`、`vz-self-model`、`vz-evaluation` 不是当前 wheel；相应实现位于
 `vz-cognition` 子包。
 
-## 5. 八个产品 vertical
+## 5. 九个产品 vertical
 
 | Vertical | Wheel | 冷启动/产品职责 |
 |---|---|---|
 | Relationship companion | `lifeform-domain-emogpt` | 关系连续性、修复、长期陪伴 |
 | Coding | `lifeform-domain-coding` | 结对开发与工具协作 |
 | Venture | `lifeform-domain-venture` | Foundry 商业认知侧车、跨周期经验与 typed 商业结果 |
+| Operations | `lifeform-domain-operations` | AutoCompany 运营认知侧车、typed work-order 与有界 ranking/timing |
 | Character | `lifeform-domain-character` | reviewed fictional character package、Prefix-KV/LoRA evidence |
 | Figure | `lifeform-domain-figure` | primary-source corpus、verification 与 historical figure artifact |
 | Growth advisor | `lifeform-domain-growth-advisor` | 长期成长顾问的 domain package / boundary / report |
@@ -132,14 +133,15 @@ Vertical 只能经 Brain facade、contracts、application owners 与 Modificatio
 ### 5.1 Domain Brain：host-facing 产品认知侧车
 
 Domain Brain 是 select vertical 暴露给外部产品 host 的有状态认知协议，不是把
-`vz-runtime.Brain` 复制成多个领域内核。当前正式实例只有两个：
+`vz-runtime.Brain` 复制成多个领域内核。当前正式实例有三个：
 
 | 产品面 | Host 保留的权威 | Context / Advice | Outcome 与学习边界 | 详细契约 |
 |---|---|---|---|---|
 | Coding Brain | coding agent 拥有规划、文件修改、shell、测试执行、review、VCS/PR 与部署 | memory-first `CodingContextPackSnapshot` 可 ACTIVE；`CodingAdviceSnapshot` 固定 SHADOW、`applied=false` | 所有 typed outcome 进入 memory/execution；只有确定性 test/build/CI oracle 可在下一 Context Pack turn 进入 PE | [coding-brain.md](./specs/coding-brain.md) |
 | Venture Brain | Foundry 拥有来源核验、资格门、portfolio/budget、Accounting、ledger、审批、最终状态与全部外部动作 | `VentureContextPackSnapshot` 可 ACTIVE；结构化候选 `VentureAdviceSnapshot` 固定 SHADOW、`applied=false` | 所有 typed outcome 进入 memory/execution；只有 Foundry-qualified `field_experiment_result` 的多目标 verdict 可在下一 Context Pack turn 进入 PE | [venture-brain.md](./specs/venture-brain.md) |
+| Operations Brain | AutoCompany 拥有 OKR、预算、审批、工作单 SSOT、division dispatch 与治理 | Context Pack/Advice 默认 SHADOW；仅 exact gate receipt 可授权 staging ACTIVE，production 强制 SHADOW | 所有 typed outcome 进入 memory/execution；只有 qualified `field_operation_result` 可在下一 Context Pack turn 进入 PE | [operations-brain.md](./specs/operations-brain.md) |
 
-两者共享同一条产品闭环：
+三者共享同一条 owner-preserving 产品闭环；具体 WiringLevel 由各自契约限定：
 
 ```text
 host 已确认的结构化事实
@@ -453,9 +455,9 @@ protocol runtime 等已 ACTIVE。`evaluation_mid`、decision workspace 与多类
 SHADOW；Temporal SSL/runtime、Internal RL、CMS Torch 与 cross-generation evaluation
 仍 DISABLED 或零 modulation。
 
-Coding Brain 与 Venture Brain 的 strict contract、service route、identity-scoped recall、
+Coding、Venture 与 Operations Brain 的 strict contract、service route、identity-scoped recall、
 content-addressed receipt 和下一拍 settlement 已落地。这里成立的是产品侧车接线与边界，不是
-advisor ACTIVE、coding/商业 uplift 或整体 thesis 的 production 证明。
+advisor ACTIVE、coding/商业/运营 uplift 或整体 thesis 的 production 证明。
 
 2026-07-31 #92 总 EXIT 为 `thesis-rejected`。Gate 2/8/11 有局部支持，但不授权整体
 learned takeover。relationship-conditioned Gate 2 longitudinal seed1301 stop-loss 与

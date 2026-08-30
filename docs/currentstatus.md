@@ -1,7 +1,7 @@
 # VolvenceZero Cognitive AGI 当前状态
 
 > Status: live status summary
-> Last updated: 2026-08-01（#92 后研究路线校正）
+> Last updated: 2026-08-30（Domain Brain 三外部调用项目迁移收口）
 > 详细判断、晋升协议与命令见 [`current.md`](./current.md)。
 > 本文件只记录当前事实、剩余代码、晋升状态和下一步，不把计划写成已完成。
 
@@ -11,6 +11,19 @@
 > 均未获授权。Ecology station1 四门通过，唯一 alignment review 后仍 3/4，
 > 因而 station2/P1/P2 均按预注册 kill。权威对账：
 > `artifacts/causal_evidence_final_campaign_20260731/`。
+
+## 0. 2026-08-30 Domain Brain 与外部调用端更新
+
+- Coding、Venture、Operations 三个 Brain 均已有 owner-preserving strict contract、统一 service route、
+  identity-scoped recall、typed outcome/receipt 与合格环境事实的下一拍 PE 结算；不新增 kernel owner。
+- Coding/Venture 的共享有界内容策略只读 owner entry 的 typed feature，最多提升一个 entry；Context Pack
+  显式冻结实际 `source_entry_ids == content_policy_decision.output_entry_ids`，禁止调用端重排后仍冒用
+  原 decision lineage。Advice 继续固定 SHADOW。
+- ProductZero、Foundry、AutoCompany 已分别完成 Coding、Venture、Operations 调用适配、严格 schema、
+  lineage/receipt 持久化与 host authority 隔离。Foundry 的主 `factory-cycle` 也透传 Venture context；
+  AutoCompany production 仍强制 SHADOW，staging ACTIVE 必须绑定 exact gate receipt。
+- 这表示三条外部产品接线的实施已完成，不表示完整 thesis、生产 learned takeover、Advice ACTIVE 或
+  商业/编码/运营 uplift 已被证明。Brain 内 live pack ledger 仍不跨进程恢复；服务重启后必须请求新 pack。
 
 ## 1. 当前总状态
 

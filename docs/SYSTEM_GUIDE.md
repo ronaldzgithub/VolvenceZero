@@ -792,13 +792,14 @@ DriveSpec(
 - **衰减只在 SYSTEM tick**：ENERGY / CONTEXT tick 只推进 tick_index，不消耗
 - **Cooldown 由 owner 强制**：避免主动 followup 洪泛
 
-**八个 vertical 的实例**：
+**九个 vertical 的实例**：
 
 | Vertical | Archetype | Drive set / 特殊机制 |
 |---|---|---|
 | `lifeform-domain-emogpt` | 关系陪伴 | `bond_warmth` / `user_engagement` / `conversation_continuity` |
 | `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`（探索时**负向充能**） |
 | `lifeform-domain-venture` | Foundry 商业认知侧车 | reviewed evidence discipline / falsification / multi-objective outcome priors；不拥有 Foundry ledger 或商业动作 |
+| `lifeform-domain-operations` | AutoCompany 运营认知侧车 | frozen operations state、bounded ranking/timing、typed work-order lineage；不拥有 dispatch 或治理 |
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`（每个角色档案自定义） |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；多源一手语料 → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯 |
 | `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven） |
@@ -807,7 +808,7 @@ DriveSpec(
 
 `direction_certainty` 在 `guided_exploration` regime 下用**负向 recharge**——这证明了 drive 层可以编码"探索期间确定性应该被消耗"这种非单调激励。
 
-八个 vertical 在同一 Python 进程内共存；service registry 自动发现，import-boundary tests 强制 vertical 不反向污染内核。这是 SPLIT.md 触发条件 ② 的现场证据。
+九个 vertical 在同一 Python 进程内共存；service registry 自动发现，import-boundary tests 强制 vertical 不反向污染内核。这是 SPLIT.md 触发条件 ② 的现场证据。
 
 #### 🧬 代码与论文锚点
 
@@ -896,13 +897,16 @@ host typed facts
 |---|---|---|---|
 | Coding Brain | coding agent host | repo、文件、shell、测试执行、review、VCS/PR、部署 | 只有 typed test/build/CI 的确定性 verified/regressed oracle |
 | Venture Brain | Foundry | 来源核验、资格门、组合/预算、Accounting、ledger、审批、最终状态与外部动作 | 只有 Foundry-qualified `field_experiment_result` 多目标 verdict |
+| Operations Brain | AutoCompany | OKR、预算、审批、工作单 SSOT、division dispatch 与治理 | 只有 qualified `field_operation_result`；production 强制 SHADOW |
 
-两者都使用 strict/versioned/frozen request、pack、advice、report、receipt；Context Pack 可以 ACTIVE，
-Advice 在 v1 永久 SHADOW 且不能出现在 ACTIVE `rendered_context`。Controller 只保存有界 live-session
+三者都使用 strict/versioned/frozen request、pack、advice、report、receipt；Coding/Venture 的有界内容
+Context Pack 可以 ACTIVE，Advice 永久 SHADOW 且不能出现在 ACTIVE `rendered_context`；Operations 默认
+SHADOW，仅 exact receipt 允许 staging ACTIVE。Controller 只保存有界 live-session
 幂等/lineage；跨 session 经 identity-scoped Memory owner 恢复。evaluation、LLM judge、建议采纳、构建
 成功、本机部署健康或毛收入都不能绕过 typed outcome 成为 reward。
 
-📍 Specs：[Coding Brain](./specs/coding-brain.md) / [Venture Brain](./specs/venture-brain.md)
+📍 Specs：[Coding Brain](./specs/coding-brain.md) / [Venture Brain](./specs/venture-brain.md) /
+[Operations Brain](./specs/operations-brain.md)
 
 ---
 
@@ -1088,18 +1092,18 @@ Advice 在 v1 永久 SHADOW 且不能出现在 ACTIVE `rendered_context`。Contr
 
 ## 7. 实现细节地图
 
-### 7.1 仓库结构（40 个 wheel）
+### 7.1 仓库结构（41 个 wheel）
 
 ```
 VolvenceZero/packages/
 ├── vz-* (8)
 │   ├── contracts / substrate / temporal / memory
 │   └── cognition / application / runtime / embodiment-ant
-├── lifeform-* (20)
+├── lifeform-* (21)
 │   ├── core / affordance / thinking / ingestion / expression / service
 │   ├── evolution / cultivation / protocol-runtime / mcp-bridge
 │   ├── openai-compat / synthetic-data
-│   └── domain-{emogpt,coding,venture,character,figure,growth-advisor,repair30,digital-employee}
+│   └── domain-{emogpt,coding,venture,operations,character,figure,growth-advisor,repair30,digital-employee}
 ├── dlaas-platform-* (6)
 │   └── contracts / registry / launcher / api / ops / eval
 └── companion-* (6)

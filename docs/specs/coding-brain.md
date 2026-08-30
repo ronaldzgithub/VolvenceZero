@@ -103,7 +103,8 @@ JSON 解析拒绝未知字段与未知 enum。
    durable indicator 与当前 PE magnitude。候选仅为非首位 entry，最多提升一个到首位；NOOP 时
    byte-exact 保留 owner 顺序，不创建、删除、改写 entry；
 5. 按策略输出顺序渲染并在 `max_context_chars` 边界截断；记录所有实际渲染的
-   `source_entry_ids` 与 decision/checkpoint lineage；
+   `source_entry_ids` 与 decision/checkpoint lineage；存在 decision 时契约强制
+   `source_entry_ids == content_policy_decision.output_entry_ids`，调用端不得重排后继续复用原 lineage；
 6. Context Pack 标记 `WiringLevel.ACTIVE`。无召回时返回明确空状态，而不是 fallback 到历史
    chat 或 service 私有数据库。
 

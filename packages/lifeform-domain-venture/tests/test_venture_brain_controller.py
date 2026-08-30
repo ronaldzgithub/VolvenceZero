@@ -442,6 +442,17 @@ async def test_content_position_policy_settles_exact_field_credit() -> None:
     decision = policy_pack.content_policy_decision
     assert decision is not None
     assert policy_pack.source_entry_ids == decision.output_entry_ids
+    with pytest.raises(
+        ValueError,
+        match="source_entry_ids must match content policy output order",
+    ):
+        replace(
+            policy_pack,
+            recalled_experiences=tuple(
+                reversed(policy_pack.recalled_experiences)
+            ),
+            source_entry_ids=tuple(reversed(policy_pack.source_entry_ids)),
+        )
     assert VentureContextPackSnapshot.from_json(policy_pack.to_json()) == policy_pack
     receipt = await controller.record_outcome(
         session=session,

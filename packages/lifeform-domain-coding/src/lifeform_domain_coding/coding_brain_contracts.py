@@ -505,6 +505,14 @@ class CodingContextPackSnapshot:
             raise ValueError(
                 "content_policy_decision must be a BoundedContentPolicyDecision"
             )
+        if (
+            self.content_policy_decision is not None
+            and self.source_entry_ids
+            != self.content_policy_decision.output_entry_ids
+        ):
+            raise ValueError(
+                "source_entry_ids must match content policy output order"
+            )
         if any(
             not isinstance(item, BoundedContentPolicyCredit)
             for item in self.settled_policy_credits

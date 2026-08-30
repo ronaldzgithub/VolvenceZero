@@ -353,5 +353,6 @@ bundle 路径或 pin 缺失、任何文件/typed lineage 漂移、非 staging AC
 - 验收覆盖 strict version/enum/role/pair、work-order locator、metric lineage、成本 shape、Advice 边界、
   request/outcome idempotency、same-session/latest-pack、跨 session recall、下一拍 PE lineage、SHADOW
   isolation、service status/vertical guard、import boundary 和相关 Ruff/pytest；
-- production promotion 还要求 AutoCompany durable adapter、typed division intake/outcome、跨周期现场
-  matched baseline 与新的 field-evidence gate receipt；当前 simulation/staging receipt 不可用于 production。
+- AutoCompany durable adapter 与 typed division intake/outcome 已落地；production promotion 仍要求跨周期
+  现场 matched baseline 与新的 field-evidence gate receipt，当前 simulation/staging receipt 不可用于
+  production。
