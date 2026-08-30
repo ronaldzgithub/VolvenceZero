@@ -14,6 +14,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from lifeform_core import (
+    BoundedContentPolicyCredit,
+    BoundedContentPolicyDecision,
+    BoundedContentPolicyUpdateReceipt,
+)
 from volvence_zero.runtime import WiringLevel
 
 
@@ -444,6 +449,10 @@ class CodingContextPackSnapshot:
     pe_magnitude: float
     pe_bootstrap: bool
     advice: CodingAdviceSnapshot
+    content_policy_decision: BoundedContentPolicyDecision | None = None
+    settled_policy_credits: tuple[BoundedContentPolicyCredit, ...] = ()
+    policy_updates: tuple[BoundedContentPolicyUpdateReceipt, ...] = ()
+    content_policy_wiring_level: WiringLevel = WiringLevel.ACTIVE
     wiring_level: WiringLevel = WiringLevel.ACTIVE
 
     def __post_init__(self) -> None:
@@ -489,6 +498,42 @@ class CodingContextPackSnapshot:
             raise ValueError("pe_bootstrap must be a boolean")
         if not isinstance(self.advice, CodingAdviceSnapshot):
             raise ValueError("advice must be a CodingAdviceSnapshot")
+        if self.content_policy_decision is not None and not isinstance(
+            self.content_policy_decision,
+            BoundedContentPolicyDecision,
+        ):
+            raise ValueError(
+                "content_policy_decision must be a BoundedContentPolicyDecision"
+            )
+        if any(
+            not isinstance(item, BoundedContentPolicyCredit)
+            for item in self.settled_policy_credits
+        ):
+            raise ValueError(
+                "settled_policy_credits must contain BoundedContentPolicyCredit"
+            )
+        if any(
+            not isinstance(item, BoundedContentPolicyUpdateReceipt)
+            for item in self.policy_updates
+        ):
+            raise ValueError(
+                "policy_updates must contain BoundedContentPolicyUpdateReceipt"
+            )
+        if len(self.settled_policy_credits) != len(self.policy_updates):
+            raise ValueError("each settled content policy credit requires one update")
+        if self.content_policy_wiring_level not in {
+            WiringLevel.ACTIVE,
+            WiringLevel.DISABLED,
+        }:
+            raise ValueError("Coding content policy must be ACTIVE or DISABLED")
+        if self.content_policy_wiring_level is WiringLevel.DISABLED and any(
+            (
+                self.content_policy_decision is not None,
+                self.settled_policy_credits,
+                self.policy_updates,
+            )
+        ):
+            raise ValueError("DISABLED content policy cannot publish policy lineage")
         if self.wiring_level is not WiringLevel.ACTIVE:
             raise ValueError("Coding Context Pack must be WiringLevel.ACTIVE")
 
@@ -511,6 +556,18 @@ class CodingContextPackSnapshot:
             "pe_magnitude": float(self.pe_magnitude),
             "pe_bootstrap": self.pe_bootstrap,
             "advice": self.advice.to_json(),
+            "content_policy_decision": (
+                self.content_policy_decision.to_json()
+                if self.content_policy_decision is not None
+                else None
+            ),
+            "settled_policy_credits": [
+                item.to_json() for item in self.settled_policy_credits
+            ],
+            "policy_updates": [item.to_json() for item in self.policy_updates],
+            "content_policy_wiring_level": (
+                self.content_policy_wiring_level.value
+            ),
             "wiring_level": self.wiring_level.value,
         }
 
@@ -530,6 +587,8 @@ class CodingOutcomeReceipt:
     task_event_ids: tuple[str, ...]
     external_outcome_evidence_id: str
     learning_route: CodingOutcomeRoute
+    source_content_policy_decision_id: str = ""
+    content_policy_action_applied: bool = False
     settlement_state: CodingSettlementState = (
         CodingSettlementState.PENDING_NEXT_CONTEXT_TURN
     )
@@ -566,6 +625,19 @@ class CodingOutcomeReceipt:
         )
         if not isinstance(self.learning_route, CodingOutcomeRoute):
             raise ValueError("learning_route must be a CodingOutcomeRoute")
+        _require_optional_text(
+            "source_content_policy_decision_id",
+            self.source_content_policy_decision_id,
+            max_length=256,
+        )
+        if not isinstance(self.content_policy_action_applied, bool):
+            raise ValueError("content_policy_action_applied must be a boolean")
+        if self.content_policy_action_applied != bool(
+            self.source_content_policy_decision_id
+        ):
+            raise ValueError(
+                "content policy application requires exact decision lineage"
+            )
         if not isinstance(self.settlement_state, CodingSettlementState):
             raise ValueError("settlement_state must be a CodingSettlementState")
         if self.report.deterministic_environment_outcome:
@@ -594,6 +666,10 @@ class CodingOutcomeReceipt:
             "task_event_ids": list(self.task_event_ids),
             "external_outcome_evidence_id": self.external_outcome_evidence_id,
             "learning_route": self.learning_route.value,
+            "source_content_policy_decision_id": (
+                self.source_content_policy_decision_id
+            ),
+            "content_policy_action_applied": self.content_policy_action_applied,
             "settlement_state": self.settlement_state.value,
         }
 

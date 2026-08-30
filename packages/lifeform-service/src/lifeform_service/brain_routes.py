@@ -23,6 +23,7 @@ from lifeform_domain_coding import (
     CodingBrainController,
     CodingBrainLineageError,
     CodingBrainReadOnlyError,
+    CodingBrainSettlementPendingError,
     CodingContextRequest,
     CodingOutcomeReport,
 )
@@ -254,18 +255,27 @@ def _coding_capabilities() -> VerticalBrainCapabilityManifest:
         readable=_shared_read_axis(vertical="Coding"),
         learnable=BrainCapabilityAxis(
             status="active",
-            mechanism="qualified deterministic task outcomes settle through the shared PE path",
-            boundary="no shared bounded-policy checkpoint or product ACTIVE learned gate",
+            mechanism=(
+                "qualified deterministic task outcomes exact-join PE credit and "
+                "update the CMS-backed bounded content checkpoint"
+            ),
+            boundary="review, VCS, evaluation and judge never update the policy",
         ),
         steerable=BrainCapabilityAxis(
-            status="shadow",
-            mechanism="owner-published regime/action advice readout",
-            boundary="no residual actuation; advice is excluded from ACTIVE rendered context",
+            status="active",
+            mechanism=(
+                "bounded content positioning promotes at most one recalled entry "
+                "or preserves strict owner-order NOOP"
+            ),
+            boundary=(
+                "Coding advice remains SHADOW; no residual or tool actuation and "
+                "the host retains every code action"
+            ),
         ),
         shared_lifeform_kernel=True,
-        shared_bounded_policy=False,
+        shared_bounded_policy=True,
         maximum_advice_scope="shadow",
-        claim_scope="partial_four_axis_mechanism_no_active_steering",
+        claim_scope="active_bounded_content_position_no_residual_or_advice_actuation",
     )
 
 
@@ -330,6 +340,7 @@ def default_vertical_brain_adapters(
             conflict_errors=(CodingBrainConflictError,),
             lineage_errors=(CodingBrainLineageError,),
             readonly_errors=(CodingBrainReadOnlyError,),
+            settlement_errors=(CodingBrainSettlementPendingError,),
             capabilities=_coding_capabilities(),
         ),
         VerticalBrainAdapter(

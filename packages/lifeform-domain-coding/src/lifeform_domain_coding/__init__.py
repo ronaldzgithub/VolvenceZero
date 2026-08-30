@@ -71,7 +71,9 @@ from lifeform_domain_coding.coding_brain import (
     CodingBrainController,
     CodingBrainError,
     CodingBrainLineageError,
+    CodingBrainMemoryContractError,
     CodingBrainReadOnlyError,
+    CodingBrainSettlementPendingError,
 )
 
 
@@ -245,7 +247,9 @@ __all__ = (
     "CodingBrainController",
     "CodingBrainError",
     "CodingBrainLineageError",
+    "CodingBrainMemoryContractError",
     "CodingBrainReadOnlyError",
+    "CodingBrainSettlementPendingError",
     "CodingContextPackSnapshot",
     "CodingContextRequest",
     "CodingOutcomeKind",

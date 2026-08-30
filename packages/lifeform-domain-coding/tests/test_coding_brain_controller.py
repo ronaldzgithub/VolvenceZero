@@ -264,3 +264,140 @@ async def test_identity_scoped_memory_is_recalled_by_a_new_session(tmp_path) -> 
     )
     assert receipt.memory_entry_id in second_context.source_entry_ids
     assert "restart from the committed checkpoint" in second_context.rendered_context
+
+
+async def test_content_position_policy_updates_only_after_exact_next_turn_pe() -> None:
+    controller = CodingBrainController()
+    session = _session(session_id="coding-content-policy")
+
+    first = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="policy-request-1", task_id="policy-task-1"),
+        generated_at_ms=10_000,
+    )
+    await controller.record_outcome(
+        session=session,
+        report=CodingOutcomeReport(
+            outcome_id="policy-outcome-1",
+            context_pack_id=first.context_pack_id,
+            kind=CodingOutcomeKind.TASK_REGRESSED,
+            source=CodingOutcomeSource.TEST_SUITE,
+            summary="First policy memory",
+            detail="The first deterministic failure establishes one recalled entry",
+            observed_at_ms=10_100,
+            evidence_ref="pytest:policy-1",
+        ),
+    )
+    second = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="policy-request-2", task_id="policy-task-2"),
+        generated_at_ms=10_200,
+    )
+    assert second.content_policy_decision is None
+    await controller.record_outcome(
+        session=session,
+        report=CodingOutcomeReport(
+            outcome_id="policy-outcome-2",
+            context_pack_id=second.context_pack_id,
+            kind=CodingOutcomeKind.TASK_VERIFIED,
+            source=CodingOutcomeSource.BUILD_GATE,
+            summary="Second policy memory",
+            detail="The second deterministic result establishes a challenger entry",
+            observed_at_ms=10_300,
+            evidence_ref="build:policy-2",
+        ),
+    )
+
+    policy_pack = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="policy-request-3", task_id="policy-task-3"),
+        generated_at_ms=10_400,
+    )
+    decision = policy_pack.content_policy_decision
+    assert decision is not None
+    assert decision.source_prediction_id
+    assert set(decision.output_entry_ids) == set(decision.input_entry_ids)
+    assert policy_pack.source_entry_ids == decision.output_entry_ids
+    receipt = await controller.record_outcome(
+        session=session,
+        report=CodingOutcomeReport(
+            outcome_id="policy-outcome-3",
+            context_pack_id=policy_pack.context_pack_id,
+            kind=CodingOutcomeKind.TASK_REGRESSED,
+            source=CodingOutcomeSource.CI,
+            summary="Policy-bearing result",
+            detail="The applied Context Pack ordering now receives exact PE credit",
+            observed_at_ms=10_500,
+            evidence_ref="ci:policy-3",
+        ),
+    )
+    assert receipt.source_content_policy_decision_id == decision.policy_decision_id
+    assert receipt.content_policy_action_applied is True
+
+    settled = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="policy-request-4", task_id="policy-task-4"),
+        generated_at_ms=10_600,
+    )
+    assert len(settled.settled_policy_credits) == 1
+    assert len(settled.policy_updates) == 1
+    assert (
+        settled.settled_policy_credits[0].policy_decision_id
+        == decision.policy_decision_id
+    )
+    assert settled.policy_updates[0].update_count == 1
+
+
+async def test_content_position_policy_disabled_restores_owner_order() -> None:
+    controller = CodingBrainController(
+        content_policy_wiring_level=WiringLevel.DISABLED
+    )
+    session = _session(session_id="coding-content-policy-disabled")
+    first = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="disabled-request-1", task_id="disabled-task-1"),
+        generated_at_ms=20_000,
+    )
+    await controller.record_outcome(
+        session=session,
+        report=CodingOutcomeReport(
+            outcome_id="disabled-outcome-1",
+            context_pack_id=first.context_pack_id,
+            kind=CodingOutcomeKind.REVIEW_CHANGES_REQUESTED,
+            source=CodingOutcomeSource.CODE_REVIEW,
+            summary="First disabled-policy memory",
+            detail="Review evidence remains memory-only",
+            observed_at_ms=20_100,
+            evidence_ref="review:disabled-1",
+        ),
+    )
+    second = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="disabled-request-2", task_id="disabled-task-2"),
+        generated_at_ms=20_200,
+    )
+    await controller.record_outcome(
+        session=session,
+        report=CodingOutcomeReport(
+            outcome_id="disabled-outcome-2",
+            context_pack_id=second.context_pack_id,
+            kind=CodingOutcomeKind.MERGED,
+            source=CodingOutcomeSource.VCS,
+            summary="Second disabled-policy memory",
+            detail="VCS evidence remains memory-only",
+            observed_at_ms=20_300,
+            evidence_ref="git:disabled-2",
+        ),
+    )
+
+    third = await controller.build_context_pack(
+        session=session,
+        request=_request(request_id="disabled-request-3", task_id="disabled-task-3"),
+        generated_at_ms=20_400,
+    )
+
+    assert third.content_policy_wiring_level is WiringLevel.DISABLED
+    assert third.content_policy_decision is None
+    assert third.settled_policy_credits == ()
+    assert third.policy_updates == ()
+    assert len(third.source_entry_ids) == 2

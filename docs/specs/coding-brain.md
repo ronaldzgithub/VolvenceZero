@@ -1,7 +1,7 @@
 # Coding Brain 产品契约 Spec
 
-> Status: implemented v1
-> Last updated: 2026-08-29
+> Status: implemented v1 + shared bounded content policy
+> Last updated: 2026-08-30
 > Owner: `lifeform-domain-coding`
 > Service projection: `lifeform-service`
 > Evidence basis: [`coding-lab.md`](./coding-lab.md) Packet 1 / Packet 2
@@ -19,7 +19,9 @@ Prediction Error → credit → 有界控制链学习。
 coding host 的结构化任务事实
   -> CodingContextRequest
   -> LifeformSession.run_turn（结算上一任务 evidence）
+  -> exact PE + 四轴 credit 结算上一拍内容策略并写回 CMS checkpoint
   -> Memory owner 检索 episodic / durable experience
+  -> 共享有界内容策略：最多提升一个非首位 entry，否则 strict noop
   -> CodingContextPackSnapshot [ACTIVE]
   -> host 自己规划、编辑和执行
   -> CodingOutcomeReport（typed test / review / merge evidence）
@@ -41,6 +43,8 @@ v1 必须具备：
 - 跨 session 恢复：closed-alpha identity scope 配置持久化后，同一 identity 的新 session
   可召回旧 coding outcome；
 - 明确接线：Context Pack `ACTIVE`；controller advice `SHADOW` 且 `applied=false`；
+- project+repository-scoped 内容策略 checkpoint 经 Memory owner 跨 session 恢复；策略只读
+  owner 顺序、strength/age/stratum 与当前 PE typed feature，不解析 entry 文本；
 - content-addressed lineage、request/outcome 幂等与冲突 fail loudly；
 - 每个确定性测试结局在下一 Context Pack turn 可从 PE owner 的
   `ActualOutcome.external_outcome_refs` 观察到结算证明。
@@ -62,10 +66,10 @@ JSON 解析拒绝未知字段与未知 enum。
 | 对象 | schema | 关键字段 | 语义 |
 |---|---|---|---|
 | `CodingContextRequest` | `coding-context-request.v1` | request/project/repository/task identity、`CodingTaskKind`、summary、revision、target paths、memory/context limit | host 已知的结构化任务事实；不做文本路由 |
-| `CodingContextPackSnapshot` | `coding-context-pack.v1` | content-addressed id、ACTIVE wiring、rendered memory、source entry ids、facets、PE settlement refs、SHADOW advice | 当前任务可实际注入 coding agent 的唯一产品输出 |
+| `CodingContextPackSnapshot` | `coding-context-pack.v1` | content-addressed id、ACTIVE wiring、rendered memory、source entry ids、facets、PE settlement refs、内容策略 decision/credit/update lineage、SHADOW advice | 当前任务可实际注入 coding agent 的唯一产品输出 |
 | `CodingAdviceSnapshot` | `coding-advice.v1` | source turn、candidate regime/action、evidence entry ids、`SHADOW`、`applied=false` | 只读候选，用于比较和未来 promotion evidence |
 | `CodingOutcomeReport` | `coding-outcome-report.v1` | outcome/context-pack lineage、closed kind/source、summary/detail、timestamp、evidence ref、changed paths | host 提交的 typed 环境事实 |
-| `CodingOutcomeReceipt` | `coding-outcome-receipt.v1` | memory entry、semantic event ids、external evidence id、learning route、pending settlement state | 写入与下一拍结算的不可变回执 |
+| `CodingOutcomeReceipt` | `coding-outcome-receipt.v1` | memory entry、semantic event ids、external evidence id、content policy decision/application lineage、learning route、pending settlement state | 写入与下一拍结算的不可变回执 |
 
 ### 3.1 Closed enums
 
@@ -95,9 +99,12 @@ JSON 解析拒绝未知字段与未知 enum。
 3. 经 `LifeformSession.retrieve_memory(RetrievalQuery(...))` 查询 `Track.WORLD`、
    `EPISODIC + DURABLE`。query text 来自 host 显式字段；facets 来自 enum/identity/target path
    的确定性结构映射，不从自然语言分类；
-4. 按 Memory owner 返回顺序渲染并在 `max_context_chars` 边界截断；记录所有实际渲染的
-   `source_entry_ids`；
-5. Context Pack 标记 `WiringLevel.ACTIVE`。无召回时返回明确空状态，而不是 fallback 到历史
+4. 内容策略只在 owner 返回 entry 上运行；五维 feature 固定为 owner rank、strength、recency、
+   durable indicator 与当前 PE magnitude。候选仅为非首位 entry，最多提升一个到首位；NOOP 时
+   byte-exact 保留 owner 顺序，不创建、删除、改写 entry；
+5. 按策略输出顺序渲染并在 `max_context_chars` 边界截断；记录所有实际渲染的
+   `source_entry_ids` 与 decision/checkpoint lineage；
+6. Context Pack 标记 `WiringLevel.ACTIVE`。无召回时返回明确空状态，而不是 fallback 到历史
    chat 或 service 私有数据库。
 
 Memory 的唯一 owner 仍是 `vz-memory`。coding controller 只提交
@@ -125,7 +132,17 @@ checkpoint 都由 Memory owner 决定。
 credit` 主链。code review 是人类判断，merge/revert 是 VCS 状态；二者不得冒充确定性 task
 oracle，因此只走 `execution_result`。evaluation、review 分数与成功率均不写回学习源。
 
-### 4.3 Advisor（Steerable 的诚实边界）
+若被引用 Context Pack 发布了内容策略 decision，确定性 outcome 还必须引用该 live session 最新
+Context Pack，且同一 session 同时最多一个 policy-bearing outcome 等待下一拍。下一拍 controller
+同时校验 external evidence ref、owner `evaluated_prediction.prediction_id`、CreditSnapshot 最近完整
+四轴 PE 组和 decision/checkpoint id；随后调用共享有界策略更新并把新 checkpoint 追加回 Memory。
+review/VCS outcome 即使写入 memory，也不能触发该更新。
+
+### 4.3 内容择位与 Advisor（Steerable 的诚实边界）
+
+内容择位是 Context Pack 内的 ACTIVE、有界干预：最多改变一个 entry 的位置，输入集合不变；
+`content_policy_wiring_level=DISABLED` 是单字段回滚，禁用后恢复 Memory owner 原始顺序且不发布
+decision/credit/update。它影响 host 下一任务可见的可追加经验，因此确定性环境结局能在下一拍结算。
 
 v1 advisor 只投影同一 source turn 已发布的 `active_regime` 与
 `active_abstract_action`，携带召回 evidence ids。它固定为：
@@ -135,7 +152,8 @@ v1 advisor 只投影同一 source turn 已发布的 `active_regime` 与
 - 不进入 `rendered_context`
 - 不调用 temporal advisory ingress，不改变 residual/control code
 
-因此 v1 只证明 advisor readout 可生成、可对照，不证明产品 ACTIVE steering。未来晋升必须有
+因此 Coding Brain 已有 ACTIVE bounded content positioning，但 advisor 仍只证明 readout 可生成、
+可对照，不证明 residual/product advice ACTIVE steering。未来晋升必须有
 独立 evidence、ModificationGate、单字段 wiring 切换与 DISABLED 回滚，不能修改本 v1
 回执来“追认”应用。
 
@@ -174,8 +192,8 @@ adapter，响应 payload 仍是 Coding owner 的原生 schema。公共 transport
 |---|---|---|
 | Appendable | typed outcome 追加到 scoped episodic memory；配置 backend 时跨 session 恢复 | 无 backend 时 receipt 明示 `memory_persisted=false`，不宣称跨进程 |
 | Readable | Context Pack 只读 immutable Memory entries 与 PE snapshot，发布 source ids / refs | 无召回返回空 pack，不重建 owner 内部状态 |
-| Learnable | 确定性 outcome 经下一拍 PE；其他 typed outcome 经 execution_result，均保留 memory | review/merge 不进 TASK_*；evaluation 永不作 reward |
-| Steerable | v1 仅有 SHADOW advisor readout | advisor 未应用；Context Pack ACTIVE 可单独停止消费 |
+| Learnable | 确定性 outcome 经下一拍 PE 与最近完整四轴 credit exact join，更新 CMS-backed 内容 checkpoint | review/merge 不进策略 credit；evaluation 永不作 reward |
+| Steerable | Context Pack ACTIVE 内容择位最多提升一个 entry，否则 strict noop；advisor 仍为 SHADOW | `content_policy_wiring_level=DISABLED` 恢复 owner 顺序；无 residual/tool actuator |
 
 闭环中 ACTIVE Context Pack 会改变 coding host 下一任务可见信息，从而可能改变行动与后续环境
 结局；PE 在后续 outcome 结算时度量预测差异。这里的因果产品增益仍需独立 A/B evidence，不能
@@ -184,6 +202,7 @@ adapter，响应 payload 仍是 Coding owner 的原生 schema。公共 transport
 ## 7. 退出与回滚
 
 - 最小回滚：调用方停止消费 Context Pack；advisor 本来就是 SHADOW；
+- 策略回滚：`content_policy_wiring_level=DISABLED`，不删历史 checkpoint，重新启用可从 CMS 恢复；
 - API 回滚：取消注册两条 coding route，不影响普通 `/turns` 与其他 vertical；
 - 数据回滚：v1 不自动删除已追加的用户 memory；删除必须走 Memory owner 的显式用户操作；
 - 学习回滚：不提交 typed outcome 即不会建立新 external settlement；已提交 evidence append-only，
@@ -196,7 +215,7 @@ adapter，响应 payload 仍是 Coding owner 的原生 schema。公共 transport
 - contract：frozen、strict JSON、closed enum/pair、ACTIVE/SHADOW guard；
 - controller：memory-first recall、字符上限、content address、request/outcome 幂等与 conflict；
 - learning：`TASK_REGRESSED`/`TASK_VERIFIED` 在下一 Context Pack 的 PE refs 可见；review/merge
-  没有 external TASK_* evidence；
+  没有 external TASK_* evidence；policy-bearing pack 额外发布 exact credit/update；
 - persistence：同 identity 新 session 能召回旧 outcome；
 - service：coding vertical guard、historical guard、201/200、400/404/409；
 - boundary：service 与 domain 不访问 `runner.memory_store`，Coding Lab observer 迁移到公共 facade。

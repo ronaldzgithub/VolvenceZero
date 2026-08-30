@@ -191,7 +191,8 @@ async def test_all_product_brains_share_one_session_api(monkeypatch) -> None:
             item["capabilities"]["shared_lifeform_kernel"]
             for item in manifests.values()
         )
-        assert manifests["coding"]["capabilities"]["steerable"]["status"] == "shadow"
+        assert manifests["coding"]["capabilities"]["steerable"]["status"] == "active"
+        assert manifests["coding"]["capabilities"]["shared_bounded_policy"] is True
         assert manifests["venture"]["capabilities"]["shared_bounded_policy"] is False
         assert manifests["operations"]["capabilities"]["shared_bounded_policy"] is True
         assert (
