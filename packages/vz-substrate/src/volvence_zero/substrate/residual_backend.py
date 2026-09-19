@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import math
@@ -155,6 +156,22 @@ PERSONAL_CONDITIONING_SCALE_CAP = 0.12
 _TRANSFORMERS_EXECUTION_ASSET_MANIFEST_VERSION = (
     "transformers-execution-assets.v1"
 )
+
+
+def _accelerate_available() -> bool:
+    """Return whether Transformers can use its low-memory load path.
+
+    ``low_cpu_mem_usage=True`` is implemented by Accelerate.  Keep the
+    dependency optional for the legacy CPU path, but never pass the flag when
+    the package is absent: older Transformers releases fail before loading a
+    model in that case.  Strict execution profiles fail closed below instead
+    of silently falling back to a high-memory construction.
+    """
+
+    try:
+        return importlib.util.find_spec("accelerate") is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
 
 
 def fingerprint_transformers_execution_assets(snapshot_root: Path) -> str:
@@ -3343,6 +3360,26 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
     def _load_model(self, *, model_id: str, local_files_only: bool):
         load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
+        use_low_cpu_mem = _accelerate_available()
+        requires_low_cpu_mem = self._execution_profile is not None or (
+            os.name == "nt" and str(self._device).startswith("cuda")
+        )
+        if requires_low_cpu_mem and not use_low_cpu_mem:
+            raise RuntimeError(
+                "transformers CUDA model loading on this execution path requires "
+                "accelerate for low-memory model loading"
+            )
+        # Accelerate's meta-device loader avoids constructing a second full
+        # copy of a multi-gigabyte checkpoint in host memory.  A one-device
+        # map also places weights directly on the resolved target, so the
+        # subsequent preparation step does not trigger a Windows CUDA copy
+        # that can terminate the interpreter under memory pressure.
+        self._model_loaded_with_device_map = False
+        if use_low_cpu_mem:
+            load_kwargs["low_cpu_mem_usage"] = True
+            if self._device != "cpu":
+                load_kwargs["device_map"] = self._device
+                self._model_loaded_with_device_map = True
         if self._requested_model_dtype is not None:
             dtype_value = getattr(self._torch, self._requested_model_dtype)
             if self._execution_profile is not None:
@@ -3390,7 +3427,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             return False
 
     def _prepare_model(self) -> None:
-        self._model.to(self._device)
+        if not getattr(self, "_model_loaded_with_device_map", False):
+            self._model.to(self._device)
         self._model.eval()
         for parameter in self._model.parameters():
             parameter.requires_grad_(False)
