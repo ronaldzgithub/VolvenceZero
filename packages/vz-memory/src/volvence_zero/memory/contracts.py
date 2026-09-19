@@ -324,3 +324,17 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
         )
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
+    """Reconstruct a typed checkpoint from its serialized JSON mapping.
+
+    ``serialize_checkpoint`` is intentionally a wire-format API and returns
+    plain JSON data.  Consumers that own a template/artifact boundary still
+    need to hand that data back to the ``MemoryStore`` restore API without
+    reaching into the store's private artifact tables.  Keep the canonical
+    parser in one place and expose this narrow typed reconstruction helper so
+    those boundaries do not silently drop all entries after a JSON round trip.
+    """
+
+    return _reconstruct_checkpoint(parsed)

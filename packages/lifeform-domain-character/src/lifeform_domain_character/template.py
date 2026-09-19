@@ -54,7 +54,7 @@ from volvence_zero.application.storage import (
     CaseMemoryCheckpoint,
     DomainKnowledgeCheckpoint,
 )
-from volvence_zero.memory import MemoryStoreCheckpoint
+from volvence_zero.memory import MemoryStoreCheckpoint, reconstruct_checkpoint
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 
 from lifeform_domain_character.profile import CharacterSoulProfile
@@ -549,15 +549,16 @@ def _build_memory_checkpoint(raw: Any) -> MemoryStoreCheckpoint | None:
     if raw is None or raw == {} or raw == []:
         return None
     # In the LifeformTemplate's JSON form the memory_checkpoint is the
-    # already-serialized dict from ``serialize_checkpoint``. For the
-    # v0 schema we wrap it in a thin sentinel so the save path can
-    # accept either a typed checkpoint or an already-serialized dict.
-    # Reconstruction happens via the caller's MemoryStore on
-    # give_birth (Wave T6).
+    # already-serialized dict from ``serialize_checkpoint``. Reconstruct it
+    # at the template boundary so ``give_birth`` receives a typed checkpoint
+    # and can restore the entries through MemoryStore.restore_checkpoint().
+    # Previously this returned an opaque carrier; the load path then had no
+    # reverse-builder and silently birthed an empty MemoryStore.
     if isinstance(raw, dict) and "_serialized_payload" in raw:
-        return _SerializedMemoryCheckpoint(payload=raw["_serialized_payload"])
-    # Fallback: treat as already-serialized payload.
-    return _SerializedMemoryCheckpoint(payload=raw)
+        raw = raw["_serialized_payload"]
+    if not isinstance(raw, dict):
+        return None
+    return reconstruct_checkpoint(raw)
 
 
 @dataclass(frozen=True)
