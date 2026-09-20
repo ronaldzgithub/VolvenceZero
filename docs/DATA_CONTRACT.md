@@ -773,7 +773,13 @@ class CaseMemorySnapshot:
   fail loudly，不得以压缩快照擦除 owner 状态。
   consumer 只能调用 owner 的 `pending_action_abstraction_evidence()`，不得解析
   `description`、`problem_pattern` 或 case id 重建证据。owner 会折叠内容完全一致的
-  outcome，遇到同 outcome 的矛盾 payload 则 fail loudly；已有 promotion 的整个
+  outcome。whole-bake process retry 中，同一外部 occurrence 由
+  `outcome_id / action_id / situation / action / evidence / confidence` 及 outcome-bound
+  prediction/transition/admission proof 稳定标识；若重建 temporal learner 只改变
+  family ID / bank revision、controller digest、runtime capture 或
+  occurrence-scoped credit IDs，application owner 必须复用先前 admission 的 frozen typed
+  evidence，既不重复计数也不覆盖持久 owner payload。稳定 occurrence 字段有任一变化时，
+  同 outcome 仍作为矛盾 payload fail loudly；已有 promotion 的整个
   family ID（不只某个 bank revision）不再发布为 pending，避免跨 session 重复提案。
   `LearnedActionSchemaCandidate` 与 reviewed `EnvironmentActionSchema` provenance 隔离；
   promotion 以 `ApplicationModificationEvidence` 进入 runtime，并由正式
@@ -3079,6 +3085,7 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `strategy_playbook` | `support_prior: float`、`task_prior: float` | strategy_playbook owner 发布 playbook prior，runtime 不再按 regime 字符串集合分类 |
 | `reflection` | `relationship_update_proposals: tuple[RelationshipUpdateProposal, ...]` | reflection owner 从 consolidation、typed tension / lesson 与 PE failure readout 发布可审阅关系更新提案；consumer 不得从原始文本重建；P1 默认 SHADOW、必须用户确认 |
 | `memory` | `MemoryStoreCheckpoint.entry_attributes: tuple[MemoryAttributeReadout, ...]` | memory owner 在 checkpoint/rollback 中原子保存 artifact 的 PE/substrate attribute 投影；旧 checkpoint 默认空 tuple，避免 Console 删除/改写回滚后留下或丢失耦合投影 |
+| `memory` | `MemoryCheckpointExport` / `MemoryCheckpointExportReceipt` | memory owner 从目标 scope 的持久 backend 读取并 canonical-validate 实际 checkpoint bytes，发布 base64、SHA-256、version、entry count 与 durability；lifeform/DLaaS 只原样转发，governance 只保存 receipt，不保存 payload，不重算 owner 字段 |
 
 **字段扩展不变量**：
 

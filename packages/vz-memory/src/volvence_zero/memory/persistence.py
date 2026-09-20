@@ -1,17 +1,30 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
 import threading
+import time
 from abc import ABC, abstractmethod
 from dataclasses import fields
 from typing import Any
 
-from volvence_zero.memory.contracts import MemoryCheckpointDurability
+from volvence_zero.memory.contracts import (
+    MEMORY_CHECKPOINT_EXPORT_SCHEMA,
+    MEMORY_CHECKPOINT_EXPORT_SCHEMA_VERSION,
+    MemoryCheckpointDurability,
+    MemoryCheckpointExport,
+    MemoryCheckpointExportReceipt,
+    reconstruct_checkpoint,
+)
 
 
 SCHEMA_VERSION = 1
+
+
+class MemoryCheckpointExportError(RuntimeError):
+    """Persisted bytes cannot be published as a valid Memory export."""
 
 
 class PersistenceBackend(ABC):
@@ -408,6 +421,57 @@ def deserialize_checkpoint(data: bytes) -> dict[str, Any]:
     if stored_version != SCHEMA_VERSION:
         return {}
     return parsed
+
+
+def export_checkpoint_from_backend(
+    backend: PersistenceBackend,
+    *,
+    key: str = "memory/store",
+) -> MemoryCheckpointExport | None:
+    """Read and validate the exact latest checkpoint bytes from ``backend``.
+
+    The persistence backend remains the durability authority.  This helper
+    never reconstructs an export from live owner state: it returns the bytes
+    that were actually persisted, after proving they reconstruct and
+    canonicalize byte-for-byte through Memory's public wire format.
+    """
+
+    loaded = backend.load_checkpoint(key=key)
+    if loaded is None:
+        return None
+    payload, checkpoint_version = loaded
+    try:
+        parsed = deserialize_checkpoint(payload)
+        checkpoint = reconstruct_checkpoint(parsed)
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise MemoryCheckpointExportError(
+            f"persisted checkpoint {key!r} is not a valid Memory checkpoint"
+        ) from exc
+    if checkpoint is None:
+        raise MemoryCheckpointExportError(
+            f"persisted checkpoint {key!r} has an incompatible Memory schema"
+        )
+    canonical_payload = serialize_checkpoint(checkpoint)
+    if canonical_payload != payload:
+        raise MemoryCheckpointExportError(
+            f"persisted checkpoint {key!r} does not round-trip canonically"
+        )
+    return MemoryCheckpointExport(
+        payload=payload,
+        receipt=MemoryCheckpointExportReceipt(
+            schema_id=MEMORY_CHECKPOINT_EXPORT_SCHEMA,
+            schema_version=MEMORY_CHECKPOINT_EXPORT_SCHEMA_VERSION,
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_key=key,
+            checkpoint_version=checkpoint_version,
+            payload_sha256=hashlib.sha256(payload).hexdigest(),
+            payload_bytes=len(payload),
+            entry_count=len(checkpoint.entries),
+            durability=backend.durability,
+            completed_at_ms=time.time_ns() // 1_000_000,
+            canonical_roundtrip_matches=True,
+        ),
+    )
 
 
 def _to_serializable(value: object) -> object:

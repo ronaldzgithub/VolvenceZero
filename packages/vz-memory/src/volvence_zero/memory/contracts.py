@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Literal
@@ -158,6 +160,8 @@ class MemoryStoreCheckpoint:
 
 MEMORY_CHECKPOINT_RECEIPT_SCHEMA = "volvence.memory.checkpoint-persistence-receipt"
 MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION = 1
+MEMORY_CHECKPOINT_EXPORT_SCHEMA = "volvence.memory.scoped-checkpoint-export"
+MEMORY_CHECKPOINT_EXPORT_SCHEMA_VERSION = 1
 MemoryCheckpointDurability = Literal[
     "restart_durable",
     "process_local",
@@ -275,6 +279,100 @@ class MemoryCheckpointPersistenceReceipt:
             "completed_at_ms": self.completed_at_ms,
             "restored_payload_sha256": self.restored_payload_sha256,
             "restored_matches_persisted": self.restored_matches_persisted,
+        }
+
+
+@dataclass(frozen=True)
+class MemoryCheckpointExportReceipt:
+    """Owner-authored receipt for an exact persisted checkpoint export.
+
+    Unlike a save/load receipt this operation is read-only: it fingerprints
+    the bytes returned by the persistence backend and verifies that those
+    bytes reconstruct and re-serialize through the canonical Memory wire
+    format.  The receipt never treats process-local or unknown backends as
+    restart proof.
+    """
+
+    schema_id: str
+    schema_version: int
+    checkpoint_id: str
+    checkpoint_key: str
+    checkpoint_version: int
+    payload_sha256: str
+    payload_bytes: int
+    entry_count: int
+    durability: MemoryCheckpointDurability
+    completed_at_ms: int
+    canonical_roundtrip_matches: bool
+
+    def __post_init__(self) -> None:
+        if self.schema_id != MEMORY_CHECKPOINT_EXPORT_SCHEMA:
+            raise ValueError("memory checkpoint export receipt schema_id is incompatible")
+        if self.schema_version != MEMORY_CHECKPOINT_EXPORT_SCHEMA_VERSION:
+            raise ValueError("memory checkpoint export receipt schema_version is incompatible")
+        if not self.checkpoint_id.strip() or not self.checkpoint_key.strip():
+            raise ValueError("memory checkpoint export receipt checkpoint identity must be non-empty")
+        if self.checkpoint_version < 1:
+            raise ValueError("memory checkpoint export receipt version must be positive")
+        if len(self.payload_sha256) != 64:
+            raise ValueError("memory checkpoint export receipt hash must be SHA-256 hex")
+        try:
+            int(self.payload_sha256, 16)
+        except ValueError as exc:
+            raise ValueError(
+                "memory checkpoint export receipt hash must be SHA-256 hex"
+            ) from exc
+        if self.payload_bytes < 1 or self.entry_count < 0:
+            raise ValueError("memory checkpoint export receipt sizes are invalid")
+        if self.durability not in {"restart_durable", "process_local", "unknown"}:
+            raise ValueError("memory checkpoint export receipt durability is invalid")
+        if self.completed_at_ms < 1:
+            raise ValueError("memory checkpoint export receipt completed_at_ms must be positive")
+        if not self.canonical_roundtrip_matches:
+            raise ValueError("memory checkpoint export receipt requires canonical roundtrip equality")
+
+    @property
+    def is_restart_durable(self) -> bool:
+        return self.durability == "restart_durable"
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_id": self.schema_id,
+            "schema_version": self.schema_version,
+            "operation": "export",
+            "checkpoint_id": self.checkpoint_id,
+            "checkpoint_key": self.checkpoint_key,
+            "checkpoint_version": self.checkpoint_version,
+            "payload_sha256": self.payload_sha256,
+            "payload_bytes": self.payload_bytes,
+            "entry_count": self.entry_count,
+            "durability": self.durability,
+            "completed_at_ms": self.completed_at_ms,
+            "canonical_roundtrip_matches": self.canonical_roundtrip_matches,
+        }
+
+
+@dataclass(frozen=True)
+class MemoryCheckpointExport:
+    """Exact persisted bytes plus the Memory owner's export receipt."""
+
+    payload: bytes
+    receipt: MemoryCheckpointExportReceipt
+
+    def __post_init__(self) -> None:
+        if not self.payload:
+            raise ValueError("memory checkpoint export payload must be non-empty")
+        if len(self.payload) != self.receipt.payload_bytes:
+            raise ValueError("memory checkpoint export payload length disagrees with receipt")
+        if hashlib.sha256(self.payload).hexdigest() != self.receipt.payload_sha256:
+            raise ValueError("memory checkpoint export payload hash disagrees with receipt")
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "encoding": "base64",
+            "media_type": "application/vnd.volvence.memory-checkpoint+json",
+            "payload_base64": base64.b64encode(self.payload).decode("ascii"),
+            "receipt": self.receipt.to_json(),
         }
 
 

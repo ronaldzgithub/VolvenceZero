@@ -273,6 +273,15 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
   不得在 platform 侧重算 hash、entry count 或 durability。scene end 已发生但
   receipt 缺失/非 `restart_durable` 时，Registry ledger 必须记为
   `OUTCOME_UNKNOWN`，不能自动重复 scene closure。
+- scoped portability 由同一 Memory owner 提供
+  `export_scoped_memory_checkpoint(...)`：它直接读取目标 scope 的最新
+  `memory/store` 后端 bytes，完成 typed checkpoint reconstruction 与 canonical
+  byte-for-byte roundtrip，再发布 base64 payload 和
+  `MemoryCheckpointExportReceipt`（checkpoint id/key/version、actual payload
+  SHA-256/bytes、entry count、backend durability、完成时间）。缺失的 filesystem
+  scope 返回 `None` 且不得创建目录；损坏、非 canonical 或 schema 不兼容必须 fail
+  loudly。platform 只可原样传输 owner payload/receipt，不得重算 hash/count，也不得把
+  `process_local` / `unknown` 升格为可重启导出。
 - `promotion_threshold` 属于 Memory owner 的可回滚低风险自适应参数
 - 显式 `MemoryEntry` 属于 artifact / durable explanation layer，不等同于主记忆真相
 - semantic index 属于 Memory owner 内部 derived index，不向外暴露独立 owner
@@ -344,6 +353,11 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 | 协作 | 评估体系（5.7）| F4 学习质量中的记忆沉淀质量评估 |
 
 ## 变更日志
+
+- 2026-09-20: 新增 read-only scoped checkpoint export 公共边界；导出绑定实际持久
+  bytes、base64、SHA-256、checkpoint version、entry count 与 backend durability，支持
+  无 live session 的重启后 owner readback。该能力不包含 delete，不把 Accounts/DLaaS
+  变为 Memory owner。
 
 - 2026-09-20: `MemoryCheckpointPersistenceReceipt` 增加 owner-authored
   `to_json()` / `is_restart_durable` 公共边界，供 DLaaS keyed report 在

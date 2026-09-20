@@ -51,6 +51,10 @@ class DataExportJob:
     end_user_ref: str = ""
     status: DataJobStatus = DataJobStatus.COMPLETED
     artifact_ref: str = ""
+    requested_scopes: tuple[str, ...] = ()
+    exported_scopes: tuple[str, ...] = ()
+    delivery: str = ""
+    export_receipt: Mapping[str, Any] = field(default_factory=dict)
     created_at_ms: int = 0
 
     def to_json(self) -> dict[str, Any]:
@@ -61,6 +65,10 @@ class DataExportJob:
             "end_user_ref": self.end_user_ref,
             "status": self.status.value,
             "artifact_ref": self.artifact_ref,
+            "requested_scopes": list(self.requested_scopes),
+            "exported_scopes": list(self.exported_scopes),
+            "delivery": self.delivery,
+            "export_receipt": dict(self.export_receipt),
             "created_at_ms": self.created_at_ms,
         }
 

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Iterable, Protocol
 
 from volvence_zero.memory.contracts import (
+    MemoryCheckpointExport,
     MemoryEntry,
     MemoryStoreCheckpoint,
     MemoryStratum,
@@ -36,6 +37,7 @@ from volvence_zero.memory.contracts import (
 from volvence_zero.memory.persistence import (
     FileSystemPersistenceBackend,
     PersistenceBackend,
+    export_checkpoint_from_backend,
     resolve_persistence_backend,
 )
 from volvence_zero.memory.store import MemoryStore, build_default_memory_store
@@ -384,6 +386,52 @@ def build_scoped_memory_store(
     return store
 
 
+def export_scoped_memory_checkpoint(
+    *,
+    identity: UserIdentity,
+    root_dir: str | os.PathLike[str] | None = None,
+    persistence_backend: PersistenceBackend | None = None,
+    backend_name: str | None = None,
+    key: str = "memory/store",
+) -> MemoryCheckpointExport | None:
+    """Export one identity's exact persisted checkpoint without a live session.
+
+    Filesystem reads do not create a missing scope directory.  Alternative
+    backends retain their existing namespace/durability authority and may be
+    injected explicitly for tests or managed deployments.
+    """
+
+    if not identity.has_permission("inspect"):
+        raise PermissionError(
+            f"identity {identity.user_id!r} lacks permission 'inspect'"
+        )
+    if persistence_backend is not None:
+        backend = persistence_backend
+    else:
+        backend_choice = (
+            backend_name
+            if backend_name is not None
+            else os.environ.get("VZ_MEMORY_BACKEND", "")
+        ).strip().lower()
+        if backend_choice in ("", "filesystem", "file", "fs"):
+            if root_dir is None:
+                raise ValueError(
+                    "root_dir is required when exporting a filesystem-backed "
+                    "scoped Memory checkpoint"
+                )
+            user_dir = scoped_memory_dir(root_dir=root_dir, user_id=identity.user_id)
+            if not user_dir.is_dir():
+                return None
+            backend = FileSystemPersistenceBackend(base_dir=str(user_dir))
+        else:
+            backend = resolve_persistence_backend(
+                base_dir=root_dir,
+                namespace=identity.scope_key,
+                backend=backend_choice,
+            )
+    return export_checkpoint_from_backend(backend, key=key)
+
+
 def _durable_entries_iter(store: MemoryStore) -> Iterable[MemoryEntry]:
     """Iterate the durable stratum without going through retrieval ranking.
 
@@ -560,6 +608,7 @@ __all__ = [
     "delete_entry_for_scope",
     "delete_entries_for_scope",
     "derive_scope_key",
+    "export_scoped_memory_checkpoint",
     "legacy_single_layer_scope",
     "list_durable_entries_for_scope",
     "rewrite_entry_for_scope",

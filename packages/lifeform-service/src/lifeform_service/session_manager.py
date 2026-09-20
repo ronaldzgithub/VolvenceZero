@@ -76,6 +76,14 @@ from lifeform_service.vertical_registry import (
     VerticalRegistry,
 )
 from lifeform_service.verticals import VerticalSpec
+from volvence_zero.memory import (
+    EndUserIdentity,
+    MemoryCheckpointExportError,
+    TenantIdentity,
+    UserIdentity,
+    derive_scope_key,
+    export_scoped_memory_checkpoint,
+)
 
 if TYPE_CHECKING:
     from lifeform_service.protocol_uptake import ProtocolUptakeService
@@ -172,6 +180,14 @@ class FollowupExecutionReport:
     followup_id: str
     executed: bool
     reason: str
+
+
+class MemoryScopeNotConfiguredError(RuntimeError):
+    """The target manager has no durable scoped-memory root configured."""
+
+
+class MemoryScopeExportError(RuntimeError):
+    """The persisted scope failed Memory owner's export validation."""
 
 
 @dataclass
@@ -282,6 +298,11 @@ class SessionManager:
         )
         self._alpha_identity_provider = alpha_identity_provider
         self._alpha_memory_scope_root_dir = alpha_memory_scope_root_dir
+        # Pin the backend selection at manager construction so an export uses
+        # the same configured lane as sessions owned by this manager. Runtime
+        # backend changes require a manager/process restart; a request must not
+        # silently switch persistence namespaces because an env var changed.
+        self._memory_backend_name = os.environ.get("VZ_MEMORY_BACKEND", "")
         self._max_sessions = max_sessions
         self._idle_eviction_seconds = idle_eviction_seconds
         self._clock = clock
@@ -886,6 +907,52 @@ class SessionManager:
         if self._scope_strategy != "tenant_ai_end_user":
             return False
         return not _legacy_single_layer_scope_opt_out()
+
+    def export_persisted_memory_scope(
+        self,
+        end_user_ref: str,
+    ) -> dict[str, object] | None:
+        """Export exact persisted Memory bytes for one end user.
+
+        This read-only administrative path reconstructs the same identity and
+        root configuration used by this manager's sessions.  It intentionally
+        does not require or create a live session and never mutates memory.
+        """
+
+        normalized_end_user = end_user_ref.strip()
+        if not normalized_end_user:
+            raise ValueError("end_user_ref must be a non-empty string")
+        if self._alpha_memory_scope_root_dir is None:
+            raise MemoryScopeNotConfiguredError(
+                "this SessionManager has no durable scoped-memory root configured"
+            )
+        if self._two_layer_scope_enabled():
+            tenant_id = self._tenant_id.strip() or DEFAULT_ALPHA_TENANT_ID
+            tenant_identity = TenantIdentity(tenant_id=tenant_id)
+            end_user_identity = EndUserIdentity(
+                tenant_id=tenant_id,
+                end_user_id=normalized_end_user,
+            )
+            identity = UserIdentity(
+                user_id=normalized_end_user,
+                scope_key=derive_scope_key(tenant_identity, end_user_identity),
+                tenant_identity=tenant_identity,
+                end_user_identity=end_user_identity,
+            )
+        else:
+            identity = UserIdentity(
+                user_id=normalized_end_user,
+                scope_key=normalized_end_user,
+            )
+        try:
+            exported = export_scoped_memory_checkpoint(
+                identity=identity,
+                root_dir=self._alpha_memory_scope_root_dir,
+                backend_name=self._memory_backend_name,
+            )
+        except MemoryCheckpointExportError as exc:
+            raise MemoryScopeExportError(str(exc)) from exc
+        return exported.to_json() if exported is not None else None
 
     async def create_session(
         self,
