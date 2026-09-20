@@ -54,6 +54,7 @@ from volvence_zero.semantic_state.contracts import (
     PlanIntentSnapshot,
     RelationshipStateSnapshot,
     SemanticProposal,
+    SemanticProposalBatch,
     SemanticProposalOperation,
     SemanticRecord,
     SemanticSnapshotValue,
@@ -169,7 +170,8 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
         memory_value = upstream["memory"].value
         substrate_snapshot = substrate_value if isinstance(substrate_value, SubstrateSnapshot) else None
         memory_snapshot = memory_value if isinstance(memory_value, MemorySnapshot) else None
-        batch = await self._proposal_runtime.propose_async(
+        batch = await self._proposal_runtime.propose_scoped_async(
+            session_scope=self._store.proposal_session_token,
             target_slot=self.slot_name,
             user_input=self._user_input,
             substrate_snapshot=substrate_snapshot,

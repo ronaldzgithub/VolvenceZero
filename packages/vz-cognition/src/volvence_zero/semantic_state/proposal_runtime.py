@@ -86,6 +86,34 @@ class SemanticProposalRuntime(ABC):
             turn_index=turn_index,
         )
 
+    async def propose_scoped_async(
+        self,
+        *,
+        session_scope: object,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        """Session-aware live boundary used by the semantic owner group.
+
+        Runtimes that do not batch keep their existing per-owner behaviour.
+        LLM runtimes override this hook to share one generation result across
+        the nine owners in a single session turn.
+        """
+
+        del session_scope
+        return await self.propose_async(
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+
 
 class NoOpSemanticProposalRuntime(SemanticProposalRuntime):
     runtime_id = "semantic-noop"
@@ -606,6 +634,32 @@ class AdapterSemanticProposalRuntime(SemanticProposalRuntime):
         turn_index: int,
     ) -> SemanticProposalBatch:
         base_batch = self._base_runtime.propose(
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+        return self._merge_adapter_proposals(
+            base_batch=base_batch,
+            target_slot=target_slot,
+            turn_index=turn_index,
+        )
+
+    async def propose_scoped_async(
+        self,
+        *,
+        session_scope: object,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        base_batch = await self._base_runtime.propose_scoped_async(
+            session_scope=session_scope,
             target_slot=target_slot,
             user_input=user_input,
             substrate_snapshot=substrate_snapshot,

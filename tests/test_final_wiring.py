@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 import json
+import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -3847,3 +3849,159 @@ async def test_action_applicability_async_adapter_supports_sync_only_evaluator()
     decision = await task
     assert decision is not None
     assert decision.applicable is True
+
+
+async def test_final_wiring_batches_nine_semantic_owners_once_with_slot_isolation():
+    from volvence_zero.semantic_state import SemanticStateStore
+    from volvence_zero.semantic_state.llm_runtime import (
+        LLMSemanticProposalRuntime,
+    )
+
+    class _SharedModelOwner:
+        pass
+
+    class _BatchProvider:
+        def __init__(self) -> None:
+            self.owner = _SharedModelOwner()
+            self.call_count = 0
+            self.thread_ids: set[int] = set()
+
+        @property
+        def runtime_execution_owner(self) -> object:
+            return self.owner
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 16,
+            temperature: float = 0.0,
+        ) -> str:
+            del max_new_tokens, temperature
+            assert "top-level 'slots' object" in prompt
+            assert "Dedicated user_model value schema" in prompt
+            assert '"maxItems": 4' in prompt
+            assert '"enum": ["create", "revise", "activate", "block"]' in prompt
+            self.call_count += 1
+            self.thread_ids.add(threading.get_ident())
+            time.sleep(0.04)
+            slots: dict[str, object] = {}
+            for slot in SEMANTIC_OWNER_SLOTS:
+                if slot == "commitment":
+                    slots[slot] = {
+                        "operation": "create",
+                        "alignment_evidence": "I will follow through.",
+                        "confidence": 0.9,
+                    }
+                elif slot == "goal_value":
+                    # This owner must fall back independently without
+                    # invalidating the eight well-formed sibling payloads.
+                    slots[slot] = "invalid-owner-payload"
+                elif slot == "user_model":
+                    slots[slot] = {
+                        "facts": [
+                            {
+                                "operation": "create",
+                                "semantic_key": "name",
+                                "canonical_value": "Lin",
+                                "evidence": "My name is Lin.",
+                                "confidence": 0.95,
+                            }
+                        ]
+                    }
+                else:
+                    slots[slot] = {
+                        "proposals": [
+                            {
+                                "target_slot": slot,
+                                "operation": "create",
+                                "summary": f"batch-{slot}",
+                                "detail": f"typed detail for {slot}",
+                                "confidence": 0.9,
+                                "evidence": "explicit user evidence",
+                                "control_signal": 0.2,
+                                "requires_confirmation": False,
+                            }
+                        ]
+                    }
+            return json.dumps({"slots": slots})
+
+    provider = _BatchProvider()
+    semantic_runtime = LLMSemanticProposalRuntime(provider=provider)
+    semantic_store = SemanticStateStore()
+    loop_thread_id = threading.get_ident()
+    heartbeat_ticks = 0
+    stop_heartbeat = asyncio.Event()
+
+    async def heartbeat() -> None:
+        nonlocal heartbeat_ticks
+        while not stop_heartbeat.is_set():
+            heartbeat_ticks += 1
+            await asyncio.sleep(0)
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        result = await run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                kill_switches=frozenset(
+                    {
+                        "belief_about_other",
+                        "intent_about_other",
+                        "feeling_about_other",
+                        "preference_about_other",
+                        "common_ground",
+                    }
+                )
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="semantic-batch-test",
+                feature_surface=(
+                    FeatureSignal(
+                        name="semantic_batch_context",
+                        values=(0.7,),
+                        source="test",
+                    ),
+                ),
+            ),
+            memory_store=MemoryStore(),
+            semantic_state_store=semantic_store,
+            semantic_proposal_runtime=semantic_runtime,
+            user_input="I will keep this plan and respect the stated boundary.",
+            session_id="semantic-batch-session",
+            wave_id="semantic-batch-wave",
+            turn_index=7,
+        )
+    finally:
+        stop_heartbeat.set()
+        await heartbeat_task
+
+    assert all(slot in result.active_snapshots for slot in SEMANTIC_OWNER_SLOTS)
+    assert provider.call_count == 1
+    assert semantic_runtime.attempt_counters.proposals_received_total == 1
+    diagnostics = dict(
+        (slot, status)
+        for slot, status, _ in semantic_runtime.last_batch_slot_diagnostics
+    )
+    assert diagnostics["user_model"] == "ok"
+    assert diagnostics["goal_value"] == "parse_error"
+    assert len(provider.thread_ids) == 1
+    assert loop_thread_id not in provider.thread_ids
+    assert heartbeat_ticks > 1
+    for slot in SEMANTIC_OWNER_SLOTS:
+        records = semantic_store.records_for(slot)
+        if slot == "goal_value":
+            assert all(record.summary != "batch-goal_value" for record in records)
+        elif slot == "commitment":
+            assert any(
+                record.summary == "llm-detected-new-commitment"
+                for record in records
+            )
+        elif slot == "user_model":
+            assert any(
+                record.summary == "self-reported-profile:name"
+                and record.semantic_key == "name"
+                and record.canonical_value == "Lin"
+                for record in records
+            )
+        else:
+            assert any(record.summary == f"batch-{slot}" for record in records)

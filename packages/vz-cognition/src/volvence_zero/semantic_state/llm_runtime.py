@@ -34,6 +34,8 @@ make the system run a tool".
 
 from __future__ import annotations
 
+import asyncio
+from collections import OrderedDict
 from dataclasses import dataclass
 import json
 from json import JSONDecodeError
@@ -133,6 +135,18 @@ _GENERIC_LLM_SLOT_IDS = frozenset({
     "execution_result",
     "belief_assumption",
 })
+_SEMANTIC_LLM_SLOT_IDS = (
+    "plan_intent",
+    "commitment",
+    "open_loop",
+    "user_model",
+    "execution_result",
+    "belief_assumption",
+    "relationship_state",
+    "goal_value",
+    "boundary_consent",
+)
+_SEMANTIC_BATCH_CACHE_LIMIT = 32
 
 # Centralised per-slot semantics appended to the generic extraction
 # prompt (llm-prompt-centralization rule: the hint text lives HERE, in
@@ -355,6 +369,69 @@ def _user_model_prompt(*, user_input: str) -> str:
     )
 
 
+def _semantic_batch_prompt(*, user_input: str) -> str:
+    """One model request carrying the nine independent owner contracts."""
+
+    schema = load_semantic_json_schema()
+    user_model_instructions = load_semantic_prompt_template(
+        "user_profile_facts.md"
+    )
+    user_model_schema = load_semantic_json_schema(
+        "user_profile_facts.schema.json"
+    )
+    slot_hints = "\n".join(
+        f"- {slot}: {_GENERIC_SLOT_SEMANTIC_HINTS.get(slot, 'track only explicit user evidence for this owner')}"
+        for slot in _SEMANTIC_LLM_SLOT_IDS
+        if slot != "commitment"
+    )
+    return (
+        "Extract semantic-state evidence for nine independent owners from one "
+        "user turn. Return one JSON object with a top-level 'slots' object. "
+        "Every listed slot must appear exactly once. A slot's value is parsed "
+        "and validated independently; never move evidence between slots.\n\n"
+        "The commitment value must be an object with exactly operation, "
+        "alignment_evidence, and confidence, using the operation vocabulary "
+        "observe|create|revise|defer|activate|complete|close|block.\n"
+        "The user_model value must match its dedicated facts schema below; it "
+        "must not use the generic proposal schema. Every remaining slot value "
+        "must match the generic proposal schema, and every proposal target_slot "
+        "must equal its containing slot.\n"
+        f"Slot semantics:\n{slot_hints}\n\n"
+        f"Generic proposal schema:\n{schema}\n\n"
+        f"Dedicated user_model instructions:\n{user_model_instructions}\n\n"
+        f"Dedicated user_model value schema:\n{user_model_schema}\n\n"
+        "Required outer shape:\n"
+        '{"slots":{"plan_intent":...,"commitment":...,'
+        '"open_loop":...,"user_model":...,"execution_result":...,'
+        '"belief_assumption":...,"relationship_state":...,'
+        '"goal_value":...,"boundary_consent":...}}\n\n'
+        "User message:\n"
+        '"""\n'
+        f"{user_input}\n"
+        '"""\n'
+        "Return JSON only."
+    )
+
+
+def _parse_semantic_batch_outputs(text: str) -> dict[str, str] | None:
+    """Split an outer batch without validating any owner payload."""
+
+    payload = _structured_json_payload(text)
+    if payload is None:
+        return None
+    slots = payload.get("slots")
+    if not isinstance(slots, dict):
+        return None
+    outputs: dict[str, str] = {}
+    for slot in _SEMANTIC_LLM_SLOT_IDS:
+        value = slots.get(slot)
+        if isinstance(value, str):
+            outputs[slot] = value
+        elif value is not None:
+            outputs[slot] = json.dumps(value, ensure_ascii=False)
+    return outputs
+
+
 def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedProposal, ...] | None:
     payload = _structured_json_payload(text)
     if payload is None:
@@ -535,6 +612,32 @@ def _parse_user_model_proposals(text: str) -> tuple[_ParsedProposal, ...] | None
     return tuple(parsed)
 
 
+def _semantic_batch_slot_diagnostics(
+    outputs: dict[str, str],
+) -> tuple[tuple[str, str, int], ...]:
+    diagnostics: list[tuple[str, str, int]] = []
+    for slot in _SEMANTIC_LLM_SLOT_IDS:
+        raw = outputs.get(slot, "")
+        if slot == "commitment":
+            decision = _parse_commitment_decision(raw)
+            diagnostics.append(
+                (slot, "ok" if decision is not None else "parse_error", 1 if decision is not None else 0)
+            )
+            continue
+        parsed = (
+            _parse_user_model_proposals(raw)
+            if slot == "user_model"
+            else _parse_generic_proposals(raw, target_slot=slot)
+        )
+        if parsed is None:
+            diagnostics.append((slot, "parse_error", 0))
+        elif parsed:
+            diagnostics.append((slot, "ok", len(parsed)))
+        else:
+            diagnostics.append((slot, "empty_or_rejected", 0))
+    return tuple(diagnostics)
+
+
 class LLMSemanticProposalRuntime(SemanticProposalRuntime):
     """Upgrades selected slots with LLM-classified typed proposals.
 
@@ -581,6 +684,13 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         # commitment / boundary_consent / goal_value snapshots so a
         # 0-records evidence run is diagnosable without env vars.
         self._counters = LLMProposalAttemptAccumulator()
+        self._semantic_batch_cache: OrderedDict[
+            tuple[object, int, str],
+            dict[str, str] | asyncio.Task[dict[str, str]],
+        ] = OrderedDict()
+        self._last_batch_slot_diagnostics: tuple[
+            tuple[str, str, int], ...
+        ] = ()
 
     @property
     def attempt_counters(self) -> LLMProposalAttemptCounters:
@@ -607,6 +717,12 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         private ``_provider`` attribute.
         """
         return self._provider
+
+    @property
+    def last_batch_slot_diagnostics(self) -> tuple[tuple[str, str, int], ...]:
+        """Independent parse status and typed-item count for each owner."""
+
+        return self._last_batch_slot_diagnostics
 
     def propose(
         self,
@@ -651,6 +767,28 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             max_new_tokens=self._max_new_tokens,
             temperature=0.0,
         )
+        return self._propose_commitment_from_raw(
+            raw=raw,
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+
+    def _propose_commitment_from_raw(
+        self,
+        *,
+        raw: str,
+        target_slot: str,
+        user_input: str,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+        record_attempt: bool = True,
+    ) -> SemanticProposalBatch:
         decision = _parse_commitment_decision(raw)
         operation = decision.operation if decision is not None else None
         # Diagnostic counter (Wave E1). The commitment classifier
@@ -658,14 +796,14 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         # parse outcome onto the shared three-state vocabulary so the
         # counter snapshot is comparable across all three LLM-backed
         # proposal runtimes.
-        if operation is None:
+        if operation is None and record_attempt:
             self._counters.record_attempt(
                 parse_status="parse_error",
                 parse_error=f"unparseable commitment label: {raw[:120]!r}",
                 parsed_count=0,
                 emitted_count=0,
             )
-        else:
+        elif record_attempt:
             self._counters.record_attempt(
                 parse_status="ok",
                 parse_error=None,
@@ -776,6 +914,160 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             operation_kind=f"semantic_proposal:{target_slot}",
         )
 
+    async def propose_scoped_async(
+        self,
+        *,
+        session_scope: object,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        """Serve all nine semantic owners from one session-turn generation."""
+
+        if not user_input or target_slot not in _SEMANTIC_LLM_SLOT_IDS:
+            return await super().propose_scoped_async(
+                session_scope=session_scope,
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
+            )
+        outputs = await self._semantic_batch_outputs_async(
+            session_scope=session_scope,
+            user_input=user_input,
+            turn_index=turn_index,
+        )
+        raw = outputs.get(target_slot, "")
+        if target_slot == self._commitment_slot_id:
+            return self._propose_commitment_from_raw(
+                raw=raw,
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
+                record_attempt=False,
+            )
+        return self._propose_generic_slot_from_raw(
+            raw=raw,
+            target_slot=target_slot,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_attempt=False,
+            allow_user_model_generic_fallback=False,
+        )
+
+    async def _semantic_batch_outputs_async(
+        self,
+        *,
+        session_scope: object,
+        user_input: str,
+        turn_index: int,
+    ) -> dict[str, str]:
+        try:
+            hash(session_scope)
+            scope_key = session_scope
+        except TypeError:
+            scope_key = ("unhashable-session-scope", id(session_scope))
+        key = (scope_key, turn_index, user_input)
+        cached = self._semantic_batch_cache.get(key)
+        if isinstance(cached, dict):
+            self._semantic_batch_cache.move_to_end(key)
+            return cached
+        if cached is None:
+            task = asyncio.create_task(
+                self._generate_semantic_batch_outputs(user_input=user_input)
+            )
+            self._semantic_batch_cache[key] = task
+            self._evict_semantic_batch_cache()
+        else:
+            task = cached
+            if task.get_loop() is not asyncio.get_running_loop():
+                if task.done() and not task.cancelled():
+                    outputs = task.result()
+                    self._semantic_batch_cache[key] = outputs
+                    self._semantic_batch_cache.move_to_end(key)
+                    return outputs
+                raise RuntimeError(
+                    "semantic batch for this session turn is pending on "
+                    "another event loop"
+                )
+        try:
+            outputs = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if task.cancelled() and self._semantic_batch_cache.get(key) is task:
+                self._semantic_batch_cache.pop(key, None)
+            raise
+        except Exception:
+            if self._semantic_batch_cache.get(key) is task:
+                self._semantic_batch_cache.pop(key, None)
+            raise
+        self._semantic_batch_cache[key] = outputs
+        self._semantic_batch_cache.move_to_end(key)
+        return outputs
+
+    async def _generate_semantic_batch_outputs(
+        self,
+        *,
+        user_input: str,
+    ) -> dict[str, str]:
+        prompt = _semantic_batch_prompt(user_input=user_input.strip()[:600])
+        raw = await run_runtime_call(
+            runtime=self._provider,
+            operation=lambda: self._provider.generate(
+                prompt=prompt,
+                max_new_tokens=max(
+                    self._max_new_tokens * len(_SEMANTIC_LLM_SLOT_IDS),
+                    _USER_MODEL_MAX_NEW_TOKENS,
+                ),
+                temperature=0.0,
+            ),
+            operation_kind="semantic_proposal_batch",
+        )
+        parsed_outputs = _parse_semantic_batch_outputs(raw)
+        if parsed_outputs is None:
+            self._last_batch_slot_diagnostics = tuple(
+                (slot, "parse_error", 0) for slot in _SEMANTIC_LLM_SLOT_IDS
+            )
+            self._counters.record_attempt(
+                parse_status="parse_error",
+                parse_error="unparseable semantic batch outer payload",
+                parsed_count=0,
+                emitted_count=0,
+            )
+            return {}
+        diagnostics = _semantic_batch_slot_diagnostics(parsed_outputs)
+        self._last_batch_slot_diagnostics = diagnostics
+        parsed_count = sum(count for _, _, count in diagnostics)
+        self._counters.record_attempt(
+            parse_status="ok" if parsed_count else "empty_or_rejected",
+            parse_error=None,
+            parsed_count=parsed_count,
+            emitted_count=parsed_count,
+        )
+        return parsed_outputs
+
+    def _evict_semantic_batch_cache(self) -> None:
+        while len(self._semantic_batch_cache) > _SEMANTIC_BATCH_CACHE_LIMIT:
+            oldest_key, oldest_value = next(
+                iter(self._semantic_batch_cache.items())
+            )
+            if isinstance(oldest_value, asyncio.Task) and not oldest_value.done():
+                self._semantic_batch_cache.move_to_end(oldest_key)
+                if all(
+                    isinstance(value, asyncio.Task) and not value.done()
+                    for value in self._semantic_batch_cache.values()
+                ):
+                    return
+                continue
+            self._semantic_batch_cache.pop(oldest_key, None)
+
     def _base_propose(
         self,
         *,
@@ -823,22 +1115,47 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             ),
             temperature=0.0,
         )
+        return self._propose_generic_slot_from_raw(
+            raw=raw,
+            target_slot=target_slot,
+            user_input=user_input,
+            turn_index=turn_index,
+        )
+
+    def _propose_generic_slot_from_raw(
+        self,
+        *,
+        raw: str,
+        target_slot: str,
+        user_input: str,
+        turn_index: int,
+        record_attempt: bool = True,
+        allow_user_model_generic_fallback: bool = True,
+    ) -> SemanticProposalBatch:
         parsed = (
             _parse_user_model_proposals(raw)
             if target_slot == "user_model"
             else _parse_generic_proposals(raw, target_slot=target_slot)
         )
-        if parsed is None and target_slot == "user_model":
+        if (
+            parsed is None
+            and target_slot == "user_model"
+            and allow_user_model_generic_fallback
+        ):
             # Compatibility for reviewed providers that still emit the
             # shared proposal schema for non-factual user preferences.
             parsed = _parse_generic_proposals(raw, target_slot=target_slot)
         if parsed is None:
-            self._counters.record_attempt(
-                parse_status="parse_error",
-                parse_error=f"unparseable generic proposal payload: {raw[:120]!r}",
-                parsed_count=0,
-                emitted_count=0,
-            )
+            if record_attempt:
+                self._counters.record_attempt(
+                    parse_status="parse_error",
+                    parse_error=(
+                        "unparseable generic proposal payload: "
+                        f"{raw[:120]!r}"
+                    ),
+                    parsed_count=0,
+                    emitted_count=0,
+                )
             base_batch = self._base_propose(
                 target_slot=target_slot,
                 user_input=user_input,
@@ -856,14 +1173,14 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
                     f"unparseable proposal payload \"{raw[:32]!r}\"."
                 ),
             )
-        if not parsed:
+        if not parsed and record_attempt:
             self._counters.record_attempt(
                 parse_status="empty_or_rejected",
                 parse_error=None,
                 parsed_count=0,
                 emitted_count=0,
             )
-        else:
+        elif record_attempt:
             self._counters.record_attempt(
                 parse_status="ok",
                 parse_error=None,

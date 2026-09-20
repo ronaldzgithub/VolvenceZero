@@ -9,9 +9,13 @@ end-to-end demo + verify scripts.
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 import pytest
 
 from volvence_zero.semantic_state import (
+    AdapterSemanticProposalRuntime,
     NoOpSemanticProposalRuntime,
     SemanticProposalBatch,
     SemanticProposalOperation,
@@ -84,6 +88,64 @@ def _propose(runtime, *, target_slot="commitment", user_input="text", turn_index
         previous_snapshot=None,
         turn_index=turn_index,
     )
+
+
+def test_scoped_batch_cache_isolated_by_session_turn_and_input_through_adapter():
+    class _BatchProvider:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def generate(self, *, prompt: str, **_: object) -> str:
+            assert "top-level 'slots' object" in prompt
+            self.call_count += 1
+            slots = {
+                slot: ({"facts": []} if slot == "user_model" else {"proposals": []})
+                for slot in (
+                    "plan_intent",
+                    "open_loop",
+                    "user_model",
+                    "execution_result",
+                    "belief_assumption",
+                    "relationship_state",
+                    "goal_value",
+                    "boundary_consent",
+                )
+            }
+            slots["commitment"] = {
+                "operation": "create",
+                "alignment_evidence": "I will do it.",
+                "confidence": 0.9,
+            }
+            return json.dumps({"slots": slots})
+
+    provider = _BatchProvider()
+    llm_runtime = LLMSemanticProposalRuntime(provider=provider)
+    runtime = AdapterSemanticProposalRuntime(base_runtime=llm_runtime)
+    first_session = object()
+    second_session = object()
+
+    async def call(scope: object, turn: int, text: str):
+        return await runtime.propose_scoped_async(
+            session_scope=scope,
+            target_slot="commitment",
+            user_input=text,
+            substrate_snapshot=None,
+            memory_snapshot=None,
+            previous_snapshot=None,
+            turn_index=turn,
+        )
+
+    async def exercise() -> None:
+        await call(first_session, 1, "input-a")
+        await call(first_session, 1, "input-a")
+        await call(first_session, 1, "input-b")
+        await call(first_session, 2, "input-a")
+        await call(second_session, 1, "input-a")
+
+    asyncio.run(exercise())
+
+    assert provider.call_count == 4
+    assert llm_runtime.attempt_counters.proposals_received_total == 4
 
 
 def test_runtime_emits_create_for_create_label() -> None:

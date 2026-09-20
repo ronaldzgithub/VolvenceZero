@@ -150,6 +150,11 @@ class _OwnerForecastLearner:
 
 class SemanticStateStore:
     def __init__(self) -> None:
+        # Explicit opaque identity for one semantic session. The nine owner
+        # modules are reconstructed every turn, while this store is session-
+        # held; sharing this token lets an LLM runtime batch exactly one turn
+        # without relying on a process-global session string or object id.
+        self._proposal_session_token = object()
         self._records: dict[str, tuple[SemanticRecord, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
         self._completed_refs: dict[str, tuple[str, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
         self._revision_counts: dict[str, int] = {slot: 0 for slot in SEMANTIC_OWNER_SLOTS}
@@ -185,6 +190,10 @@ class SemanticStateStore:
         # W1.B: per-slot learned forecasters (session-medium learning
         # state; not part of the cross-session persistence schema).
         self._owner_forecast_learners: dict[str, _OwnerForecastLearner] = {}
+
+    @property
+    def proposal_session_token(self) -> object:
+        return self._proposal_session_token
 
     def pending_owner_prediction(self, slot: str) -> Any:
         """Return the outstanding (unsettled) prediction for ``slot`` or None."""
