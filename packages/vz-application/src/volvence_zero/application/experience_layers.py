@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from volvence_zero.application.runtime import (
     ApplicationModificationEvidence,
@@ -40,45 +40,92 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-def _reuse_retry_equivalent_action_evidence(
+def _action_occurrence_identity(
+    evidence: CaseActionAbstractionEvidence,
+) -> tuple[
+    str,
+    str,
+    str,
+    str,
+    tuple[str, ...],
+    float,
+    tuple[str, str, int, bool, bool] | None,
+]:
+    """Return stable identity and admission proof for one occurrence."""
+
+    lineage = evidence.learning_lineage
+    stable_lineage = (
+        None
+        if lineage is None
+        else (
+            lineage.environment_outcome_id,
+            lineage.prediction_id,
+            lineage.transition_count,
+            lineage.optimizer_consumed,
+            lineage.policy_update_applied,
+        )
+    )
+
+    return (
+        evidence.outcome_id,
+        evidence.action_id,
+        evidence.situation_statement,
+        evidence.action_statement,
+        evidence.evidence,
+        evidence.confidence,
+        stable_lineage,
+    )
+
+
+def _reuse_admitted_action_evidence(
     *,
     current: CaseActionAbstractionEvidence,
     prior: CaseActionAbstractionEvidence | None,
 ) -> CaseActionAbstractionEvidence:
-    """Keep an admitted lineage stable across an idempotent job replay.
+    """Keep admitted owner evidence stable across an idempotent replay.
 
-    Credit records are occurrence-scoped audit rows and therefore receive new
-    UUIDs when the same deterministic slow-loop job is reconstructed after a
-    process failure. Those UUIDs do not make the already-admitted fictional
-    action/outcome a second experience. Reuse the durable evidence only when
-    every semantic field and every other Internal-RL lineage field is exactly
-    equal. Any actual action, outcome, family, capture, transition, or
-    optimizer drift remains a loud conflict at the proposal boundary.
+    A whole bake may be replayed after a process failure while CaseMemory has
+    already durably admitted an earlier scene. The environment-owned
+    occurrence fields remain stable, but restarting the temporal learner can
+    legitimately regenerate family identity/revision, controller digest, capture ids,
+    and occurrence-scoped credit ids. Those regenerated fields must neither
+    create a second experience nor overwrite the frozen owner record. Reuse
+    the prior payload only when the reviewed occurrence identity and stable
+    admission proof are exact; any action, situation, evidence, confidence,
+    outcome, prediction, or transition drift remains a loud
+    conflict at the proposal boundary.
     """
 
     if prior is None:
         return current
     if prior == current:
         return prior
-    prior_lineage = prior.learning_lineage
-    current_lineage = current.learning_lineage
-    if prior_lineage is None or current_lineage is None:
-        retry_equivalent = False
-    else:
-        retry_equivalent = prior == replace(
-            current,
-            learning_lineage=replace(
-                current_lineage,
-                credit_record_ids=prior_lineage.credit_record_ids,
-            ),
-        )
-    if not retry_equivalent:
+    if _action_occurrence_identity(prior) != _action_occurrence_identity(
+        current
+    ):
         raise ValueError(
-            "Conflicting action-abstraction learning lineage for "
-            f"outcome_id={current.outcome_id!r}; deterministic retries may "
-            "differ only in occurrence-scoped credit_record_ids."
+            "Conflicting action-abstraction evidence for "
+            f"outcome_id={current.outcome_id!r}; an idempotent replay must "
+            "preserve action identity, situation, evidence, confidence, "
+            "and stable admission proof."
         )
     return prior
+
+
+def _as_action_abstraction_experience(
+    evidence: CaseActionAbstractionEvidence,
+) -> ActionAbstractionExperience:
+    return ActionAbstractionExperience(
+        outcome_id=evidence.outcome_id,
+        action_id=evidence.action_id,
+        action_family_id=evidence.action_family_id,
+        action_family_version=evidence.action_family_version,
+        situation_statement=evidence.situation_statement,
+        action_statement=evidence.action_statement,
+        evidence=evidence.evidence,
+        confidence=evidence.confidence,
+        controller_code_digest=evidence.controller_code_digest,
+    )
 
 
 @dataclass(frozen=True)
@@ -139,17 +186,27 @@ class ApplicationPriorProposalBuilder:
                 inputs.promoted_action_abstraction_family_versions
             )
         }
-        current_action_abstraction_experiences = tuple(
-            ActionAbstractionExperience(
-                outcome_id=evidence.outcome_id,
-                action_id=evidence.action_id,
-                action_family_id=evidence.action_family_id,
-                action_family_version=evidence.action_family_version,
-                situation_statement=evidence.situation_statement,
-                action_statement=evidence.action_statement,
-                evidence=evidence.evidence,
-                confidence=evidence.confidence,
-                controller_code_digest=evidence.controller_code_digest,
+        prior_action_abstraction_evidence_by_outcome = {
+            evidence.outcome_id: evidence
+            for evidence in inputs.prior_action_abstraction_evidence
+        }
+        current_action_abstraction_evidence = tuple(
+            _reuse_admitted_action_evidence(
+                current=CaseActionAbstractionEvidence(
+                    outcome_id=evidence.outcome_id,
+                    action_id=evidence.action_id,
+                    action_family_id=evidence.action_family_id,
+                    action_family_version=evidence.action_family_version,
+                    situation_statement=evidence.situation_statement,
+                    action_statement=evidence.action_statement,
+                    evidence=evidence.evidence,
+                    confidence=evidence.confidence,
+                    controller_code_digest=evidence.controller_code_digest,
+                    learning_lineage=evidence.learning_lineage,
+                ),
+                prior=prior_action_abstraction_evidence_by_outcome.get(
+                    evidence.outcome_id
+                ),
             )
             for evidence in inputs.experienced_actions
             if (
@@ -162,18 +219,16 @@ class ApplicationPriorProposalBuilder:
                 and evidence.learning_lineage.admission_ready
             )
         )
+        current_action_abstraction_evidence_by_outcome = {
+            evidence.outcome_id: evidence
+            for evidence in current_action_abstraction_evidence
+        }
+        current_action_abstraction_experiences = tuple(
+            _as_action_abstraction_experience(evidence)
+            for evidence in current_action_abstraction_evidence
+        )
         prior_action_abstraction_experiences = tuple(
-            ActionAbstractionExperience(
-                outcome_id=evidence.outcome_id,
-                action_id=evidence.action_id,
-                action_family_id=evidence.action_family_id,
-                action_family_version=evidence.action_family_version,
-                situation_statement=evidence.situation_statement,
-                action_statement=evidence.action_statement,
-                evidence=evidence.evidence,
-                confidence=evidence.confidence,
-                controller_code_digest=evidence.controller_code_digest,
-            )
+            _as_action_abstraction_experience(evidence)
             for evidence in inputs.prior_action_abstraction_evidence
             if (
                 evidence.action_family_id not in promoted_action_family_ids
@@ -185,10 +240,6 @@ class ApplicationPriorProposalBuilder:
             prior_action_abstraction_experiences,
             current_action_abstraction_experiences,
         )
-        prior_action_abstraction_evidence_by_outcome = {
-            evidence.outcome_id: evidence
-            for evidence in inputs.prior_action_abstraction_evidence
-        }
         action_abstraction_groups: dict[
             str,
             list[ActionAbstractionExperience],
@@ -295,43 +346,9 @@ class ApplicationPriorProposalBuilder:
                             else ""
                         ),
                         action_abstraction_evidence=(
-                            _reuse_retry_equivalent_action_evidence(
-                                current=CaseActionAbstractionEvidence(
-                                    outcome_id=evidence.outcome_id,
-                                    action_id=evidence.action_id,
-                                    action_family_id=evidence.action_family_id,
-                                    action_family_version=(
-                                        evidence.action_family_version
-                                    ),
-                                    situation_statement=(
-                                        evidence.situation_statement
-                                    ),
-                                    action_statement=evidence.action_statement,
-                                    evidence=evidence.evidence,
-                                    confidence=evidence.confidence,
-                                    controller_code_digest=(
-                                        evidence.controller_code_digest
-                                    ),
-                                    learning_lineage=(
-                                        evidence.learning_lineage
-                                    ),
-                                ),
-                                prior=(
-                                    prior_action_abstraction_evidence_by_outcome
-                                    .get(evidence.outcome_id)
-                                ),
+                            current_action_abstraction_evidence_by_outcome.get(
+                                evidence.outcome_id
                             )
-                            if (
-                                evidence.action_schema is None
-                                and evidence.action_family_id
-                                and evidence.action_family_version > 0
-                                and evidence.situation_statement.strip()
-                                and evidence.action_family_id
-                                not in promoted_action_family_ids
-                                and evidence.learning_lineage is not None
-                                and evidence.learning_lineage.admission_ready
-                            )
-                            else None
                         ),
                     ),
                     confidence=confidence,

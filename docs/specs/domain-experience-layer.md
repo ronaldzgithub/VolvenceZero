@@ -155,10 +155,15 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
 6. 单个 session 未满足计数时，CaseMemory 把 schema-free lineage 存入
    `CaseMemoryRecord.action_abstraction_evidence`，并随既有 checkpoint 原样恢复。
    下一 session 只通过 store owner 的 `pending_action_abstraction_evidence()` 合并历史
-   与当前证据，禁止扫描 case description。内容完全一致的 outcome 只计一次，同 outcome
-   的矛盾内容直接失败；compact snapshot 回灌不得擦除既有 typed payload；晋升 record
-   的 typed promotion marker 会排除整个 family ID 的 pending evidence，阻止不同 bank
-   revision 再次触发 decoder/promotion。
+   与当前证据，禁止扫描 case description。一次已审阅外部 occurrence 的稳定身份由
+   `outcome_id / action_id / situation / action / evidence / confidence` 及 outcome-bound
+   prediction/transition/admission proof 共同确定；整次 bake 在进程失败后重放时，新的
+   temporal family ID / bank revision、controller digest、runtime capture id 或
+   occurrence-scoped credit id 不得把同一 occurrence 计成第二条经历，也不得覆盖 owner
+   已冻结的 typed payload，而必须复用先前 admission。上述稳定身份任一字段变化仍是同
+   outcome 的矛盾证据并直接失败；compact snapshot 回灌不得擦除既有 typed payload；
+   晋升 record 的 typed promotion marker 会排除整个 family ID 的 pending evidence，
+   阻止不同 bank revision 再次触发 decoder/promotion。
 7. promotion marker 同时固化 decoder 发布的 `applicability_conditions`。CaseMemory
    在具体行动请求上只把当前 Memory 语境、schema id、typed conditions 与 record risk
    markers 交给结构化 applicability evaluator；action steps、outcome、PE、credit、
@@ -271,6 +276,7 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
   action gate、64 维 action-vs-reflective margin 与 structured applicability 独立门。
 - 2026-07-29: promotion checkpoint 增加 typed `applicability_conditions`，CaseMemory 增加 turn-time structured applicability gate；缺 provider/条件/有效高置信判定时 learned promotion fail closed，正例命中与同意照护负例拒绝均由独立行为保真测试覆盖。
 - 2026-07-29: 增加 ch-11/ch-17 真实 schema-holdout 跨章节晋升证据；修复 compact CaseMemory snapshot 回灌擦除 owner-only typed evidence，并明确 family ID 是聚合身份、`action_family_version` 是允许跨经历变化的全局 bank revision。
+- 2026-09-20: 冻结 action-abstraction whole-bake replay 身份：相同外部 occurrence 与稳定 admission proof 必须复用 owner 已 admission 的 frozen evidence，重建产生的 temporal family/revision/digest/runtime capture/credit IDs 不形成第二条经历；外部 occurrence 或稳定 proof 字段漂移仍 fail loudly。
 - 2026-07-28: 冻结 CaseMemory-owned action-abstraction pending/promotion checkpoint 契约：schema-free evidence 可跨 session 恢复，consumer 只读类型化 owner API；矛盾 outcome fail loudly，已晋升 family/version 自动停止重复提案。
 - 2026-07-28: 新增 multi-experience background action abstraction：structured decoder 不读 outcome/evaluation，CaseMemory owner 要求至少两条异质同族经历并校验 source closure；candidate 必须经正式 BACKGROUND ModificationGate 才能写入。ch-11 单例继续 fail closed，不声明自主 schema discovery。
 - 2026-07-28: 增加 action-schema holdout 的 fail-closed 收敛：terminal outcome 在提交时绑定 temporal family/version/controller-code digest；无 schema 的 family-linked case 可持久化审计，但 intervention ordering 为空，禁止 expression 或 CaseMemory 把原 episode 复述成抽象策略。

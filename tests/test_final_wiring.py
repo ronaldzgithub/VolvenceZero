@@ -1170,21 +1170,28 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     )
 
 
-def test_action_abstraction_retry_reuses_admitted_lineage_when_only_credit_ids_change():
+def test_qiao_action_abstraction_retry_reuses_admitted_occurrence():
+    outcome_id = (
+        "chapter-replay:qiao-records-field-review:outcome:pe:prediction_error:"
+        "turn-16:next"
+    )
     first = ExperiencedActionEvidence(
-        outcome_id="chapter-replay:scene-a:outcome:prediction-a",
-        action_id="chapter-replay:scene-a:canonical-action",
-        situation_statement="A courier reaches a guarded crossing before the last bell.",
-        action_statement="Show the sealed medicine and identify the waiting patient.",
-        outcome_statement="The guard begins a documented inspection.",
-        evidence=("chapter:1:scene-a",),
+        outcome_id=outcome_id,
+        action_id="chapter-replay:qiao-records-field-review:canonical-action",
+        situation_statement=(
+            "检修簿显示北支渠巡检逾期，盐仓回水提供了新的现场线索。\n"
+            "Decision point: 原作中的他要在不抹去封渡令的情况下改变下一步行动。"
+        ),
+        action_statement=(
+            "他把逾期和新证据写入检修簿，签发现场复核令，明确核验失败则原令不变。"
+        ),
+        outcome_statement="现场复核成为下一步行动。",
+        evidence=("ch:2 arc:qiao-shen:records-field-review",),
         confidence=0.9,
         action_family_id="discovered_family_0",
-        action_family_version=2,
-        controller_code_digest=(0.01, 0.02, 0.03),
-        learning_lineage=_action_learning_lineage(
-            "chapter-replay:scene-a:outcome:prediction-a"
-        ),
+        action_family_version=24,
+        controller_code_digest=(0.324714, 0.308944, 0.193837),
+        learning_lineage=_action_learning_lineage(outcome_id),
     )
 
     def build(
@@ -1219,11 +1226,22 @@ def test_action_abstraction_retry_reuses_admitted_lineage_when_only_credit_ids_c
     store = ApplicationCaseMemoryStore(records=(first_record,))
     replay_lineage = replace(
         first.learning_lineage,
-        credit_record_ids=("new-process-credit-1", "new-process-credit-2"),
+        world_capture_id="runtime:world:retry:turn-16",
+        self_capture_id="runtime:self:retry:turn-16",
+        credit_record_ids=("retry-credit-1", "retry-credit-2"),
     )
-    replay = replace(first, learning_lineage=replay_lineage)
+    replay = replace(
+        first,
+        action_family_id="discovered_family_4",
+        action_family_version=31,
+        controller_code_digest=(0.411, 0.287, 0.251),
+        learning_lineage=replay_lineage,
+    )
     raw_replay_evidence = replace(
         first_evidence,
+        action_family_id="discovered_family_4",
+        action_family_version=31,
+        controller_code_digest=(0.411, 0.287, 0.251),
         learning_lineage=replay_lineage,
     )
 
@@ -1249,18 +1267,28 @@ def test_action_abstraction_retry_reuses_admitted_lineage_when_only_credit_ids_c
     store.upsert_records((retry_record,))
     assert store.pending_action_abstraction_evidence() == admitted
 
-    capture_drift = replace(
+    semantic_drift = replace(
+        replay,
+        action_statement="他销毁旧令并把未核验线索直接视为定论。",
+    )
+    with pytest.raises(
+        ValueError,
+        match="an idempotent replay must preserve action identity",
+    ):
+        build(semantic_drift, prior=admitted)
+
+    proof_drift = replace(
         replay,
         learning_lineage=replace(
             replay_lineage,
-            world_capture_id="world:changed-runtime-capture",
+            prediction_id="pe:prediction_error:turn-17:next",
         ),
     )
     with pytest.raises(
         ValueError,
-        match="deterministic retries may differ only",
+        match="stable admission proof",
     ):
-        build(capture_drift, prior=admitted)
+        build(proof_drift, prior=admitted)
 
 
 def test_action_abstraction_rejects_conflicting_duplicate_outcome():
