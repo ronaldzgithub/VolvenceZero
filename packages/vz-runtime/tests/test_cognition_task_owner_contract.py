@@ -104,4 +104,3 @@ def test_choose_observable_action_uses_perceived_input_as_case_query(
     assert typed is not None
     assert typed.source_case_id == "case:gate-water-mark"
     assert typed.action_statement == "I will 挡在门前, then 示意阿兰后退."
-
