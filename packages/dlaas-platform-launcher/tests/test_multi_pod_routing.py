@@ -14,6 +14,7 @@ from dlaas_platform_launcher import (
     RemoteInstanceManager,
     RuntimePod,
     SessionStateForwardingLauncherProtocol,
+    SceneEndReportForwardingLauncherProtocol,
     VerticalBrainForwardingLauncherProtocol,
 )
 
@@ -33,6 +34,7 @@ def test_multi_pod_launcher_conforms_to_protocol() -> None:
     assert isinstance(launcher, SessionStateForwardingLauncherProtocol)
     assert isinstance(launcher, OperationsForwardingLauncherProtocol)
     assert isinstance(launcher, VerticalBrainForwardingLauncherProtocol)
+    assert isinstance(launcher, SceneEndReportForwardingLauncherProtocol)
 
 
 # --- RemoteInstanceManager (fake transport) -------------------------
@@ -83,6 +85,21 @@ async def test_remote_forward_500_raises_runtime() -> None:
     proxy = RemoteInstanceManager(base_url="http://pod", transport=transport)
     with pytest.raises(RuntimeError):
         await proxy.forward_interaction(ai_id="ai_1", envelope=_FakeEnvelope("x"))
+
+
+async def test_remote_scene_end_report_uses_internal_route_and_preserves_status() -> None:
+    url = "http://pod/internal/dlaas/instances/ai_1/scene-end-report"
+    transport = _transport_recording(
+        {url: (409, {"status": "error", "error": "deterministic"})}
+    )
+    proxy = RemoteInstanceManager(base_url="http://pod", transport=transport)
+    assert isinstance(proxy, SceneEndReportForwardingLauncherProtocol)
+    assert await proxy.forward_scene_end_report(
+        ai_id="ai_1", envelope=_FakeEnvelope("x")
+    ) == (409, {"status": "error", "error": "deterministic"})
+    assert transport.calls == [
+        ("POST", url, {"human_brief": "x"}),
+    ]
 
 
 async def test_remote_session_state_and_operations_forwarding_routes_urls() -> None:
@@ -182,6 +199,10 @@ class _FakePodManager:
         self.forwarded.append(ai_id)
         return {"pod": self.pod_id, "ai_id": ai_id}
 
+    async def forward_scene_end_report(self, *, ai_id, envelope):
+        self.forwarded.append(f"report:{ai_id}")
+        return 200, {"pod": self.pod_id, "ai_id": ai_id}
+
     async def forward_session_create(self, *, ai_id, payload):
         self.sessions.append(ai_id)
         return 201, {"pod": self.pod_id, "session_id": payload["session_id"]}
@@ -257,6 +278,19 @@ async def test_forward_unplaced_raises() -> None:
         await launcher.forward_interaction(
             ai_id="ghost", envelope=_FakeEnvelope("x")
         )
+
+
+async def test_scene_end_report_follows_sticky_pod_placement() -> None:
+    launcher, a, b = _launcher_two_pods()
+    await launcher.acquire(ai_id="ai_1", runtime_template_id="companion")
+    owner = launcher.router.resolve("ai_1").runtime_pod_id
+    status, body = await launcher.forward_scene_end_report(
+        ai_id="ai_1", envelope=_FakeEnvelope("close")
+    )
+    assert status == 200
+    assert body["pod"] == owner
+    owning_fake = a if a.pod_id == owner else b
+    assert owning_fake.forwarded == ["report:ai_1"]
 
 
 async def test_session_and_operations_follow_sticky_pod_placement() -> None:

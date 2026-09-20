@@ -121,6 +121,39 @@ Supported `interaction_type` values:
 | `report` | scene closure + readout |
 | `command` | typed allowlist only |
 
+### Keyed `report` scene closure
+
+`interaction_type=report` may carry a non-blank printable
+`Idempotency-Key` header (maximum 256 characters). Only that combination
+activates the Registry-owned `dlaas.report-scene-end-ledger` contract; requests
+without the header retain the legacy dispatch path. The canonical request hash
+binds `ai_id / contract_id / session_id / end_user_ref / interaction_type /
+structured_context / protocol_version / mode / human_brief /
+target_person_ids / lang / feedback` and deliberately excludes stream/output
+transport preferences. Keyed reports require one replayable JSON response;
+`output_contract.stream=true` is rejected before reservation or runtime dispatch.
+
+Before any local or remote runtime call, the parent platform atomically
+reserves `(contract_id, ai_id, idempotency_key)`. A duplicate with a different
+hash is `409 idempotency_key_payload_conflict`; the same hash under an active
+lease is `409 scene_end_in_progress`; a completed entry replays the original
+status/body without calling the runtime. Slow reports refresh their lease from
+the parent. A crash, expired lease, dispatch exception, transport/5xx result,
+unrecordable response, or non-durable Memory receipt transitions permanently
+to `OUTCOME_UNKNOWN` with an auditable reason; later calls return
+`409 scene_end_outcome_unknown` and never invoke `end_scene` automatically.
+
+The trusted parent-to-pod route carries only an internal dispatch parameter;
+the caller header and ledger are not forwarded and the public
+`InteractionEnvelope` cannot enable it. After `end_scene(...,
+drain_slow_loop=True)`, the pod calls
+`LifeformSession.persist_memory_with_receipt()`. A successful keyed report is
+completable only when the Memory owner publishes a complete
+`durability=restart_durable` save receipt. Its owner-authored `to_json()` value
+is embedded verbatim as `memory_checkpoint_receipt`; the API does not
+reconstruct checkpoint contents or hashes. Deterministic 4xx responses are
+terminal/replayable; 5xx responses are never replayed as success.
+
 Native runtime responses can include tool-related output acts:
 
 | Act type | Meaning |

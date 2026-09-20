@@ -44,6 +44,15 @@ class InteractionForwardingLauncherProtocol(Protocol):
 
 
 @runtime_checkable
+class SceneEndReportForwardingLauncherProtocol(Protocol):
+    """Trusted parent-to-pod keyed report path with original HTTP status."""
+
+    async def forward_scene_end_report(
+        self, *, ai_id: str, envelope: Any
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+@runtime_checkable
 class ExplicitSessionForwardingLauncherProtocol(Protocol):
     """Capability contract for explicit session creation on an owning pod."""
 
@@ -100,6 +109,7 @@ __all__ = [
     "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",
     "OperationsForwardingLauncherProtocol",
+    "SceneEndReportForwardingLauncherProtocol",
     "SessionStateForwardingLauncherProtocol",
     "VerticalBrainForwardingLauncherProtocol",
 ]

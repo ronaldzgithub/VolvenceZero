@@ -141,6 +141,21 @@ class MultiPodLauncher:
         self._router.record_interaction(ai_id)
         return await forward(ai_id=ai_id, envelope=envelope)
 
+    async def forward_scene_end_report(
+        self, *, ai_id: str, envelope: Any
+    ) -> tuple[int, dict]:
+        """Forward a parent-reserved report over the pod-only transport."""
+
+        manager = self.manager_for(ai_id)
+        forward = getattr(manager, "forward_scene_end_report", None)
+        if not callable(forward):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support trusted "
+                "scene-end report forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await forward(ai_id=ai_id, envelope=envelope)
+
     async def forward_session_create(
         self,
         *,

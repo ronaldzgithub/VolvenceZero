@@ -28,6 +28,7 @@ from dlaas_platform_api.substrate_profiles import (
     SubstrateProfile,
     build_runtime_for_profile,
 )
+from dlaas_platform_api.app import _handle_trusted_scene_end_report
 
 
 async def _handle_pod_acquire(request: web.Request) -> web.Response:
@@ -77,6 +78,10 @@ def build_pod_app(
     app = build_dlaas_app(db_path=db_path, substrate_runtime=runtime)
     app.router.add_post(
         "/dlaas/v1/instances/{ai_id}/acquire", _handle_pod_acquire
+    )
+    app.router.add_post(
+        "/internal/dlaas/instances/{ai_id}/scene-end-report",
+        _handle_trusted_scene_end_report,
     )
     return app
 

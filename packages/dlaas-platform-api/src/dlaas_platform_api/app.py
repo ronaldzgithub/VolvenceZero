@@ -112,6 +112,7 @@ from dlaas_platform_registry import (
     PlatformAuthConfig,
     REGISTRY_APP_KEY,
     Registry,
+    SceneEndLedgerStore,
     TenantStore,
 )
 from lifeform_service.app import create_app as create_lifeform_app
@@ -166,6 +167,10 @@ from dlaas_platform_api.streaming import (
     interaction_stream_requested,
     respond_with_interaction_stream,
 )
+from dlaas_platform_api.scene_end_report import (
+    dispatch_keyed_report,
+    valid_idempotency_key,
+)
 from dlaas_platform_api.third_party_llm import attach_third_party_llm_routes
 from dlaas_platform_api.training_executor import (
     InMemoryTrainingJobStore,
@@ -207,6 +212,7 @@ _DEBUG_APPS_KEY = "dlaas_debug_apps"
 _DEBUG_SCHEMAS_KEY = "dlaas_debug_schemas"
 _DEBUG_EVENTS_KEY = "dlaas_debug_events"
 _DEBUG_ANALYSES_KEY = "dlaas_debug_analyses"
+_SCENE_END_LEDGER_STORE_KEY = "dlaas_scene_end_ledger_store"
 
 
 def attach_dlaas_routes(
@@ -289,6 +295,7 @@ def attach_dlaas_full_stack(
     )
     app[INSTANCE_MANAGER_APP_KEY] = instance_manager
     app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
+    app[_SCENE_END_LEDGER_STORE_KEY] = SceneEndLedgerStore(registry)
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
     _register_openai_compat_cognition_hook(app)
@@ -3085,7 +3092,84 @@ async def _handle_interaction(request: web.Request) -> web.StreamResponse:
             detail="ai_id path segment is required",
         )
 
+    if envelope.interaction_type is InteractionType.REPORT:
+        raw_key = request.headers.get("Idempotency-Key", "")
+        if raw_key:
+            if not valid_idempotency_key(raw_key):
+                return _json_error(
+                    status=400,
+                    error="invalid_idempotency_key",
+                    detail=(
+                        "Idempotency-Key must be non-blank, at most 256 "
+                        "printable characters."
+                    ),
+                )
+            return await _dispatch_keyed_report(
+                request,
+                ai_id=ai_id,
+                envelope=envelope,
+                idempotency_key=raw_key,
+            )
+
     return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _handle_trusted_scene_end_report(
+    request: web.Request,
+) -> web.StreamResponse:
+    """Pod-only parent RPC; not mounted on the public full-stack router."""
+
+    try:
+        envelope = await _parse_envelope(request)
+    except _EnvelopeError as exc:
+        return _json_error(status=400, error=exc.code, detail=exc.detail)
+    if envelope.interaction_type is not InteractionType.REPORT:
+        return _json_error(
+            status=400,
+            error="report_required",
+            detail="trusted scene-end route accepts interaction_type=report only",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    if not ai_id:
+        return _json_error(status=400, error="invalid_ai_id", detail="ai_id is required")
+    return await _dispatch_envelope_to_instance(
+        request,
+        ai_id,
+        envelope,
+        require_report_persistence=True,
+    )
+
+
+async def _dispatch_keyed_report(
+    request: web.Request,
+    *,
+    ai_id: str,
+    envelope: InteractionEnvelope,
+    idempotency_key: str,
+) -> web.StreamResponse:
+    if envelope.output_contract.stream:
+        return _json_error(
+            status=400,
+            error="keyed_report_stream_not_supported",
+            detail=(
+                "keyed report requires one replayable JSON response; "
+                "output_contract.stream must be false"
+            ),
+        )
+    store = request.app.get(_SCENE_END_LEDGER_STORE_KEY)
+
+    async def _run() -> web.StreamResponse:
+        return await _dispatch_envelope_to_instance(
+            request, ai_id, envelope, require_report_persistence=True
+        )
+
+    return await dispatch_keyed_report(
+        ai_id=ai_id,
+        envelope=envelope,
+        idempotency_key=idempotency_key,
+        store=store if isinstance(store, SceneEndLedgerStore) else None,
+        run_dispatch=_run,
+    )
 
 
 def _validate_session_create_payload(payload: dict[str, Any]) -> tuple[str, str]:
@@ -3534,6 +3618,8 @@ async def _dispatch_envelope_to_instance(
     request: web.Request,
     ai_id: str,
     envelope: InteractionEnvelope,
+    *,
+    require_report_persistence: bool = False,
 ) -> web.StreamResponse:
     ops_bundle = request.app.get(OPS_BUNDLE_APP_KEY)
     if isinstance(ops_bundle, OpsBundle):
@@ -3552,10 +3638,14 @@ async def _dispatch_envelope_to_instance(
     # (MultiPodLauncher), the owning pod holds the session, so forward
     # the whole envelope over RPC instead of resolving a local manager.
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    forward = getattr(launcher, "forward_interaction", None)
+    forward = (
+        getattr(launcher, "forward_scene_end_report", None)
+        if require_report_persistence
+        else getattr(launcher, "forward_interaction", None)
+    )
     if callable(forward):
         try:
-            body = await forward(ai_id=ai_id, envelope=envelope)
+            forwarded = await forward(ai_id=ai_id, envelope=envelope)
         except InstanceNotFound:
             return _json_error(
                 status=404,
@@ -3566,6 +3656,22 @@ async def _dispatch_envelope_to_instance(
             return _json_error(
                 status=502, error="pod_forward_failed", detail=str(exc)
             )
+        forwarded_status = 200
+        if require_report_persistence:
+            if (
+                not isinstance(forwarded, tuple)
+                or len(forwarded) != 2
+                or not isinstance(forwarded[0], int)
+                or not isinstance(forwarded[1], dict)
+            ):
+                return _json_error(
+                    status=502,
+                    error="pod_forward_contract_invalid",
+                    detail="trusted scene-end forward must return (status, JSON body)",
+                )
+            forwarded_status, body = forwarded
+        else:
+            body = forwarded
         _record_audit(
             request,
             event_type=f"interaction_{envelope.interaction_type.value}",
@@ -3597,7 +3703,7 @@ async def _dispatch_envelope_to_instance(
                 run_dispatch=_forwarded_body,
                 on_success=lambda _body: None,
             )
-        return web.json_response(body)
+        return web.json_response(body, status=forwarded_status)
 
     try:
         manager = _resolve_session_manager(request, ai_id)
@@ -3646,7 +3752,10 @@ async def _dispatch_envelope_to_instance(
         # already committed the response to text/event-stream.
         async def _run_dispatch() -> dict[str, Any]:
             return await dispatch_envelope(
-                envelope=envelope, session=session, ai_id=ai_id
+                envelope=envelope,
+                session=session,
+                ai_id=ai_id,
+                require_report_persistence=require_report_persistence,
             )
 
         def _record_success(_body: dict[str, Any]) -> None:
@@ -3687,7 +3796,10 @@ async def _dispatch_envelope_to_instance(
 
     try:
         body = await dispatch_envelope(
-            envelope=envelope, session=session, ai_id=ai_id
+            envelope=envelope,
+            session=session,
+            ai_id=ai_id,
+            require_report_persistence=require_report_persistence,
         )
     except DispatchError as exc:
         return _json_error(status=exc.status, error=exc.code, detail=exc.detail)

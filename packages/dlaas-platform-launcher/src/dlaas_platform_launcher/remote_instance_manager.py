@@ -88,6 +88,28 @@ class RemoteInstanceManager:
             )
         return body
 
+    async def forward_scene_end_report(
+        self, *, ai_id: str, envelope: Any
+    ) -> tuple[int, dict]:
+        """Use the pod-only route; never put parent control in public JSON."""
+
+        payload = envelope.to_json() if hasattr(envelope, "to_json") else envelope
+        status, body = await self._transport(
+            "POST",
+            (
+                f"{self._base_url}/internal/dlaas/instances/"
+                f"{quote(ai_id, safe='')}/scene-end-report"
+            ),
+            payload,
+        )
+        if status == 404:
+            raise InstanceNotFound(ai_id)
+        if status >= 500:
+            raise RuntimeError(
+                f"pod scene-end report failed for ai_id={ai_id!r}: {body}"
+            )
+        return status, body
+
     async def forward_session_create(
         self,
         *,

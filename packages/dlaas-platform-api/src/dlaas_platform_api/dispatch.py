@@ -90,6 +90,7 @@ async def dispatch_envelope(
     envelope: InteractionEnvelope,
     session: Any,
     ai_id: str,
+    require_report_persistence: bool = False,
 ) -> dict[str, Any]:
     """Route a typed envelope to the matching handler.
 
@@ -109,7 +110,12 @@ async def dispatch_envelope(
     if kind in (InteractionType.TEACH, InteractionType.TASK):
         return await _handle_apprentice(envelope=envelope, session=session, ai_id=ai_id)
     if kind is InteractionType.REPORT:
-        return await _handle_report(envelope=envelope, session=session, ai_id=ai_id)
+        return await _handle_report(
+            envelope=envelope,
+            session=session,
+            ai_id=ai_id,
+            require_persistence=require_report_persistence,
+        )
     if kind is InteractionType.COMMAND:
         return await _handle_command(envelope=envelope, session=session, ai_id=ai_id)
     raise DispatchError(  # pragma: no cover - exhaustive switch
@@ -920,6 +926,7 @@ async def _handle_report(
     envelope: InteractionEnvelope,
     session: Any,
     ai_id: str,
+    require_persistence: bool,
 ) -> dict[str, Any]:
     """Drain the slow loop and surface a minimal report scaffold.
 
@@ -934,6 +941,23 @@ async def _handle_report(
         reason=f"dlaas-report:{envelope.session_id}", drain_slow_loop=True
     )
     scene_id = getattr(closed, "scene_id", None) if closed is not None else None
+    memory_checkpoint_receipt: dict[str, Any] | None = None
+    if require_persistence:
+        # Memory remains the sole persistence-proof owner.  The platform asks
+        # through the Lifeform facade and embeds the owner's serialization
+        # verbatim; it never reconstructs checkpoint state or hashes here.
+        receipt = session.persist_memory_with_receipt()
+        if receipt is None or not receipt.is_restart_durable:
+            raise DispatchError(
+                code="memory_checkpoint_not_restart_durable",
+                detail=(
+                    "keyed report closed the scene but Memory did not publish "
+                    "a complete restart_durable persistence receipt; outcome "
+                    "must remain unknown and must not be retried automatically."
+                ),
+                status=503,
+            )
+        memory_checkpoint_receipt = receipt.to_json()
     notice = (
         "report drain complete: slow loop drained; reflection snapshot ready"
     )
@@ -948,6 +972,11 @@ async def _handle_report(
             "drained": True,
             "scene_id": scene_id,
             "report_view": None,  # Slice 6 will populate from reflection snapshot.
+            **(
+                {"memory_checkpoint_receipt": memory_checkpoint_receipt}
+                if memory_checkpoint_receipt is not None
+                else {}
+            ),
         },
     )
 
