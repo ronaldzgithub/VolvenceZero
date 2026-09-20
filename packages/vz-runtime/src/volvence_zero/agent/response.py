@@ -407,6 +407,16 @@ class ResponseSynthesizer:
     replaces templates with real LLM generation.
     """
 
+    async def synthesize_async(
+        self,
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot | None = None,
+    ) -> AgentResponse:
+        """Async session entry point; deterministic renderers stay inline."""
+
+        return self.synthesize(context=context, assembly=assembly)
+
     def _render_judgment_process_response(
         self,
         *,
@@ -720,6 +730,27 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         self._character_id = character_id.strip()
         self._capture_runtime_context = capture_runtime_context
         self._runtime_model_fingerprint = runtime_model_fingerprint
+
+    async def synthesize_async(
+        self,
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot | None = None,
+    ) -> AgentResponse:
+        """Run the synchronous LLM expression path outside the event loop."""
+
+        from functools import partial
+
+        from volvence_zero.substrate.runtime_execution import run_runtime_call
+
+        return await run_runtime_call(
+            runtime=self._runtime,
+            operation=partial(
+                self.synthesize,
+                context=context,
+                assembly=assembly,
+            ),
+        )
 
     @staticmethod
     def _decoding_profile_for_assembly(assembly: ResponseAssemblySnapshot) -> str:

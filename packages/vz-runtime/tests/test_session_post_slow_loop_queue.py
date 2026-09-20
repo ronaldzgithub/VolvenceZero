@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from types import MethodType
 from typing import cast
 
 import pytest
 
+from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopJob,
     SessionPostSlowLoopQueue,
@@ -62,3 +64,37 @@ def test_queue_rejects_same_job_id_with_different_payload() -> None:
 
     with pytest.raises(ValueError, match="job_id collision"):
         queue.enqueue(_as_job(_TestJob("job-1", "session-1", "changed")))
+
+
+async def test_session_turn_lock_covers_complete_turn_response() -> None:
+    runner = AgentSessionRunner(rare_heavy_enabled=False)
+    active = 0
+    max_active = 0
+    order: list[str] = []
+
+    async def fake_serialized_turn(
+        _self: AgentSessionRunner,
+        user_input: str,
+        **_kwargs: object,
+    ) -> str:
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        order.append(f"start:{user_input}")
+        await asyncio.sleep(0.02)
+        order.append(f"end:{user_input}")
+        active -= 1
+        return user_input
+
+    runner._run_turn_serialized = MethodType(  # type: ignore[method-assign]
+        fake_serialized_turn,
+        runner,
+    )
+    first, second = await asyncio.gather(
+        runner.run_turn("first"),
+        runner.run_turn("second"),
+    )
+
+    assert (first, second) == ("first", "second")
+    assert max_active == 1
+    assert order == ["start:first", "end:first", "start:second", "end:second"]

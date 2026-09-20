@@ -423,7 +423,7 @@ class SessionObservationMixin:
             steps=steps,
         )
 
-    def _to_turn_result(
+    async def _to_turn_result(
         self,
         *,
         user_input: str,
@@ -753,7 +753,7 @@ class SessionObservationMixin:
 
             regime_name_value = "current context"
             regime_expression_brief = _ExpressionBriefDefault()
-        response = self._response_synthesizer.synthesize(
+        response = await self._response_synthesizer.synthesize_async(
             context=ResponseContext(
                 regime_id=active_regime,
                 regime_name=regime_name_value,

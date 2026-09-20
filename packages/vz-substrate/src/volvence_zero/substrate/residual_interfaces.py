@@ -53,6 +53,17 @@ class OpenWeightResidualRuntime(ABC):
     supports_offline_substrate_training: bool = False
 
     @property
+    def supports_concurrent_runtime_calls(self) -> bool:
+        """Whether capture/generate calls may overlap on this runtime.
+
+        Transformers and unknown open-weight backends are serial by default.
+        Serving backends such as vLLM must opt in explicitly when their request
+        and adapter state are isolated per call.
+        """
+
+        return False
+
+    @property
     def loaded_base_model_weights_sha256(self) -> str:
         """Verified loaded-base digest, empty when no binding was requested."""
 

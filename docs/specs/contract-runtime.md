@@ -123,6 +123,7 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
 - OpenAI-compatible lifeform 路径支持 request-level strict JSON Schema 表达合同。该合同只在一次认知 turn 已形成同一份 `response_assembly` 后进入 expression；第一次格式无效时允许在同一 assembly/context 上最多重做一次表达生成，不得再次运行 cognition、写入一次额外记忆或补造缺失的行动。第二次仍无效必须以 `structured_expression_output_invalid` 明确失败。`mode=raw` 仍是无生命状态的 substrate 通道，不得拿来替 lifeform 猜测角色意图。
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
 - 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认 continual learner 主路径只把该 surface 作为 review / rare-heavy / experimental evidence；显式 experimental live-mutation runner 才会在通过 schedule + gate 后触发 bounded live substrate mutation，显式 frozen runner 则只发布 proposal / evidence
+- 同步 substrate `capture / capture_conditioned / generate` 必须经 runtime owner 的异步执行边界离开 aiohttp event loop。共享 Transformers runtime 的三类调用共用同一个进程内串行锁，保持单 Qwen / LoRA 同时最多一个 forward；当前同步 `vllm.LLM` 同样保持串行，未来只有后端以正式合同公开 `supports_concurrent_runtime_calls` 并证明 request/router 隔离后才可跳过该锁。每个 `AgentSessionRunner` 还必须把完整 turn（含表达生成）串行提交，防止同一数字生命的回合状态在 await 边界交错；不同 session 仍可独立并发。该执行边界不改变 snapshot owner、认知状态或表达合同。
 - `FinalRolloutConfig` 当前默认采用 widened application rollout：`case_memory`、`strategy_playbook`、`experience_fast_prior`、`experience_consolidation` 默认随主链开启；其中 `experience_consolidation` 继续是 session-owned post surface，而不是 final wiring DAG 中的第二 owner
 - slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
 - agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
@@ -233,6 +234,7 @@ substrate trace。它不是 runtime slot，也不是 prediction、PE、credit、
 
 ## 变更日志
 
+- 2026-09-21: 将同步 capture/generate 移到 runtime owner 的异步执行边界；Transformers 与同步 vLLM 共享实例保持串行，同一 session 的完整 turn 保持顺序提交，避免长推理阻塞服务 heartbeat 或让数字生命状态交错。
 - 2026-09-20: 新增 raw strict JSON Schema 的 substrate generation-time 完整根对象停止合同；保留 `max_tokens` 上限，并保持普通 text/lifeform 路径不变。
 - 2026-09-20: 明确 raw OpenAI adapter 必须向 substrate runtime 传递完整规范化消息流，修复标准 system+user 请求绕过 instruct chat template、以及多轮请求丢失 system/current turn 的合同缺口。
 - 2026-09-20: 新增 lifeform request-level strict JSON Schema 表达合同及同一 cognitive assembly 内的一次 format-only retry；无效表达不成为第二个认知或记忆 turn，也不得由 adapter 填补缺失语义。

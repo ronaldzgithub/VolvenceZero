@@ -7,7 +7,10 @@ fail-loud residual surface — all without importing vllm.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+import threading
+import time
 
 import pytest
 
@@ -30,6 +33,7 @@ from volvence_zero.substrate import (
     VLLMLoRARouter,
     VLLMOpenWeightResidualRuntime,
 )
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 
 
 @dataclass
@@ -213,8 +217,6 @@ def test_conditioning_bank_latent_carrier_without_hooks_fails_loud(
 
 
 def test_activation_is_task_local_for_concurrency() -> None:
-    import asyncio
-
     runtime = _runtime()
 
     async def turn(figure_dir: str, expect_id: int) -> str:
@@ -236,3 +238,31 @@ def test_activation_is_task_local_for_concurrency() -> None:
     assert any("lora=1" in r for r in results)
     assert any("lora=2" in r for r in results)
     assert all("base" not in r for r in results)
+
+
+async def test_runtime_execution_boundary_serializes_synchronous_vllm_engine() -> None:
+    runtime = _runtime()
+    state_lock = threading.Lock()
+    active = 0
+    max_active = 0
+
+    def blocking_call() -> str:
+        nonlocal active, max_active
+        with state_lock:
+            active += 1
+            max_active = max(max_active, active)
+        try:
+            time.sleep(0.08)
+            return "done"
+        finally:
+            with state_lock:
+                active -= 1
+
+    first, second = await asyncio.gather(
+        run_runtime_call(runtime=runtime, operation=blocking_call),
+        run_runtime_call(runtime=runtime, operation=blocking_call),
+    )
+
+    assert first == second == "done"
+    assert runtime.supports_concurrent_runtime_calls is False
+    assert max_active == 1

@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from enum import Enum
+from functools import partial
 import hashlib
 import math
 from typing import TYPE_CHECKING, Any, Mapping
@@ -470,14 +471,24 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         effective_source_text = source_text or self._default_source_text
         if effective_source_text is None:
             raise ValueError("OpenWeightResidualStreamSubstrateAdapter requires source_text.")
+        from volvence_zero.substrate.runtime_execution import run_runtime_call
+
         if self._personal_conditioning is None:
-            capture = self._runtime.capture(source_text=effective_source_text)
+            operation = partial(
+                self._runtime.capture,
+                source_text=effective_source_text,
+            )
         else:
-            capture = self._runtime.capture_conditioned(
+            operation = partial(
+                self._runtime.capture_conditioned,
                 source_text=effective_source_text,
                 personal_conditioning=self._personal_conditioning,
                 personal_conditioning_carrier=self._personal_conditioning_carrier,
             )
+        capture = await run_runtime_call(
+            runtime=self._runtime,
+            operation=operation,
+        )
         runtime_origin = getattr(self._runtime, "runtime_origin", "unknown")
         fallback_active = 1 if getattr(self._runtime, "fallback_active", False) else 0
         capture_source = getattr(self._runtime, "capture_source", "unknown")

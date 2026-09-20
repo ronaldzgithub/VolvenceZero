@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 import hashlib
 import json
+import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -32,6 +35,7 @@ from volvence_zero.expression_output import (
 )
 from volvence_zero.substrate import (
     GenerationResult,
+    OpenWeightResidualStreamSubstrateAdapter,
     SubstrateFingerprint,
     SyntheticOpenWeightResidualRuntime,
 )
@@ -61,6 +65,46 @@ class _RecordingRuntime:
             character_prefix_wiring_level="disabled",
             conditioning_bank_carriers_applied=(),
         )
+
+
+class _BlockingSharedRuntime(_RecordingRuntime):
+    is_frozen = True
+    runtime_origin = "test"
+    fallback_active = False
+    capture_source = "blocking-test"
+
+    def __init__(self, *, delay_seconds: float) -> None:
+        super().__init__()
+        self._delay_seconds = delay_seconds
+        self._delegate = SyntheticOpenWeightResidualRuntime(model_id=self.model_id)
+        self._state_lock = threading.Lock()
+        self.active = 0
+        self.max_active = 0
+
+    def _enter(self) -> None:
+        with self._state_lock:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+
+    def _exit(self) -> None:
+        with self._state_lock:
+            self.active -= 1
+
+    def capture(self, *, source_text: str):
+        self._enter()
+        try:
+            time.sleep(self._delay_seconds)
+            return self._delegate.capture(source_text=source_text)
+        finally:
+            self._exit()
+
+    def generate(self, **kwargs: Any) -> SimpleNamespace:
+        self._enter()
+        try:
+            time.sleep(self._delay_seconds)
+            return super().generate(**kwargs)
+        finally:
+            self._exit()
 
 
 def _context() -> ResponseContext:
@@ -121,6 +165,33 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert runtime.calls
     assert runtime.calls[0]["capture_residuals"] is False
     assert runtime.calls[0]["stop_after_complete_json_object"] is False
+
+
+async def test_capture_and_two_session_generation_share_serial_runtime_gate() -> None:
+    runtime = _BlockingSharedRuntime(delay_seconds=0.08)
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+    first_session = LLMResponseSynthesizer(runtime=runtime)
+    second_session = LLMResponseSynthesizer(runtime=runtime)
+    started = time.perf_counter()
+    ticked_at = 0.0
+
+    async def event_loop_tick() -> None:
+        nonlocal ticked_at
+        await asyncio.sleep(0.02)
+        ticked_at = time.perf_counter()
+
+    capture, first, second, _tick = await asyncio.gather(
+        adapter.capture(source_text="capture"),
+        first_session.synthesize_async(context=_context(), assembly=_assembly()),
+        second_session.synthesize_async(context=_context(), assembly=_assembly()),
+        event_loop_tick(),
+    )
+
+    assert capture.model_id == runtime.model_id
+    assert first.text == second.text == "hello"
+    assert runtime.max_active == 1
+    assert len(runtime.calls) == 2
+    assert 0.0 < ticked_at - started < 0.07
 
 
 def _intent_output_contract(*, exact_action: bool = False) -> ExpressionOutputContract:

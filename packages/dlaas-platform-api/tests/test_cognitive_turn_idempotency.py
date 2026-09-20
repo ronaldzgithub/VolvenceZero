@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 import json
+import time
 from typing import Any
 
 from aiohttp import web
@@ -17,6 +18,31 @@ from dlaas_platform_registry import (
     CognitiveTurnLedgerTransitionError,
     Registry,
 )
+from volvence_zero.substrate import (
+    OpenWeightResidualStreamSubstrateAdapter,
+    SyntheticOpenWeightResidualRuntime,
+)
+
+
+class _BlockingCaptureRuntime:
+    model_id = "blocking-capture-runtime"
+    is_frozen = True
+    runtime_origin = "test"
+    fallback_active = False
+    capture_source = "blocking-test"
+
+    def __init__(self, *, delay_seconds: float, failure: Exception | None = None) -> None:
+        self._delegate = SyntheticOpenWeightResidualRuntime(model_id=self.model_id)
+        self._delay_seconds = delay_seconds
+        self._failure = failure
+        self.calls = 0
+
+    def capture(self, *, source_text: str):
+        self.calls += 1
+        time.sleep(self._delay_seconds)
+        if self._failure is not None:
+            raise self._failure
+        return self._delegate.capture(source_text=source_text)
 
 
 def _payload(*, perception: str = "I saw the traveller cut the rope.") -> dict[str, Any]:
@@ -154,6 +180,91 @@ async def test_active_lease_returns_in_progress_while_heartbeat_runs(
     assert _json(concurrent)["error"] == "cognitive_turn_in_progress"
     assert (await first_task).status == 200
     assert run_turn_calls == 1
+
+
+async def test_blocking_capture_is_offloaded_while_heartbeat_completes_and_replays(
+    monkeypatch,
+) -> None:
+    store = CognitiveTurnLedgerStore(Registry(), lease_ms=60)
+    request = _request(store)
+    runtime = _BlockingCaptureRuntime(delay_seconds=0.22)
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+    heartbeat_count = 0
+    original_refresh = store.refresh_lease
+
+    async def counted_refresh(**kwargs):
+        nonlocal heartbeat_count
+        heartbeat_count += 1
+        return await original_refresh(**kwargs)
+
+    async def blocking_dispatch(*_args, **_kwargs):
+        await adapter.capture(source_text="a scene event that blocks inference")
+        return web.json_response({"status": "ok"})
+
+    monkeypatch.setattr(store, "refresh_lease", counted_refresh)
+    monkeypatch.setattr(app_module, "_dispatch_envelope_to_instance", blocking_dispatch)
+    first = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-blocking-capture",
+    )
+    replay = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-blocking-capture",
+    )
+
+    record = store.get(
+        contract_id="contract-1",
+        ai_id="ai-qiao",
+        idempotency_key="turn-blocking-capture",
+    )
+    assert first.status == replay.status == 200
+    assert replay.headers["Idempotency-Replayed"] == "true"
+    assert heartbeat_count >= 2
+    assert runtime.calls == 1
+    assert record is not None
+    assert record.status.value == "COMPLETED"
+    assert record.lease_expires_at_ms - record.created_at_ms > 60
+
+
+async def test_offloaded_capture_exception_is_unknown_logs_type_and_never_retries(
+    monkeypatch,
+    caplog,
+) -> None:
+    store = CognitiveTurnLedgerStore(Registry(), lease_ms=60)
+    request = _request(store)
+    runtime = _BlockingCaptureRuntime(
+        delay_seconds=0.08,
+        failure=RuntimeError("provider-secret=must-not-enter-log"),
+    )
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+
+    async def failed_dispatch(*_args, **_kwargs):
+        await adapter.capture(source_text="failing scene event")
+        raise AssertionError("capture failure should have propagated")
+
+    monkeypatch.setattr(app_module, "_dispatch_envelope_to_instance", failed_dispatch)
+    first = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-offloaded-exception",
+    )
+    retry = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-offloaded-exception",
+    )
+
+    assert first.status == retry.status == 409
+    assert _json(first)["unknown_reason"] == "dispatch_exception_or_lease_failure"
+    assert runtime.calls == 1
+    assert "cause_type=RuntimeError" in caplog.text
+    assert "provider-secret" not in caplog.text
 
 
 async def test_exception_is_immediately_unknown_and_retry_never_runs_turn(

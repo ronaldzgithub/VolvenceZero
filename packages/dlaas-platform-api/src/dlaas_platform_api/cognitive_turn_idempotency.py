@@ -153,7 +153,12 @@ async def dispatch_keyed_cognitive_turn(
             store=store,
             reservation=reservation.record,
         )
-    except Exception:  # request boundary: convert to a durable UNKNOWN receipt
+    except Exception as exc:  # request boundary: convert to a durable UNKNOWN receipt
+        cause = exc.__cause__ if exc.__cause__ is not None else exc
+        _LOG.error(
+            "cognitive-turn dispatch or lease heartbeat failed; cause_type=%s",
+            type(cause).__name__,
+        )
         return await _outcome_unknown_response(
             store=store,
             reservation=reservation.record,

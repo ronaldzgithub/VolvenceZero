@@ -1122,6 +1122,7 @@ class AgentSessionRunner(
         self._last_rare_heavy_import_checkpoint: RareHeavyImportCheckpoint | None = None
         self._context_index = 1
         self._completed_session_reports: list[EvaluationReport] = []
+        self._turn_lock = asyncio.Lock()
         self._session_post_lock = asyncio.Lock()
         self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
         self._session_post_module = SessionPostSlowLoopModule(
@@ -1743,6 +1744,26 @@ class AgentSessionRunner(
         cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
+        """Run one complete turn without interleaving this session's state."""
+
+        async with self._turn_lock:
+            return await self._run_turn_serialized(
+                user_input,
+                environment_event=environment_event,
+                apprenticeship_turn=apprenticeship_turn,
+                cognition_task_contract=cognition_task_contract,
+                expression_output_contract=expression_output_contract,
+            )
+
+    async def _run_turn_serialized(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
+        cognition_task_contract: CognitionTaskContract | None = None,
+        expression_output_contract: ExpressionOutputContract | None = None,
+    ) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
         self._session_post_queue.schedule()
         async with self._session_post_lock:
@@ -2035,7 +2056,7 @@ class AgentSessionRunner(
                 integration_result=integration_result,
             )
         self._session_post_queue.schedule()
-        return self._to_turn_result(
+        return await self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
             environment_event=environment_event,
