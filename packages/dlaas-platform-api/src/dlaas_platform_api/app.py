@@ -4014,10 +4014,36 @@ async def _dispatch_envelope_to_instance(
             error="session_template_binding_mismatch",
             detail=str(exc),
         )
-    except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
-        return _json_error(
-            status=409, error="session_already_exists", detail=str(exc)
-        )
+    except SessionAlreadyExistsError:
+        # A concurrent first turn for this same session joined the manager's
+        # single-flight creation and observed its commit. Cognitive dispatch
+        # is get-or-create, so re-read once and re-apply both sticky guards;
+        # the explicit session-create route keeps its distinct 201/200 logic.
+        try:
+            session = await _get_or_create_session(
+                manager,
+                envelope.session_id,
+                user_id=envelope.end_user_ref,
+                template_binding=template_binding,
+            )
+        except _SessionEndUserMismatch as exc:
+            return _json_error(
+                status=409,
+                error="session_end_user_mismatch",
+                detail=str(exc),
+            )
+        except SessionTemplateBindingMismatchError as exc:
+            return _json_error(
+                status=409,
+                error="session_template_binding_mismatch",
+                detail=str(exc),
+            )
+        except SessionAlreadyExistsError as exc:  # pragma: no cover - churn
+            return _json_error(
+                status=409,
+                error="session_already_exists",
+                detail=str(exc),
+            )
     except SessionNotFoundError as exc:  # pragma: no cover - get-or-create
         return _json_error(
             status=404, error="session_not_found", detail=str(exc)

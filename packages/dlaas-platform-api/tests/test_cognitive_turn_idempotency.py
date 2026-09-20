@@ -18,6 +18,7 @@ from dlaas_platform_registry import (
     CognitiveTurnLedgerTransitionError,
     Registry,
 )
+from lifeform_service import SessionManager
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
     SyntheticOpenWeightResidualRuntime,
@@ -43,6 +44,21 @@ class _BlockingCaptureRuntime:
         if self._failure is not None:
             raise self._failure
         return self._delegate.capture(source_text=source_text)
+
+
+class _BlockingSessionLifeform:
+    def __init__(self, *, session_delay_seconds: float) -> None:
+        self._session_delay_seconds = session_delay_seconds
+
+    async def start(self) -> None:
+        return None
+
+    async def shutdown(self) -> None:
+        return None
+
+    def create_session(self, *, session_id: str) -> object:
+        time.sleep(self._session_delay_seconds)
+        return object()
 
 
 def _payload(*, perception: str = "I saw the traveller cut the rope.") -> dict[str, Any]:
@@ -228,6 +244,72 @@ async def test_blocking_capture_is_offloaded_while_heartbeat_completes_and_repla
     assert record is not None
     assert record.status.value == "COMPLETED"
     assert record.lease_expires_at_ms - record.created_at_ms > 60
+
+
+async def test_fresh_session_construction_keeps_ledger_heartbeat_alive(
+    monkeypatch,
+) -> None:
+    store = CognitiveTurnLedgerStore(Registry(), lease_ms=60)
+    request = _request(store)
+    heartbeat_count = 0
+    factory_calls = 0
+    original_refresh = store.refresh_lease
+
+    def blocking_factory(_runtime) -> _BlockingSessionLifeform:
+        nonlocal factory_calls
+        factory_calls += 1
+        time.sleep(0.12)
+        return _BlockingSessionLifeform(session_delay_seconds=0.12)
+
+    manager = SessionManager(
+        lifeform_factory=blocking_factory,
+        vertical_name="blocking-test",
+        idle_eviction_seconds=None,
+    )
+
+    async def counted_refresh(**kwargs):
+        nonlocal heartbeat_count
+        heartbeat_count += 1
+        return await original_refresh(**kwargs)
+
+    async def dispatch_with_fresh_session(*_args, **_kwargs):
+        await app_module._get_or_create_session(
+            manager,
+            "fresh-cognitive-session",
+            user_id="player-1",
+        )
+        return web.json_response({"status": "ok"})
+
+    monkeypatch.setattr(store, "refresh_lease", counted_refresh)
+    monkeypatch.setattr(
+        app_module,
+        "_dispatch_envelope_to_instance",
+        dispatch_with_fresh_session,
+    )
+    first = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-fresh-session",
+    )
+    replay = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-fresh-session",
+    )
+
+    record = store.get(
+        contract_id="contract-1",
+        ai_id="ai-qiao",
+        idempotency_key="turn-fresh-session",
+    )
+    assert first.status == replay.status == 200
+    assert replay.headers["Idempotency-Replayed"] == "true"
+    assert heartbeat_count >= 2
+    assert factory_calls == 1
+    assert record is not None
+    assert record.status.value == "COMPLETED"
 
 
 async def test_offloaded_capture_exception_is_unknown_logs_type_and_never_retries(

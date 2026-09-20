@@ -201,12 +201,12 @@ class VerticalTemplateAdapter(Protocol):
     template support leave that field ``None``; the service then
     advertises ``templates_supported=False`` and refuses save calls.
 
-    All four methods are synchronous on purpose — they run on the
-    aiohttp event loop and the underlying I/O (JSON file read /
-    write, MemoryStore checkpoint) is fast enough that switching to
-    async would just add complexity. If a vertical's loader becomes
-    expensive, route the heavy work through ``run_in_executor`` at
-    the implementation level rather than changing this Protocol.
+    All four methods are synchronous on purpose so implementations keep a
+    simple filesystem/checkpoint contract. ``SessionManager`` executes the
+    session-building methods in a worker thread: template verification,
+    rebirth, and memory hydration must never block the aiohttp event loop.
+    Callers outside ``SessionManager`` must provide the same async boundary
+    when invoking an expensive loader.
     """
 
     def list_templates(self, root_dir: Path) -> tuple[TemplateMetadata, ...]:

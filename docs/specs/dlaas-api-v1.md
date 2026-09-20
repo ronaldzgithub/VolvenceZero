@@ -226,6 +226,15 @@ unexpired-lease CAS. A completed 2xx or deterministic 4xx response is stored
 verbatim and replayed with `Idempotency-Replayed: true` without another
 `run_turn`.
 
+Fresh-session template verification, lifeform rebirth, BrainSession creation,
+and scoped-memory hydration are synchronous owner operations executed outside
+the aiohttp event loop. Their duration is covered by the same reserved-turn
+heartbeat; implementations must not compensate for event-loop starvation by
+lengthening the cognitive-turn lease. Session creation is a manager-owned
+single flight: cancelling one HTTP waiter cannot cancel the underlying build,
+and a concurrent cognitive turn reuses the committed session only after the
+same end-user and content-addressed template guards pass.
+
 An expired lease, dispatch/provider exception, upstream 5xx, non-JSON or
 otherwise unrecordable response, or completion CAS failure is never retried.
 After the parent durably writes `OUTCOME_UNKNOWN`, the first affected request

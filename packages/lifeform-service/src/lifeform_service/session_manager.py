@@ -21,11 +21,12 @@ Eviction:
   session that has been idle longer than the threshold is closed.
 
 Thread / async safety: all methods are ``async`` and hold an internal
-``asyncio.Lock`` while mutating ``_sessions``. The substrate runtime
-itself is consumed under the asyncio event loop's single-thread
-guarantee \u2014 ``runtime.generate(...)`` is sync and blocks the loop, so
-concurrent sessions naturally serialise. Do NOT run ``run_in_executor``
-on the runtime without re-introducing a ``threading.Lock`` here.
+``asyncio.Lock`` while mutating ``_sessions``. Synchronous lifeform/template
+construction and BrainSession hydration run in a worker thread so a fresh
+session cannot starve request heartbeats. The manager lock stays held across
+that construction, preserving the existing single-creator and capacity
+semantics for one manager. Substrate capture/generation has its own runtime
+execution gate and is not governed by this manager lock.
 
 Serial-decode assumption (backend-specific): the above holds for the
 ``TransformersOpenWeightResidualRuntime`` (one blocking decode + one
@@ -66,7 +67,10 @@ from lifeform_service.templates import (
     TemplateContext,
     VerticalTemplateAdapter,
 )
-from lifeform_service.character_packages import CharacterRuntimeAssets
+from lifeform_service.character_packages import (
+    CharacterRuntimeAssets,
+    CharacterSessionBinding,
+)
 from lifeform_service.default_mcp_bundle import with_default_mcp_bundle
 from lifeform_service.plugin_attach import (
     apply_contract_policy_for_plugins,
@@ -316,6 +320,7 @@ class SessionManager:
         self._substrate_provider = substrate_provider
         self._character_runtime_assets = character_runtime_assets
         self._sessions: dict[str, _SessionEntry] = {}
+        self._pending_creations: dict[str, asyncio.Task[LifeformSession]] = {}
         self._lock = asyncio.Lock()
         # Tenant + memory scope strategy (DLaaS adopt). ``tenant_id`` is
         # the adopting tenant; ``scope_strategy`` (e.g.
@@ -971,10 +976,88 @@ class SessionManager:
             raise MemoryScopeExportError(str(exc)) from exc
         return exported.to_json() if exported is not None else None
 
+    @staticmethod
+    def _observe_pending_creation(task: asyncio.Task[LifeformSession]) -> None:
+        """Retrieve detached task failures after a caller cancellation."""
+
+        if not task.cancelled():
+            task.exception()
+
     async def create_session(
         self,
         *,
         session_id: str | None = None,
+        user_id: str | None = None,
+        template_id: str | None = None,
+        template_binding: ContentAddressedTemplateBinding | None = None,
+        vertical_name: str | None = None,
+        character_id: str | None = None,
+        tenant_id: str | None = None,
+    ) -> LifeformSession:
+        """Create one session through a manager-owned, cancellation-safe task.
+
+        The internal task outlives a cancelled HTTP waiter. Concurrent callers
+        for the same id join that single flight and then receive the public
+        ``SessionAlreadyExistsError`` create semantic once it commits.
+        """
+
+        sid = session_id or self._fresh_session_id()
+        owns_creation = False
+        async with self._lock:
+            if sid in self._sessions:
+                raise SessionAlreadyExistsError(sid)
+            creation = self._pending_creations.get(sid)
+            if creation is None:
+                creation = asyncio.create_task(
+                    self._run_pending_session_creation(
+                        session_id=sid,
+                        user_id=user_id,
+                        template_id=template_id,
+                        template_binding=template_binding,
+                        vertical_name=vertical_name,
+                        character_id=character_id,
+                        tenant_id=tenant_id,
+                    )
+                )
+                creation.add_done_callback(self._observe_pending_creation)
+                self._pending_creations[sid] = creation
+                owns_creation = True
+        session = await asyncio.shield(creation)
+        if not owns_creation:
+            raise SessionAlreadyExistsError(sid)
+        return session
+
+    async def _run_pending_session_creation(
+        self,
+        *,
+        session_id: str,
+        user_id: str | None,
+        template_id: str | None,
+        template_binding: ContentAddressedTemplateBinding | None,
+        vertical_name: str | None,
+        character_id: str | None,
+        tenant_id: str | None,
+    ) -> LifeformSession:
+        current = asyncio.current_task()
+        try:
+            return await self._create_session_owned(
+                session_id=session_id,
+                user_id=user_id,
+                template_id=template_id,
+                template_binding=template_binding,
+                vertical_name=vertical_name,
+                character_id=character_id,
+                tenant_id=tenant_id,
+            )
+        finally:
+            async with self._lock:
+                if self._pending_creations.get(session_id) is current:
+                    self._pending_creations.pop(session_id)
+
+    async def _create_session_owned(
+        self,
+        *,
+        session_id: str,
         user_id: str | None = None,
         template_id: str | None = None,
         template_binding: ContentAddressedTemplateBinding | None = None,
@@ -1015,7 +1098,7 @@ class SessionManager:
                 *self._evict_lru_to_capacity_locked(needed=1),
             )
 
-            sid = session_id or self._fresh_session_id()
+            sid = session_id
             if sid in self._sessions:
                 raise SessionAlreadyExistsError(sid)
 
@@ -1144,29 +1227,38 @@ class SessionManager:
                             f"vertical {chosen_name!r} legacy template root is "
                             "not the novel-worlds namespace"
                         )
-                    template_path = template_binding.resolve_under(
+                    template_path = await asyncio.to_thread(
+                        template_binding.resolve_under,
                         self._templates_root_dir,
                         mounted_namespace="novel-worlds",
                     )
                 else:
                     expected_vertical_dir = self._templates_root_dir / "novel-worlds"
-                    if adapter_dir.resolve() != expected_vertical_dir.resolve():
+                    resolved_adapter_dir, resolved_expected_vertical_dir = (
+                        await asyncio.to_thread(
+                            lambda: (
+                                adapter_dir.resolve(),
+                                expected_vertical_dir.resolve(),
+                            )
+                        )
+                    )
+                    if resolved_adapter_dir != resolved_expected_vertical_dir:
                         raise TemplatesNotSupportedError(
                             f"vertical {chosen_name!r} is not bound to the "
                             "novel-worlds template namespace"
                         )
-                    template_path = template_binding.resolve_under(
-                        self._templates_root_dir
+                    template_path = await asyncio.to_thread(
+                        template_binding.resolve_under,
+                        self._templates_root_dir,
                     )
-                life, template_context = (
-                    adapter.build_session_context_from_content_addressed_template(
-                        template_path=template_path,
-                        binding=template_binding,
-                        runtime=runtime,
-                        identity_provider=identity_provider,
-                        memory_scope_root_dir=self._alpha_memory_scope_root_dir,
-                        alpha_enabled=alpha_enabled,
-                    )
+                life, template_context = await asyncio.to_thread(
+                    adapter.build_session_context_from_content_addressed_template,
+                    template_path=template_path,
+                    binding=template_binding,
+                    runtime=runtime,
+                    identity_provider=identity_provider,
+                    memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                    alpha_enabled=alpha_enabled,
                 )
             elif character_binding is not None:
                 if template_id is not None and template_id.strip():
@@ -1179,14 +1271,13 @@ class SessionManager:
                         f"vertical {chosen_name!r} cannot load character package "
                         "templates."
                     )
-                life, template_context = (
-                    adapter.build_session_context_from_package_template(
-                        template_path=character_binding.template_path,
-                        runtime=runtime,
-                        identity_provider=identity_provider,
-                        memory_scope_root_dir=self._alpha_memory_scope_root_dir,
-                        alpha_enabled=alpha_enabled,
-                    )
+                life, template_context = await asyncio.to_thread(
+                    adapter.build_session_context_from_package_template,
+                    template_path=character_binding.template_path,
+                    runtime=runtime,
+                    identity_provider=identity_provider,
+                    memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                    alpha_enabled=alpha_enabled,
                 )
             elif template_id is not None and template_id.strip():
                 if adapter is None or adapter_dir is None:
@@ -1194,7 +1285,8 @@ class SessionManager:
                         f"vertical {chosen_name!r} does not support "
                         "templates (no adapter or no templates_root_dir)"
                     )
-                life, template_context = adapter.build_session_context_from_template(
+                life, template_context = await asyncio.to_thread(
+                    adapter.build_session_context_from_template,
                     root_dir=adapter_dir,
                     template_id=template_id.strip(),
                     runtime=runtime,
@@ -1206,7 +1298,8 @@ class SessionManager:
                 # Adapter-aware default path so save-as-template can capture
                 # this session even though it started from the vertical
                 # default profile.
-                life, template_context = adapter.build_default_session_context(
+                life, template_context = await asyncio.to_thread(
+                    adapter.build_default_session_context,
                     runtime=runtime,
                     identity_provider=identity_provider,
                     memory_scope_root_dir=self._alpha_memory_scope_root_dir,
@@ -1217,69 +1310,20 @@ class SessionManager:
                     raise VerticalNotAlphaCapableError(
                         f"vertical {chosen_name!r} has no alpha_factory"
                     )
-                life = chosen_spec.alpha_factory(
+                life = await asyncio.to_thread(
+                    chosen_spec.alpha_factory,
                     runtime,
                     self._alpha_identity_provider,
                     self._alpha_memory_scope_root_dir,
                 )
             else:
-                life = chosen_spec.factory(runtime)
-            if self._attach_default_mcp_bundle:
-                life = with_default_mcp_bundle(life)
-            if self._contract_plugins:
-                life = apply_plugins_to_lifeform_config(
-                    life, self._contract_plugins
-                )
-            life = self._inject_uptake_seed_protocols(life)
-            if bound_character_id:
-                lora_pool = (
-                    self._character_runtime_assets.character_lora_pool
-                    if character_binding is not None
-                    and self._character_runtime_assets is not None
-                    else None
-                )
-                life.bind_character_package(
-                    character_id=bound_character_id,
-                    lora_pool=lora_pool,
-                )
-            if self._figure_bundle is not None:
-                bind = getattr(life, "bind_figure_bundle", None)
-                if callable(bind):
-                    bind(self._figure_bundle)
-            if not self._persona_lora_enabled:
-                set_policy = getattr(life, "set_persona_lora_enabled", None)
-                if callable(set_policy):
-                    set_policy(False)
-            if self._persona_lora_pool is not None:
-                set_pool = getattr(life, "set_persona_lora_pool", None)
-                if callable(set_pool):
-                    set_pool(self._persona_lora_pool)
-            await life.start()
-            if self._contract_plugins:
-                instance_headers: dict[str, str] = {}
-                if self._instance_ai_id:
-                    instance_headers["X-DLaaS-AI-ID"] = self._instance_ai_id
-                if sid:
-                    instance_headers["X-DLaaS-Session-ID"] = sid
-                register_http_plugins_after_start(
-                    life,
-                    self._contract_plugins,
-                    instance_headers=instance_headers or None,
-                )
-            contract_ids = [self._contract_id] if self._contract_id else []
-            if self._contract_id and self._contract_id != "digital-employee":
-                # The digital-employee BFF still sends the stable
-                # compatibility contract_id on runtime envelopes while
-                # adopt stores the generated platform contract_id.
-                contract_ids.append("digital-employee")
-            for contract_id in contract_ids:
-                apply_contract_policy_for_plugins(
-                    life,
-                    contract_id=contract_id,
-                    plugins=self._contract_plugins,
-                    tool_policy_snapshot=self._tool_policy_snapshot,
-                )
-            session = life.create_session(session_id=sid)
+                life = await asyncio.to_thread(chosen_spec.factory, runtime)
+            life, session = await self._materialize_lifeform_session(
+                life=life,
+                session_id=sid,
+                bound_character_id=bound_character_id,
+                character_binding=character_binding,
+            )
             self._sessions[sid] = _SessionEntry(
                 session=session,
                 lifeform=life,
@@ -1493,6 +1537,84 @@ class SessionManager:
         )
         self._time_nodes[node_id] = node
         return node
+
+    async def _materialize_lifeform_session(
+        self,
+        *,
+        life: Lifeform,
+        session_id: str,
+        bound_character_id: str,
+        character_binding: CharacterSessionBinding | None,
+    ) -> tuple[Lifeform, LifeformSession]:
+        """Finish one built lifeform and clean it up on every failed path."""
+
+        try:
+            if self._attach_default_mcp_bundle:
+                life = with_default_mcp_bundle(life)
+            if self._contract_plugins:
+                life = apply_plugins_to_lifeform_config(
+                    life, self._contract_plugins
+                )
+            life = await asyncio.to_thread(self._inject_uptake_seed_protocols, life)
+            if bound_character_id:
+                lora_pool = (
+                    self._character_runtime_assets.character_lora_pool
+                    if character_binding is not None
+                    and self._character_runtime_assets is not None
+                    else None
+                )
+                life.bind_character_package(
+                    character_id=bound_character_id,
+                    lora_pool=lora_pool,
+                )
+            if self._figure_bundle is not None:
+                bind = getattr(life, "bind_figure_bundle", None)
+                if callable(bind):
+                    bind(self._figure_bundle)
+            if not self._persona_lora_enabled:
+                set_policy = getattr(life, "set_persona_lora_enabled", None)
+                if callable(set_policy):
+                    set_policy(False)
+            if self._persona_lora_pool is not None:
+                set_pool = getattr(life, "set_persona_lora_pool", None)
+                if callable(set_pool):
+                    set_pool(self._persona_lora_pool)
+            await life.start()
+            if self._contract_plugins:
+                instance_headers: dict[str, str] = {}
+                if self._instance_ai_id:
+                    instance_headers["X-DLaaS-AI-ID"] = self._instance_ai_id
+                if session_id:
+                    instance_headers["X-DLaaS-Session-ID"] = session_id
+                register_http_plugins_after_start(
+                    life,
+                    self._contract_plugins,
+                    instance_headers=instance_headers or None,
+                )
+            contract_ids = [self._contract_id] if self._contract_id else []
+            if self._contract_id and self._contract_id != "digital-employee":
+                # The digital-employee BFF still sends the stable
+                # compatibility contract_id on runtime envelopes while
+                # adopt stores the generated platform contract_id.
+                contract_ids.append("digital-employee")
+            for contract_id in contract_ids:
+                apply_contract_policy_for_plugins(
+                    life,
+                    contract_id=contract_id,
+                    plugins=self._contract_plugins,
+                    tool_policy_snapshot=self._tool_policy_snapshot,
+                )
+            # BrainSession construction can restore and seed a scoped memory
+            # checkpoint. Keep that synchronous owner I/O off the service
+            # event loop just like template rebirth above.
+            session = await asyncio.to_thread(
+                life.create_session,
+                session_id=session_id,
+            )
+            return life, session
+        except BaseException:
+            await life.shutdown()
+            raise
 
     def _inject_uptake_seed_protocols(self, life: Lifeform) -> Lifeform:
         """Append uptake-approved seed protocols onto ``life``.
