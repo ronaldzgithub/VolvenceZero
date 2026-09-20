@@ -21,6 +21,7 @@ from dlaas_platform_launcher.instance_manager import (
     InstanceNotFound,
 )
 from dlaas_platform_launcher.launcher_protocol import (
+    DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     InteractionForwardingLauncherProtocol,
     LauncherProtocol,
@@ -46,6 +47,7 @@ __all__ = (
     "INSTANCE_MANAGER_APP_KEY",
     "InstanceManager",
     "InstanceNotFound",
+    "DataExportForwardingLauncherProtocol",
     "ExplicitSessionForwardingLauncherProtocol",
     "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",

@@ -240,6 +240,7 @@ to smuggle a context request through `human_brief` or `structured_context`:
 
 ```http
 POST /dlaas/v1/instances/{ai_id}/sessions
+GET  /dlaas/v1/instances/{ai_id}/sessions/{session_id}
 POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/context-packs
 POST /dlaas/v1/instances/{ai_id}/sessions/{session_id}/brain/outcomes
 ```
@@ -259,6 +260,13 @@ session_end_user_mismatch`. Brain calls never create a missing session. The
 adopted instance fixes the session vertical once; callers cannot override it
 on each Brain request.
 
+The read-only session-state GET returns the live owner state without creating a
+session. In addition to `open_scene_id`, it publishes
+`memory_checkpoint_receipt` verbatim from
+`LifeformSession.latest_memory_checkpoint_receipt.to_json()`; the field is
+`null` when the owner has not yet published a save/load receipt. DLaaS never
+reads checkpoint files or reconstructs this proof.
+
 Request/report schemas and evidence/authority rules remain owned by
 [`coding-brain.md`](./coding-brain.md),
 [`venture-brain.md`](./venture-brain.md) and
@@ -277,6 +285,37 @@ explicitly and never falls back to a parent-local session.
 The Operations-specific paths and `forward_operations_request()` remain
 compatibility aliases for existing AutoCompany deployments. New integrations
 use `/brain/*` and `forward_brain_request()`.
+
+## Scoped Runtime Memory Export
+
+```http
+POST /dlaas/v1/instances/{ai_id}/data/export
+```
+
+The request requires a non-empty `end_user_ref`; `scopes` must include
+`"runtime"`. The target `SessionManager` reconstructs the same single- or
+two-layer identity and uses the same per-instance memory root/backend selection
+as its sessions. No live session is required and a missing scope is not created.
+
+On success the response contains `memory_export` with the Memory owner's exact
+persisted checkpoint bytes in base64 and its verbatim export receipt
+(`sha256`, checkpoint version, entry count and durability). Only
+`durability=restart_durable` is accepted; process-local/unknown persistence is
+`409`, missing scope is `404`, missing durable configuration is `503`, and
+corrupt/non-canonical owner state fails loudly. `DataExportJob` records
+`requested_scopes`, `exported_scopes`, `delivery=inline`, and the receipt only;
+governance/audit never persist the checkpoint payload. Requests that also name
+`platform` currently retain the completed runtime job `status`, but publish
+`request_status=partial`, `complete=false`, `exported_scopes=["runtime"]` and an
+explicit `unexported_scopes` list rather than pretending platform-owned data was
+exported.
+
+In multi-pod mode the parent forwards `(ai_id, end_user_ref)` over the pod-only
+`/internal/.../data/export-memory` route to the pod that owns the instance. The
+pod publishes only the Memory owner payload; the parent remains the sole job,
+audit and usage writer. This endpoint is export-only: it does not share or alter
+the independent delete path, and Accounts remains a consumer rather than a
+memory owner.
 
 ## Adoption Contract
 

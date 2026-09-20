@@ -110,6 +110,23 @@ class RemoteInstanceManager:
             )
         return status, body
 
+    async def forward_data_export(
+        self,
+        *,
+        ai_id: str,
+        end_user_ref: str,
+    ) -> tuple[int, dict]:
+        """Use the pod-only route and preserve owner HTTP status/body."""
+
+        return await self._transport(
+            "POST",
+            (
+                f"{self._base_url}/internal/dlaas/instances/"
+                f"{quote(ai_id, safe='')}/data/export-memory"
+            ),
+            {"end_user_ref": end_user_ref},
+        )
+
     async def forward_session_create(
         self,
         *,

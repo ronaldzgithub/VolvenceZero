@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from dlaas_platform_launcher.launcher_protocol import (
+    DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     OperationsForwardingLauncherProtocol,
     SessionStateForwardingLauncherProtocol,
@@ -155,6 +156,25 @@ class MultiPodLauncher:
             )
         self._router.record_interaction(ai_id)
         return await forward(ai_id=ai_id, envelope=envelope)
+
+    async def forward_data_export(
+        self,
+        *,
+        ai_id: str,
+        end_user_ref: str,
+    ) -> tuple[int, dict[str, Any]]:
+        """Export Memory from the pod that owns the target ``ai_id``."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, DataExportForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support data export forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await manager.forward_data_export(
+            ai_id=ai_id,
+            end_user_ref=end_user_ref,
+        )
 
     async def forward_session_create(
         self,

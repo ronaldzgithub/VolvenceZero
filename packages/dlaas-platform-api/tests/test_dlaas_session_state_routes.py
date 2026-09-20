@@ -12,6 +12,16 @@ from lifeform_service.session_manager import SessionNotFoundError
 from lifeform_service.verticals import _try_coding
 
 
+class _Receipt:
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_id": "volvence.memory.checkpoint-persistence-receipt",
+            "schema_version": 1,
+            "operation": "load",
+            "durability": "restart_durable",
+        }
+
+
 class _ReadOnlySessionManager:
     def __init__(self, sessions: dict[str, object]) -> None:
         self.sessions = sessions
@@ -45,7 +55,8 @@ async def test_session_state_returns_the_kernel_owned_open_scene() -> None:
     manager = _ReadOnlySessionManager(
         {
             "session-1": SimpleNamespace(
-                open_scene=SimpleNamespace(scene_id="scene-00023")
+                open_scene=SimpleNamespace(scene_id="scene-00023"),
+                latest_memory_checkpoint_receipt=_Receipt(),
             )
         }
     )
@@ -64,6 +75,7 @@ async def test_session_state_returns_the_kernel_owned_open_scene() -> None:
             "vertical": "character",
             "exists": True,
             "open_scene_id": "scene-00023",
+            "memory_checkpoint_receipt": _Receipt().to_json(),
         }
         assert manager.reads == ["session-1"]
         assert manager.create_calls == 0
@@ -94,13 +106,19 @@ async def test_session_state_reads_a_real_lifeform_session_scene(monkeypatch) ->
         body = await response.json()
         assert response.status == 200
         assert body["open_scene_id"] == session.open_scene.scene_id
+        assert "memory_checkpoint_receipt" in body
     finally:
         await client.close()
 
 
 async def test_session_state_reports_no_open_scene_without_mutation() -> None:
     manager = _ReadOnlySessionManager(
-        {"session-1": SimpleNamespace(open_scene=None)}
+        {
+            "session-1": SimpleNamespace(
+                open_scene=None,
+                latest_memory_checkpoint_receipt=None,
+            )
+        }
     )
     client = TestClient(TestServer(_local_app(manager)))
     await client.start_server()
@@ -112,6 +130,7 @@ async def test_session_state_reports_no_open_scene_without_mutation() -> None:
         assert response.status == 200
         assert body["exists"] is True
         assert body["open_scene_id"] is None
+        assert body["memory_checkpoint_receipt"] is None
         assert manager.create_calls == 0
     finally:
         await client.close()
@@ -167,6 +186,7 @@ class _RemoteSessionStateLauncher:
             "vertical": "character",
             "exists": True,
             "open_scene_id": "scene-remote",
+            "memory_checkpoint_receipt": None,
         }
 
 

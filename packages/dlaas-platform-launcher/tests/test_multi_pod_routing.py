@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from dlaas_platform_launcher import (
+    DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     InstanceManager,
     InstanceNotFound,
@@ -35,6 +36,7 @@ def test_multi_pod_launcher_conforms_to_protocol() -> None:
     assert isinstance(launcher, OperationsForwardingLauncherProtocol)
     assert isinstance(launcher, VerticalBrainForwardingLauncherProtocol)
     assert isinstance(launcher, SceneEndReportForwardingLauncherProtocol)
+    assert isinstance(launcher, DataExportForwardingLauncherProtocol)
 
 
 # --- RemoteInstanceManager (fake transport) -------------------------
@@ -99,6 +101,22 @@ async def test_remote_scene_end_report_uses_internal_route_and_preserves_status(
     ) == (409, {"status": "error", "error": "deterministic"})
     assert transport.calls == [
         ("POST", url, {"human_brief": "x"}),
+    ]
+
+
+async def test_remote_data_export_uses_pod_only_route_and_preserves_status() -> None:
+    url = "http://pod/internal/dlaas/instances/ai_1/data/export-memory"
+    transport = _transport_recording(
+        {url: (409, {"status": "error", "error": "not_restart_durable"})}
+    )
+    proxy = RemoteInstanceManager(base_url="http://pod", transport=transport)
+    assert isinstance(proxy, DataExportForwardingLauncherProtocol)
+    assert await proxy.forward_data_export(
+        ai_id="ai_1",
+        end_user_ref="player-1",
+    ) == (409, {"status": "error", "error": "not_restart_durable"})
+    assert transport.calls == [
+        ("POST", url, {"end_user_ref": "player-1"}),
     ]
 
 
@@ -190,6 +208,7 @@ class _FakePodManager:
         self.sessions: list[str] = []
         self.session_state_reads: list[str] = []
         self.operations: list[tuple[str, str]] = []
+        self.exports: list[tuple[str, str]] = []
 
     async def acquire(self, *, ai_id, runtime_template_id, **kwargs):
         self.acquired.append(ai_id)
@@ -201,6 +220,10 @@ class _FakePodManager:
 
     async def forward_scene_end_report(self, *, ai_id, envelope):
         self.forwarded.append(f"report:{ai_id}")
+        return 200, {"pod": self.pod_id, "ai_id": ai_id}
+
+    async def forward_data_export(self, *, ai_id, end_user_ref):
+        self.exports.append((ai_id, end_user_ref))
         return 200, {"pod": self.pod_id, "ai_id": ai_id}
 
     async def forward_session_create(self, *, ai_id, payload):
@@ -291,6 +314,20 @@ async def test_scene_end_report_follows_sticky_pod_placement() -> None:
     assert body["pod"] == owner
     owning_fake = a if a.pod_id == owner else b
     assert owning_fake.forwarded == ["report:ai_1"]
+
+
+async def test_data_export_follows_sticky_pod_placement() -> None:
+    launcher, a, b = _launcher_two_pods()
+    await launcher.acquire(ai_id="ai_1", runtime_template_id="companion")
+    owner = launcher.router.resolve("ai_1").runtime_pod_id
+    status, body = await launcher.forward_data_export(
+        ai_id="ai_1",
+        end_user_ref="player-1",
+    )
+    assert status == 200
+    assert body["pod"] == owner
+    owning_fake = a if a.pod_id == owner else b
+    assert owning_fake.exports == [("ai_1", "player-1")]
 
 
 async def test_session_and_operations_follow_sticky_pod_placement() -> None:

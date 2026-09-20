@@ -80,6 +80,7 @@ from dlaas_platform_contracts import (
     WebhookSubscription,
 )
 from dlaas_platform_launcher import (
+    DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
@@ -129,6 +130,8 @@ from lifeform_service.brain_routes import (
 )
 from lifeform_service.session_manager import (
     InvalidTemporalForkError,
+    MemoryScopeExportError,
+    MemoryScopeNotConfiguredError,
     ScopeNotAuthorizedError,
     SessionAlreadyExistsError,
     SessionManager,
@@ -769,13 +772,53 @@ async def _handle_data_export(request: web.Request) -> web.Response:
     if isinstance(data, web.Response):
         return data
     contract_id = str(data.get("contract_id", "") or "")
-    end_user_ref = str(data.get("end_user_ref", "") or "")
+    end_user_ref_raw = data.get("end_user_ref")
+    if not isinstance(end_user_ref_raw, str) or not end_user_ref_raw.strip():
+        return _json_error(
+            status=400,
+            error="invalid_end_user_ref",
+            detail="end_user_ref must be a non-empty string",
+        )
+    end_user_ref = end_user_ref_raw.strip()
+    scopes_raw = data.get("scopes", ("runtime",))
+    if not isinstance(scopes_raw, (list, tuple)) or not scopes_raw:
+        return _json_error(
+            status=400,
+            error="invalid_export_scopes",
+            detail="scopes must be a non-empty array of strings",
+        )
+    if any(not isinstance(scope, str) or not scope.strip() for scope in scopes_raw):
+        return _json_error(
+            status=400,
+            error="invalid_export_scopes",
+            detail="every export scope must be a non-empty string",
+        )
+    scopes = tuple(dict.fromkeys(scope.strip() for scope in scopes_raw))
+    if "runtime" not in scopes:
+        return _json_error(
+            status=422,
+            error="runtime_export_scope_required",
+            detail="this endpoint currently exports the scoped runtime Memory payload",
+        )
+
+    exported_or_response = await _dispatch_scoped_memory_export(
+        request,
+        ai_id=ai_id,
+        end_user_ref=end_user_ref,
+    )
+    if isinstance(exported_or_response, web.Response):
+        return exported_or_response
+    memory_export = exported_or_response
+    receipt = memory_export["receipt"]
     job = DataExportJob(
         job_id=_new_id("export"),
         ai_id=ai_id,
         contract_id=contract_id,
         end_user_ref=end_user_ref,
-        artifact_ref=f"artifact://data-export/{ai_id}/{end_user_ref or 'all'}",
+        requested_scopes=scopes,
+        exported_scopes=("runtime",),
+        delivery="inline",
+        export_receipt=receipt,
         created_at_ms=_now_ms(),
     )
     _data_export_store(request)[job.job_id] = job
@@ -788,7 +831,138 @@ async def _handle_data_export(request: web.Request) -> web.Response:
         payload=job.to_json(),
     )
     _record_usage(request, ai_id=ai_id, metric="data_export", quantity=1)
-    return web.json_response({"status": "ok", **job.to_json()}, status=201)
+    unexported_scopes = [scope for scope in scopes if scope != "runtime"]
+    return web.json_response(
+        {
+            "request_status": "partial" if unexported_scopes else "complete",
+            "complete": not unexported_scopes,
+            **job.to_json(),
+            "memory_export": memory_export,
+            "unexported_scopes": unexported_scopes,
+        },
+        status=201,
+    )
+
+
+def _validated_memory_export(
+    payload: object,
+    *,
+    invalid_status: int,
+) -> dict[str, Any] | web.Response:
+    if not isinstance(payload, dict):
+        return _json_error(
+            status=invalid_status,
+            error="memory_export_contract_invalid",
+            detail="Memory owner export must be a JSON object",
+        )
+    receipt = payload.get("receipt")
+    if (
+        payload.get("encoding") != "base64"
+        or not isinstance(payload.get("payload_base64"), str)
+        or not payload["payload_base64"]
+        or not isinstance(receipt, dict)
+        or receipt.get("operation") != "export"
+    ):
+        return _json_error(
+            status=invalid_status,
+            error="memory_export_contract_invalid",
+            detail="Memory owner export is missing payload or receipt fields",
+        )
+    if receipt.get("durability") != "restart_durable":
+        return _json_error(
+            status=409,
+            error="memory_export_not_restart_durable",
+            detail="scoped Memory export requires a restart-durable backend receipt",
+            extra={"export_receipt": receipt},
+        )
+    return payload
+
+
+async def _dispatch_scoped_memory_export(
+    request: web.Request,
+    *,
+    ai_id: str,
+    end_user_ref: str,
+) -> dict[str, Any] | web.Response:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, DataExportForwardingLauncherProtocol):
+        try:
+            status, body = await launcher.forward_data_export(
+                ai_id=ai_id,
+                end_user_ref=end_user_ref,
+            )
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(status=502, error="pod_forward_failed", detail=str(exc))
+        if status != 200:
+            return web.json_response(body, status=status)
+        exported = _validated_memory_export(
+            body.get("memory_export"),
+            invalid_status=502,
+        )
+        return exported
+    if isinstance(launcher, InteractionForwardingLauncherProtocol):
+        return _json_error(
+            status=501,
+            error="pod_data_export_forwarding_unavailable",
+            detail="the multi-pod launcher does not expose scoped data export forwarding",
+        )
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        exported = manager.export_persisted_memory_scope(end_user_ref)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except MemoryScopeNotConfiguredError as exc:
+        return _json_error(
+            status=503,
+            error="memory_scope_not_configured",
+            detail=str(exc),
+        )
+    except MemoryScopeExportError as exc:
+        return _json_error(
+            status=500,
+            error="memory_export_validation_failed",
+            detail=str(exc),
+        )
+    if exported is None:
+        return _json_error(
+            status=404,
+            error="memory_scope_not_found",
+            detail=(
+                f"no persisted Memory checkpoint exists for ai_id={ai_id!r} "
+                f"and end_user_ref={end_user_ref!r}"
+            ),
+        )
+    return _validated_memory_export(exported, invalid_status=500)
+
+
+async def _handle_trusted_data_export(request: web.Request) -> web.Response:
+    """Pod-only Memory export route; public job/audit remain parent-owned."""
+
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    end_user_ref = data.get("end_user_ref")
+    if not isinstance(end_user_ref, str) or not end_user_ref.strip():
+        return _json_error(
+            status=400,
+            error="invalid_end_user_ref",
+            detail="end_user_ref must be a non-empty string",
+        )
+    exported = await _dispatch_scoped_memory_export(
+        request,
+        ai_id=request.match_info.get("ai_id", ""),
+        end_user_ref=end_user_ref.strip(),
+    )
+    if isinstance(exported, web.Response):
+        return exported
+    return web.json_response({"status": "ok", "memory_export": exported})
 
 
 async def _handle_data_delete(request: web.Request) -> web.Response:
@@ -3348,6 +3522,7 @@ async def _handle_instance_session_state(request: web.Request) -> web.Response:
     open_scene_id = (
         getattr(open_scene, "scene_id", None) if open_scene is not None else None
     )
+    memory_checkpoint_receipt = session.latest_memory_checkpoint_receipt
     return web.json_response(
         {
             "status": "ok",
@@ -3357,6 +3532,11 @@ async def _handle_instance_session_state(request: web.Request) -> web.Response:
             "vertical": vertical,
             "exists": True,
             "open_scene_id": open_scene_id,
+            "memory_checkpoint_receipt": (
+                memory_checkpoint_receipt.to_json()
+                if memory_checkpoint_receipt is not None
+                else None
+            ),
         }
     )
 

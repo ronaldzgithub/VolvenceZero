@@ -53,6 +53,18 @@ class SceneEndReportForwardingLauncherProtocol(Protocol):
 
 
 @runtime_checkable
+class DataExportForwardingLauncherProtocol(Protocol):
+    """Forward a scoped Memory export to the pod owning ``ai_id``."""
+
+    async def forward_data_export(
+        self,
+        *,
+        ai_id: str,
+        end_user_ref: str,
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+@runtime_checkable
 class ExplicitSessionForwardingLauncherProtocol(Protocol):
     """Capability contract for explicit session creation on an owning pod."""
 
@@ -105,6 +117,7 @@ class OperationsForwardingLauncherProtocol(Protocol):
 
 
 __all__ = [
+    "DataExportForwardingLauncherProtocol",
     "ExplicitSessionForwardingLauncherProtocol",
     "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",
