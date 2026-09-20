@@ -150,6 +150,7 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 - 当前 session report 已补充 longitudinal trends：`relationship_continuity`、`learning_quality`、`abstraction_reuse`
 - 当前 `EvaluationBackbone.run_replay_suite()` 已提供固定 replay/scenario gate，可作为后续 widening 的证据入口
 - 当前 `EvaluationBackbone` 已提供 default evolution benchmark 与 `judge_evolution_candidate()`，把 replay suite + session trend 显式映射到 `promote / hold / rollback`
+- ACTIVE joint-loop 与 final-wiring 的在线 evolution judge 只消费当前 session replay/report；cross-session benchmark 仍计算并通过 `EvaluationSnapshot.longitudinal_verdict` 发布，但不得作为在线学习、结构写回或重试的输入。需要研究长期退化的显式离线 evaluator 仍可直接把 cross-session report 传给 `judge_evolution_candidate()`。
 - joint-loop 的在线安全 rollback 只消费 typed `HIGH/CRITICAL` structured alerts；禁止把 F6
   异质 metric 的 family mean 当统一健康概率再做固定阈值。原因：部分 F6 metric 是有符号 trend
   （例如 persona geometry drift trend=0 表示稳定），与 `[0,1]` health score 混合平均会把安全中性
@@ -399,6 +400,7 @@ routing case、每个 promotion 均消费非空 second-pass audit、非空 struc
 
 ## 变更日志
 
+- 2026-09-20: 收紧 R12 运行时边界：ACTIVE joint-loop 不再把 cross-session report 传回在线 evolution judge；纵向 verdict 仍正常计算与发布，current-session replay、typed safety、PE/credit 与 owner rollback gates 保持权威。
 - 2026-07-29: real-provider evidence 增加独立 generalization-audit 协议和 consumed
   gate；evaluation 只核对 trace 与 owner 结果，不把 audit 结论反馈成学习信号。
 - 2026-07-29: 增加真实 structured-provider audit runner 与 prompt/response provenance；0.5B 在首个两经历抽象点零 promotion 并按条件退出，1.5B 定向探针仍未满足通用 schema 语义；修复零 promotion/零 routing 的 consumed gate 空真问题并冻结 kebab-case schema id。

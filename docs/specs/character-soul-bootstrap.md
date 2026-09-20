@@ -110,6 +110,7 @@ This wheel now ships a full "novel → lived brain → saveable template → giv
 - bake proof 不得由 character consumer 遍历 owner 内部 dataclass：semantic owner 通过 `SemanticEventDelivery` 解释外部 event 是否落入声明 slot，Memory owner 通过 `entry_count()` 发布条目数量，runtime 通过 `AgentTurnResult.track_z_t_codes` 发布 world/self 的正式 `z_t` readout。
 - 正式 bake profile 必须启用 `internal_rl_runtime_replay=ACTIVE`。每个 scene 都要证明 prior prediction id → EnvironmentOutcome → PE action context → world/self lineage-matched transition → `runtime-replay` optimizer update；只记录 dialogue outcome 不算 live-through。
 - chapter/scene boundary 必须 drain session-post slow loop，并证明 memory entry 增长、delayed credit 发布、temporal prior 与 application owners（case memory / domain knowledge / strategy playbook / boundary policy）至少有正式写回。
+- 每个 scene 的 bake evidence 必须发布实际 integration 尝试次数、最终 evolution decision/category/reasons，以及 slow-loop blocked operations；默认 integration 上限保持 3，不能用增加重试次数或隐藏 blocked operation 代替修复 owner 接线。
 - `joint_loop.learning` 使用现有严格 owner persistence snapshot（排除 episode-local pending replay）随模板 hydration snapshots 保存；重生时恢复 dual-track temporal / Internal-RL learned state，不把 world/self temporal 变成独立 hydration writer。
 
 回滚：
@@ -300,6 +301,7 @@ reviewed profile、主观 live-through、关系语义脊柱、多经历动作抽
 
 ## 变更日志
 
+- 2026-09-20: Chapter scene bake evidence 增加实际 integration attempt、最终 evolution judgement 与 slow-loop blocked operations；默认最多三次 integration 不变，成功场景必须以实际 temporal-prior apply 证明 background-slow 集成。
 - 2026-07-29: 为 multi-experience candidate 增加逻辑独立 semantic generalization
   audit，地点化与缺字段结果 fail closed；audit provenance 进入 CaseMemory promotion，
   真实 0.5B 尚未到达该门，结论保持 diagnostic-fail。

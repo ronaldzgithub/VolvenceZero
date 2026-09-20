@@ -69,6 +69,7 @@ from volvence_zero.application.modules.response_assembly import (
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationBackbone
+from volvence_zero.evaluation import EvolutionDecision
 from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.environment import EnvironmentActionSchema
@@ -3075,6 +3076,8 @@ def test_cross_session_readout_is_not_fed_back_into_online_evolution_judge():
     evaluation = result.active_snapshots["evaluation"].value
     assert evaluation.longitudinal_verdict
     assert backbone.cross_session_judge_inputs == [None, None]
+    assert result.evolution_judgement is not None
+    assert result.evolution_judgement.decision is not EvolutionDecision.ROLLBACK
 
 
 def test_session_post_writeback_keeps_memory_consolidation_when_structure_is_judge_blocked():

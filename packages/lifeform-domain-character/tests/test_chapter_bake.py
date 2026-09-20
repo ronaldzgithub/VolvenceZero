@@ -228,8 +228,16 @@ def test_zhang_wuji_chapter_12_live_through_reaches_owners_and_internal_rl(
     assert evidence.internal_rl_policy_update_applied is True
     assert evidence.internal_rl_policy_epochs > 0
     assert evidence.internal_rl_rollback_reasons == ()
+    assert 1 <= evidence.integration_attempt_count <= 3
+    assert evidence.final_evolution_decision in {"promote", "hold"}
+    assert (
+        evidence.final_evolution_category
+        != JudgementCategory.UNSAFE_MUTATION.value
+    )
+    assert evidence.final_evolution_reasons
     assert evidence.memory_entry_delta > 0
     assert evidence.delayed_credit_published is True
+    assert evidence.slow_loop_blocked_operations == ()
     assert any(
         operation.startswith("temporal-prior:")
         for operation in evidence.slow_loop_applied_operations
@@ -244,6 +252,16 @@ def test_zhang_wuji_chapter_12_live_through_reaches_owners_and_internal_rl(
         "application.domain_knowledge",
         "application.strategy_playbook",
     } <= target_prefixes
+
+    payload = report.to_evidence_payload()
+    scene_payload = payload["per_scene_evidence"][0]
+    assert scene_payload["integration_attempt_count"] == (
+        evidence.integration_attempt_count
+    )
+    assert scene_payload["final_evolution_decision"] == (
+        evidence.final_evolution_decision
+    )
+    assert scene_payload["slow_loop_blocked_operations"] == []
 
     persisted = backend.load_checkpoint(
         key="owner_hydration/joint_loop.learning"
@@ -308,6 +326,54 @@ def test_chapter_bake_fails_when_runtime_replay_is_disabled(
         match="chapter live-through bake did not satisfy proof gates",
     ):
         report.require_success()
+
+
+def test_heterogeneous_consecutive_scenes_integrate_within_existing_bound(
+    tmp_path: Path,
+) -> None:
+    """A prior scene's longitudinal readout cannot suppress the next scene."""
+
+    full_ledger = read_ledger_json(_REVIEWED_LEDGER)
+    chapter_11 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-11"
+    )
+    chapter_17 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-17"
+    )
+    heterogeneous_ledger = replace(
+        full_ledger,
+        chapters=(
+            replace(chapter_11, semantic_events=()),
+            replace(
+                chapter_17,
+                scenes=(chapter_17.scenes[0],),
+                semantic_events=(),
+            ),
+        ),
+    )
+    backend = FileSystemPersistenceBackend(base_dir=str(tmp_path / "state"))
+    bundle = build_character_lifeform(
+        build_zhang_wuji_profile(),
+        config=_bake_config(),
+        memory_store=build_default_memory_store(persistence_backend=backend),
+    )
+
+    report = ChapterLiveThroughDriver().run_ledger(
+        ledger=heterogeneous_ledger,
+        lifeform=bundle.lifeform,
+        session_id="heterogeneous-consecutive-scene-proof",
+    )
+
+    report.require_success()
+    assert len(report.per_scene_evidence) == 2
+    for evidence in report.per_scene_evidence:
+        assert 1 <= evidence.integration_attempt_count <= 3
+        assert evidence.final_evolution_decision in {"promote", "hold"}
+        assert evidence.slow_loop_blocked_operations == ()
+        assert any(
+            operation.startswith("temporal-prior:")
+            for operation in evidence.slow_loop_applied_operations
+        )
 
 
 def test_real_cross_chapter_schema_holdout_promotes_natural_family(

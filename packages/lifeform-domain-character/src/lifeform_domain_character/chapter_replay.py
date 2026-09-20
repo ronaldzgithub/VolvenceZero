@@ -93,6 +93,11 @@ class ChapterSceneBakeEvidence:
     verification_failures: tuple[str, ...] = ()
     experienced_action_family_ids: tuple[str, ...] = ()
     schema_free_action_family_persisted: bool = False
+    integration_attempt_count: int = 0
+    final_evolution_decision: str = ""
+    final_evolution_category: str = ""
+    final_evolution_reasons: tuple[str, ...] = ()
+    slow_loop_blocked_operations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -595,7 +600,9 @@ class ChapterLiveThroughDriver:
         )
         integration_result = None
         learning_cycle = None
+        integration_attempt_count = 0
         for _attempt in range(self._max_internal_rl_integration_turns):
+            integration_attempt_count += 1
             integration_result = await session.run_turn(
                 "把这次选择、实际结果和由此产生的落差整合为本章经验。",
                 trigger_kind=TurnTriggerKind.APPRENTICE,
@@ -634,6 +641,12 @@ class ChapterLiveThroughDriver:
             for result in slow_results
             if result.writeback_result is not None
             for operation in result.writeback_result.applied_operations
+        )
+        slow_blocked_operations = tuple(
+            operation
+            for result in slow_results
+            if result.writeback_result is not None
+            for operation in result.writeback_result.blocked_operations
         )
         application_targets = tuple(
             dict.fromkeys(
@@ -738,6 +751,8 @@ class ChapterLiveThroughDriver:
         if not application_targets:
             failures.append("application-owner-integration-missing")
 
+        final_evolution_judgement = integration_result.evolution_judgement
+
         scene_record = SceneReplayRecord(
             scene_id=scene.scene_id,
             phase_label=scene.phase_label,
@@ -802,6 +817,23 @@ class ChapterLiveThroughDriver:
             schema_free_action_family_persisted=(
                 schema_free_action_family_persisted
             ),
+            integration_attempt_count=integration_attempt_count,
+            final_evolution_decision=(
+                final_evolution_judgement.decision.value
+                if final_evolution_judgement is not None
+                else ""
+            ),
+            final_evolution_category=(
+                final_evolution_judgement.category.value
+                if final_evolution_judgement is not None
+                else ""
+            ),
+            final_evolution_reasons=(
+                final_evolution_judgement.reasons
+                if final_evolution_judgement is not None
+                else ()
+            ),
+            slow_loop_blocked_operations=slow_blocked_operations,
         )
         return scene_record, scene_evidence
 

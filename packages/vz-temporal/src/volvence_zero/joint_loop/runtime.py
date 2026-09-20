@@ -38,7 +38,6 @@ from volvence_zero.evaluation import (
     EvaluationBackbone,
     EvaluationReport,
     EvolutionDecision,
-    EvolutionJudgement,
     JudgementCategory,
     EvaluationModule,
     EvaluationSnapshot,
@@ -73,7 +72,6 @@ from volvence_zero.joint_loop.contracts import (
     RuntimeReplayReport,
     ScheduledJointLoopResult,
 )
-from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop.scheduling import _JointLoopSchedulingMixin
 from volvence_zero.memory import MemoryModule
 from volvence_zero.memory import MemoryStore, Track, build_default_memory_store
@@ -795,7 +793,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                         decision=GateDecision.BLOCK,
                         old_value_hash=before_hash,
                         new_value_hash=before_hash,
-                        justification="Joint loop skipped reflection-to-temporal writeback because apply_writeback is disabled.",
+                        justification=(
+                            "Joint loop skipped reflection-to-temporal writeback "
+                            "because apply_writeback is disabled."
+                        ),
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
                     )
@@ -821,7 +822,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                         decision=GateDecision.BLOCK,
                         old_value_hash=before_hash,
                         new_value_hash=before_hash,
-                        justification="Joint loop blocked reflection-to-temporal writeback via target-specific credit gate.",
+                        justification=(
+                            "Joint loop blocked reflection-to-temporal writeback "
+                            "via target-specific credit gate."
+                        ),
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
                     )
@@ -858,7 +862,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                         decision=GateDecision.BLOCK,
                         old_value_hash=before_hash,
                         new_value_hash=before_hash,
-                        justification="Joint loop blocked reflection-to-temporal writeback via target-specific credit gate.",
+                        justification=(
+                            "Joint loop blocked reflection-to-temporal writeback "
+                            "via target-specific credit gate."
+                        ),
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
                     )
@@ -1570,9 +1577,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             session_id=session_id,
             timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
         )
-        cross_session_report = None
         if prior_session_reports:
-            cross_session_report = self._evaluation_backbone.run_cross_session_benchmark(
+            self._evaluation_backbone.run_cross_session_benchmark(
                 suite=CrossSessionBenchmarkSuite(
                     session_reports=prior_session_reports + (session_report,),
                 )
@@ -1583,7 +1589,15 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         evolution_judgement = self._evaluation_backbone.judge_evolution_candidate(
             replay_suite_result=replay_result,
             session_report=session_report,
-            cross_session_report=cross_session_report,
+            # Cross-session continuity is a read-only evaluation surface.
+            # Keep computing it above so the enclosing runtime can publish
+            # the longitudinal verdict, but do not let a heterogeneous prior
+            # scene become an online learning/writeback gate for this cycle.
+            # Current-session replay, typed safety alerts, PE/credit and the
+            # owner-side rollback gates remain authoritative.  Explicit
+            # offline evaluators may still pass a cross-session report to the
+            # evaluation backbone directly.
+            cross_session_report=None,
         )
         # Runtime replay is trained from matched PE-first environment evidence.
         # The generic evolution benchmark has no access to that transition
@@ -1789,7 +1803,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             description=(
                 f"Joint ETA/NL cycle {cycle_index} owner={self.owner_path} ran ssl("
                 f"world_pred={world_ssl_report.prediction_loss:.2f}, self_pred={self_ssl_report.prediction_loss:.2f}, "
-                f"world_kl={world_ssl_report.kl_loss:.2f}, self_kl={self_ssl_report.kl_loss:.2f}) and dual-track rollout "
+                f"world_kl={world_ssl_report.kl_loss:.2f}, "
+                f"self_kl={self_ssl_report.kl_loss:.2f}) and dual-track rollout "
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
                 f"mean_reward={mean_transition_reward:.2f}, "
@@ -1797,7 +1812,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"reasons={','.join(rollback_reasons) if rollback_reasons else 'none'}, "
                 f"transition_source={self.latest_runtime_replay_report.transition_source}, "
                 f"backend={backend_name}, fidelity={backend_fidelity:.2f}, "
-                f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
+                "controller="
+                f"{metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
                 f"kernel_scores={len(kernel_scores)}, with {len(applied_operations)} bounded writeback operations."
             ),
             policy_update_applied=optimization_result.policy_update_applied,
@@ -2059,7 +2075,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 schedule_telemetry=schedule_telemetry,
                 description=(
                     f"Scheduled joint loop owner={self.owner_path} ran ssl-only at turn {turn_index} with "
-                    f"world_pred={world_ssl_report.prediction_loss:.2f}, self_pred={self_ssl_report.prediction_loss:.2f}, "
+                    f"world_pred={world_ssl_report.prediction_loss:.2f}, "
+                    f"self_pred={self_ssl_report.prediction_loss:.2f}, "
                     f"world_kl={world_ssl_report.kl_loss:.2f}, self_kl={self_ssl_report.kl_loss:.2f}."
                 ),
                 substrate_online_fast_due=substrate_online_fast_due,

@@ -6,7 +6,11 @@ from dataclasses import replace
 import pytest
 
 from volvence_zero.credit import CreditRecord, CreditSnapshot, GateDecision, ModificationGate, extract_abstract_action_credit_bonus
-from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import (
+    EvaluationBackbone,
+    EvaluationScore,
+    EvaluationSnapshot,
+)
 from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
     InternalRLProofEpisode,
@@ -1455,6 +1459,70 @@ def test_phase3_evolution_judge_integrated_in_joint_loop():
     }
     assert report.evolution_judgement.replay_passed is not None
     assert len(report.evolution_judgement.reasons) > 0
+
+
+def test_joint_loop_keeps_cross_session_evaluation_read_only():
+    """Longitudinal verdicts are computed but never gate online learning."""
+
+    class CapturingEvaluationBackbone(EvaluationBackbone):
+        def __init__(self) -> None:
+            super().__init__()
+            self.cross_session_reports: list[object] = []
+            self.cross_session_judge_inputs: list[object | None] = []
+
+        def run_cross_session_benchmark(self, **kwargs):
+            report = super().run_cross_session_benchmark(**kwargs)
+            self.cross_session_reports.append(report)
+            return report
+
+        def judge_evolution_candidate(self, **kwargs):
+            self.cross_session_judge_inputs.append(
+                kwargs.get("cross_session_report")
+            )
+            return super().judge_evolution_candidate(**kwargs)
+
+    backbone = CapturingEvaluationBackbone()
+    loop = ETANLJointLoop(evaluation_backbone=backbone)
+    seed_trace = build_training_trace(
+        trace_id="joint-cross-session-seed",
+        source_text="maintain a calm relationship repair rhythm",
+    )
+    asyncio.run(
+        loop.run_cycle(
+            cycle_index=0,
+            trace=seed_trace,
+            session_id="joint-cross-session-seed",
+            wave_id="joint-cross-session-seed-wave",
+        )
+    )
+    prior_report = backbone.build_session_report(
+        session_id="joint-cross-session-seed",
+        timestamp_ms=100,
+    )
+
+    heterogeneous_trace = build_training_trace(
+        trace_id="joint-cross-session-current",
+        source_text="inspect a crowded warehouse before a difficult inquiry",
+    )
+    report = asyncio.run(
+        loop.run_cycle(
+            cycle_index=1,
+            trace=heterogeneous_trace,
+            session_id="joint-cross-session-current",
+            wave_id="joint-cross-session-current-wave",
+            prior_session_reports=(prior_report,),
+        )
+    )
+
+    assert backbone.cross_session_reports
+    assert backbone.cross_session_reports[-1].verdict in {
+        "growing",
+        "stable",
+        "regressing",
+        "insufficient-data",
+    }
+    assert backbone.cross_session_judge_inputs == [None, None]
+    assert report.evolution_judgement is not None
 
 
 # ---------------------------------------------------------------------------
