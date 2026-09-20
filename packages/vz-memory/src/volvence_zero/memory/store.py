@@ -7,7 +7,9 @@ historic public API from ``volvence_zero.memory.store``.
 
 from __future__ import annotations
 
+import hashlib
 import math
+import time
 from typing import TYPE_CHECKING, Any, Mapping
 from uuid import uuid4
 
@@ -19,7 +21,10 @@ from volvence_zero.memory.cms import (
     CMSTowerProfile,
 )
 from volvence_zero.memory.contracts import (
+    MEMORY_CHECKPOINT_RECEIPT_SCHEMA,
+    MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION,
     MemoryAttributeReadout,
+    MemoryCheckpointPersistenceReceipt,
     MemoryEntry,
     MemorySnapshot,
     MemoryStoreCheckpoint,
@@ -156,6 +161,7 @@ class MemoryStore:
         self._persistence_backend = persistence_backend
         self._nested_context_reset_mode = nested_context_reset_mode
         self._persistence_version = 0
+        self._latest_persistence_receipt: MemoryCheckpointPersistenceReceipt | None = None
         self._context_reset_count = 0
         self._last_context_reset_ms = 0
         self._last_context_reset_reason = ""
@@ -1067,6 +1073,7 @@ class MemoryStore:
         return self.create_checkpoint(checkpoint_id=checkpoint_id or "rare-heavy-memory")
 
     def restore_checkpoint(self, checkpoint: MemoryStoreCheckpoint) -> None:
+        self._latest_persistence_receipt = None
         self._context_reset_copy_shadow = None
         self._context_reset_benefit_sum = 0.0
         self._context_reset_benefit_count = 0
@@ -1099,36 +1106,128 @@ class MemoryStore:
         return self._persistence_backend
 
     def save_to_backend(self, *, key: str = "memory/store") -> bool:
-        """Persist the current checkpoint to the configured backend. Returns False if no backend."""
+        """Persist the current checkpoint while retaining the historic bool API."""
+
+        return self.save_to_backend_with_receipt(key=key) is not None
+
+    def save_to_backend_with_receipt(
+        self,
+        *,
+        key: str = "memory/store",
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Persist a checkpoint and attest the bytes read back from the backend.
+
+        ``None`` preserves the existing no-backend behavior.  A successful
+        receipt is produced only after the backend returns the exact version
+        and bytes that were supplied by this Memory owner.
+        """
+
         if self._persistence_backend is None:
-            return False
+            return None
         checkpoint = self.create_checkpoint(checkpoint_id=f"persist-{key}")
         data = serialize_checkpoint(checkpoint)
-        self._persistence_version += 1
+        existing = self._persistence_backend.load_checkpoint(key=key)
+        latest_backend_version = existing[1] if existing is not None else 0
+        next_version = max(self._persistence_version, latest_backend_version) + 1
         self._persistence_backend.save_checkpoint(
             key=key,
             data=data,
-            version=self._persistence_version,
+            version=next_version,
         )
-        return True
+        persisted = self._persistence_backend.load_checkpoint(key=key)
+        if persisted is None:
+            raise RuntimeError(
+                f"memory checkpoint {key!r} was unavailable immediately after save"
+            )
+        persisted_data, persisted_version = persisted
+        if persisted_version != next_version:
+            raise RuntimeError(
+                "memory checkpoint save readback returned an unexpected version: "
+                f"expected {next_version}, got {persisted_version}"
+            )
+        if persisted_data != data:
+            raise RuntimeError(
+                f"memory checkpoint {key!r} save readback did not match owner serialization"
+            )
+        self._persistence_version = persisted_version
+        receipt = MemoryCheckpointPersistenceReceipt(
+            schema_id=MEMORY_CHECKPOINT_RECEIPT_SCHEMA,
+            schema_version=MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION,
+            operation="save",
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_key=key,
+            checkpoint_version=persisted_version,
+            payload_sha256=hashlib.sha256(persisted_data).hexdigest(),
+            payload_bytes=len(persisted_data),
+            entry_count=len(checkpoint.entries),
+            durability=self._persistence_backend.durability,
+            completed_at_ms=time.time_ns() // 1_000_000,
+        )
+        self._latest_persistence_receipt = receipt
+        return receipt
 
     def load_from_backend(self, *, key: str = "memory/store") -> bool:
-        """Load the latest checkpoint from the configured backend. Returns False if unavailable."""
+        """Load the latest checkpoint while retaining the historic bool API."""
+
+        return self.load_from_backend_with_receipt(key=key) is not None
+
+    def load_from_backend_with_receipt(
+        self,
+        *,
+        key: str = "memory/store",
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Restore the latest checkpoint and attest restored/persisted hashes.
+
+        The persisted hash is calculated directly from backend bytes.  The
+        restored hash is calculated by exporting the newly restored owner with
+        the same checkpoint id and serializing it through the canonical wire
+        encoder.  ``restored_matches_persisted`` therefore distinguishes a
+        real owner round trip from a successful JSON parse.
+        """
+
         if self._persistence_backend is None:
-            return False
+            return None
         result = self._persistence_backend.load_checkpoint(key=key)
         if result is None:
-            return False
+            return None
         data, version = result
         parsed = deserialize_checkpoint(data)
         if not parsed:
-            return False
+            return None
         checkpoint = _reconstruct_checkpoint(parsed)
         if checkpoint is None:
-            return False
+            return None
         self.restore_checkpoint(checkpoint)
         self._persistence_version = version
-        return True
+        restored_checkpoint = self.create_checkpoint(
+            checkpoint_id=checkpoint.checkpoint_id
+        )
+        restored_data = serialize_checkpoint(restored_checkpoint)
+        persisted_sha256 = hashlib.sha256(data).hexdigest()
+        restored_sha256 = hashlib.sha256(restored_data).hexdigest()
+        receipt = MemoryCheckpointPersistenceReceipt(
+            schema_id=MEMORY_CHECKPOINT_RECEIPT_SCHEMA,
+            schema_version=MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION,
+            operation="load",
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_key=key,
+            checkpoint_version=version,
+            payload_sha256=persisted_sha256,
+            payload_bytes=len(data),
+            entry_count=len(restored_checkpoint.entries),
+            durability=self._persistence_backend.durability,
+            completed_at_ms=time.time_ns() // 1_000_000,
+            restored_payload_sha256=restored_sha256,
+            restored_matches_persisted=restored_sha256 == persisted_sha256,
+        )
+        self._latest_persistence_receipt = receipt
+        return receipt
+
+    @property
+    def latest_persistence_receipt(self) -> MemoryCheckpointPersistenceReceipt | None:
+        """Latest successful save/load attestation authored by this owner."""
+
+        return self._latest_persistence_receipt
 
     def entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         """Public admin readout for the entries in a given stratum.

@@ -40,6 +40,7 @@ from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
+    MemoryCheckpointPersistenceReceipt,
     MemoryEntry,
     MemoryWriteRequest,
     MemoryStore,
@@ -357,6 +358,21 @@ class BrainSession:
         """Persist the Memory owner checkpoint when a backend is configured."""
 
         return self._runner.memory_store.save_to_backend()
+
+    def persist_memory_with_receipt(
+        self,
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Persist memory and return the Memory owner's byte-level proof."""
+
+        return self._runner.memory_store.save_to_backend_with_receipt()
+
+    @property
+    def latest_memory_checkpoint_receipt(
+        self,
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Expose the latest owner-authored save/load proof read-only."""
+
+        return self._runner.memory_store.latest_persistence_receipt
 
     def relationship_reflection_snapshot(self) -> ReflectionSnapshot | None:
         """Return the latest typed reflection readout for product consumers."""

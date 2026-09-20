@@ -66,6 +66,7 @@ from volvence_zero.environment import (
 )
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import (
+    MemoryCheckpointPersistenceReceipt,
     MemoryEntry,
     MemoryStore,
     MemoryWriteRequest,
@@ -1883,6 +1884,21 @@ class LifeformSession:
         """Persist the Memory owner checkpoint when configured."""
 
         return self._brain_session.persist_memory()
+
+    def persist_memory_with_receipt(
+        self,
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Persist memory and return the Memory owner's byte-level proof."""
+
+        return self._brain_session.persist_memory_with_receipt()
+
+    @property
+    def latest_memory_checkpoint_receipt(
+        self,
+    ) -> MemoryCheckpointPersistenceReceipt | None:
+        """Expose the latest owner-authored save/load proof read-only."""
+
+        return self._brain_session.latest_memory_checkpoint_receipt
 
     def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
         """Forward canonical action evidence to next-turn PE settlement."""

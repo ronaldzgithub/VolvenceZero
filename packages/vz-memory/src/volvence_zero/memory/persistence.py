@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 from abc import ABC, abstractmethod
-from dataclasses import asdict, fields
+from dataclasses import fields
 from typing import Any
+
+from volvence_zero.memory.contracts import MemoryCheckpointDurability
 
 
 SCHEMA_VERSION = 1
@@ -13,6 +16,17 @@ SCHEMA_VERSION = 1
 
 class PersistenceBackend(ABC):
     """Abstract interface for cross-session checkpoint persistence."""
+
+    @property
+    def durability(self) -> MemoryCheckpointDurability:
+        """Named durability boundary published in Memory owner receipts.
+
+        Custom backends that predate persistence receipts retain source
+        compatibility and report a conservative backend-managed boundary
+        until they override this property with a stronger attestation.
+        """
+
+        return "unknown"
 
     @abstractmethod
     def save_checkpoint(self, *, key: str, data: bytes, version: int) -> None: ...
@@ -35,13 +49,44 @@ class FileSystemPersistenceBackend(PersistenceBackend):
         self._max_versions = max(max_versions, 1)
         os.makedirs(base_dir, exist_ok=True)
 
+    @property
+    def durability(self) -> MemoryCheckpointDurability:
+        return "restart_durable"
+
     def save_checkpoint(self, *, key: str, data: bytes, version: int) -> None:
         safe_key = key.replace("/", "__").replace("\\", "__")
         filename = f"{safe_key}_v{version}.json"
         filepath = os.path.join(self._base_dir, filename)
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(data.decode("utf-8"))
+        fd, temporary_path = tempfile.mkstemp(
+            dir=self._base_dir,
+            prefix=f".{filename}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "wb") as file_handle:
+                file_handle.write(data)
+                file_handle.flush()
+                os.fsync(file_handle.fileno())
+            os.replace(temporary_path, filepath)
+            self._fsync_directory()
+        finally:
+            try:
+                os.remove(temporary_path)
+            except FileNotFoundError:
+                pass
         self._cleanup_old_versions(safe_key=safe_key, current_version=version)
+
+    def _fsync_directory(self) -> None:
+        """Persist the atomic rename on platforms that expose directory fsync."""
+
+        directory_flag = getattr(os, "O_DIRECTORY", None)
+        if directory_flag is None:
+            return
+        directory_fd = os.open(self._base_dir, os.O_RDONLY | directory_flag)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
 
     def load_checkpoint(self, *, key: str) -> tuple[bytes, int] | None:
         safe_key = key.replace("/", "__").replace("\\", "__")
@@ -64,8 +109,8 @@ class FileSystemPersistenceBackend(PersistenceBackend):
                     best_filepath = os.path.join(self._base_dir, entry)
         if best_filepath is None:
             return None
-        with open(best_filepath, "r", encoding="utf-8") as f:
-            return (f.read().encode("utf-8"), best_version)
+        with open(best_filepath, "rb") as file_handle:
+            return (file_handle.read(), best_version)
 
     def list_checkpoints(self, *, prefix: str) -> tuple[str, ...]:
         safe_prefix = prefix.replace("/", "__").replace("\\", "__")
@@ -135,6 +180,10 @@ class InMemoryPersistenceBackend(PersistenceBackend):
         # key -> {version: data}
         self._store: dict[str, dict[int, bytes]] = {}
         self._lock = threading.Lock()
+
+    @property
+    def durability(self) -> MemoryCheckpointDurability:
+        return "process_local"
 
     def save_checkpoint(self, *, key: str, data: bytes, version: int) -> None:
         with self._lock:
@@ -229,6 +278,10 @@ class PostgresPersistenceBackend(PersistenceBackend):
         with self._lock, self._conn.cursor() as cur:
             for stmt in self._DDL:
                 cur.execute(stmt)
+
+    @property
+    def durability(self) -> MemoryCheckpointDurability:
+        return "restart_durable"
 
     def save_checkpoint(self, *, key: str, data: bytes, version: int) -> None:
         with self._lock, self._conn.cursor() as cur:

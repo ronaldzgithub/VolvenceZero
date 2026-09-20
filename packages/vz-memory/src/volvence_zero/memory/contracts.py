@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRuleState
 from volvence_zero.memory.cms import (
@@ -154,6 +154,98 @@ class MemoryStoreCheckpoint:
     # pre-gate checkpoints loadable (they restore the initial 0.15).
     pe_write_gate_threshold: float = 0.15
     entry_attributes: tuple[MemoryAttributeReadout, ...] = ()
+
+
+MEMORY_CHECKPOINT_RECEIPT_SCHEMA = "volvence.memory.checkpoint-persistence-receipt"
+MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION = 1
+MemoryCheckpointDurability = Literal[
+    "restart_durable",
+    "process_local",
+    "unknown",
+]
+
+
+@dataclass(frozen=True)
+class MemoryCheckpointPersistenceReceipt:
+    """Owner-authored proof for one checkpoint persistence operation.
+
+    ``payload_sha256`` is always calculated from the bytes read back from the
+    configured persistence backend, never from an in-memory approximation of
+    the checkpoint.  A load receipt additionally fingerprints the checkpoint
+    exported by the freshly restored owner and states whether it is byte-for-
+    byte equivalent to the persisted payload.
+
+    ``durability`` describes the backend boundary honestly.  In particular,
+    the in-memory backend publishes ``process_local`` and therefore cannot be
+    mistaken for restart durability.
+    """
+
+    schema_id: str
+    schema_version: int
+    operation: str
+    checkpoint_id: str
+    checkpoint_key: str
+    checkpoint_version: int
+    payload_sha256: str
+    payload_bytes: int
+    entry_count: int
+    durability: MemoryCheckpointDurability
+    completed_at_ms: int
+    restored_payload_sha256: str | None = None
+    restored_matches_persisted: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.schema_id != MEMORY_CHECKPOINT_RECEIPT_SCHEMA:
+            raise ValueError("memory checkpoint receipt schema_id is incompatible")
+        if self.schema_version != MEMORY_CHECKPOINT_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("memory checkpoint receipt schema_version is incompatible")
+        if self.operation not in {"save", "load"}:
+            raise ValueError("memory checkpoint receipt operation must be 'save' or 'load'")
+        if not self.checkpoint_id.strip():
+            raise ValueError("memory checkpoint receipt checkpoint_id must be non-empty")
+        if not self.checkpoint_key.strip():
+            raise ValueError("memory checkpoint receipt checkpoint_key must be non-empty")
+        if self.checkpoint_version < 0:
+            raise ValueError("memory checkpoint receipt checkpoint_version cannot be negative")
+        if len(self.payload_sha256) != 64:
+            raise ValueError("memory checkpoint receipt payload_sha256 must be SHA-256 hex")
+        try:
+            int(self.payload_sha256, 16)
+        except ValueError as exc:
+            raise ValueError(
+                "memory checkpoint receipt payload_sha256 must be SHA-256 hex"
+            ) from exc
+        if self.payload_bytes < 1:
+            raise ValueError("memory checkpoint receipt payload_bytes must be positive")
+        if self.entry_count < 0:
+            raise ValueError("memory checkpoint receipt entry_count cannot be negative")
+        if self.durability not in {"restart_durable", "process_local", "unknown"}:
+            raise ValueError(
+                "memory checkpoint receipt durability must be restart_durable, "
+                "process_local, or unknown"
+            )
+        if self.completed_at_ms < 1:
+            raise ValueError("memory checkpoint receipt completed_at_ms must be positive")
+        if self.operation == "save":
+            if self.restored_payload_sha256 is not None:
+                raise ValueError("save receipt cannot carry restored_payload_sha256")
+            if self.restored_matches_persisted is not None:
+                raise ValueError("save receipt cannot carry restored_matches_persisted")
+            return
+        if self.restored_payload_sha256 is None:
+            raise ValueError("load receipt requires restored_payload_sha256")
+        if len(self.restored_payload_sha256) != 64:
+            raise ValueError(
+                "memory checkpoint receipt restored_payload_sha256 must be SHA-256 hex"
+            )
+        try:
+            int(self.restored_payload_sha256, 16)
+        except ValueError as exc:
+            raise ValueError(
+                "memory checkpoint receipt restored_payload_sha256 must be SHA-256 hex"
+            ) from exc
+        if not isinstance(self.restored_matches_persisted, bool):
+            raise ValueError("load receipt requires bool restored_matches_persisted")
 
 
 def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:

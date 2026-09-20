@@ -257,6 +257,17 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
 - retrieval ranking 由 Memory owner 内部统一负责，可组合 `user_text + substrate facets + owner query facets` 做 tower-guided retrieval；artifact / lexical 只是同一 owner-side fusion law 的不同证据源。`RetrievalQuery.facets` 与 entry tag 的命中走显式 `+5` per match 的 tie-breaker boost（debt #10D 关闭后落地，`_score_entry` 内），不只走 embedding 通道，确保 regime-context disambiguation 在 lexical/semantic 几乎并列时仍可决定 top-1
 - promotion / decay / reconstruction 先建模为显式状态，不作为隐式副作用暴露给消费者
 - 第二阶段补充 `checkpoint / restore` 与 bounded `apply_reflection_consolidation`
+- checkpoint 持久化同时提供 additive typed receipt API：
+  `save_to_backend_with_receipt` / `load_from_backend_with_receipt` 的
+  `MemoryCheckpointPersistenceReceipt` 记录 receipt schema/version、operation、
+  checkpoint id/key/version、实际后端回读 payload 的 SHA-256/字节数、entry count、
+  durability 与完成时间。load receipt 还必须分别记录 persisted payload hash 与
+  owner 恢复后重新导出/序列化的 hash，并显式发布两者是否一致；既有
+  `save_to_backend` / `load_from_backend` bool API 保持兼容。filesystem backend 使用
+  同目录临时文件、flush/fsync 和 atomic replace；in-memory backend 的 durability
+  必须明确为 `process_local`，不得充当跨进程恢复证据。durability 是 fail-closed
+  三态契约：filesystem/Postgres=`restart_durable`、InMemory=`process_local`、未声明
+  能力的自定义 backend=`unknown`；下游不得把后两者当作 restart proof。
 - `promotion_threshold` 属于 Memory owner 的可回滚低风险自适应参数
 - 显式 `MemoryEntry` 属于 artifact / durable explanation layer，不等同于主记忆真相
 - semantic index 属于 Memory owner 内部 derived index，不向外暴露独立 owner
@@ -328,6 +339,12 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 | 协作 | 评估体系（5.7）| F4 学习质量中的记忆沉淀质量评估 |
 
 ## 变更日志
+
+- 2026-09-20: checkpoint save/load 新增 owner-authored typed persistence receipt；
+  hash 绑定实际后端回读的序列化 bytes，load receipt 对照恢复后 owner 再导出 hash，
+  filesystem 改为同目录临时文件 + flush/fsync + atomic replace；durability 收敛为
+  `restart_durable / process_local / unknown` fail-closed 三态。旧 bool API 保持不变，并通过 BrainSession / LifeformSession 暴露
+  receipt，供上层报告真实 restart proof；不新增 cognition SQLite 或第二 memory owner。
 
 - 2026-07-30: frozen evaluation 的 `learning_enabled=False` 进入 `MemoryModule`
   owner。该模式跳过 substrate/temporal/PE 观察、artifact 写入与访问触碰，只执行
