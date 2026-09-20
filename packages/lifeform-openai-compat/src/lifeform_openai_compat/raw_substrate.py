@@ -93,6 +93,8 @@ class SubstrateRuntimeProtocol(Protocol):
         chat_messages: tuple[tuple[str, str], ...] = ...,
         max_new_tokens: int = ...,
         temperature: float = ...,
+        stop_after_complete_json_object: bool = ...,
+        capture_residuals: bool = ...,
     ) -> Any: ...
 
 
@@ -240,16 +242,23 @@ def raw_substrate_complete(
     max_new = gen.max_tokens if gen.max_tokens is not None else _DEFAULT_MAX_NEW_TOKENS
     temperature = gen.temperature if gen.temperature is not None else _DEFAULT_TEMPERATURE
 
-    result = runtime.generate(
-        prompt=prompt,
-        system_context=system_context,
-        chat_messages=tuple(runtime_messages),
-        max_new_tokens=max_new,
-        temperature=temperature,
+    generation_kwargs: dict[str, Any] = {
+        "prompt": prompt,
+        "system_context": system_context,
+        "chat_messages": tuple(runtime_messages),
+        "max_new_tokens": max_new,
+        "temperature": temperature,
         # Raw pass-through never reads the residual capture; skipping it
         # avoids the post-generate full-prompt re-forward that OOM/native-
         # crashes the shared runtime on long multi-turn arc contexts.
-        capture_residuals=False,
+        "capture_residuals": False,
+    }
+    response_format = request.response_format
+    if response_format is not None and response_format.strict is True:
+        generation_kwargs["stop_after_complete_json_object"] = True
+
+    result = runtime.generate(
+        **generation_kwargs,
     )
 
     text = getattr(result, "text", "")

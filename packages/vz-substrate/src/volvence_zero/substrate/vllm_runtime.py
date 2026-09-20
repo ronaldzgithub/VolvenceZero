@@ -251,6 +251,7 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: Any | None = None,
+        stop_after_complete_json_object: bool = False,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         conditioning_bank_carriers: tuple[
@@ -263,6 +264,11 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             raise NotImplementedError(
                 "VLLMOpenWeightResidualRuntime cannot apply ACTIVE steering; "
                 "the steering generation path is transformers-only."
+            )
+        if stop_after_complete_json_object:
+            raise NotImplementedError(
+                "VLLMOpenWeightResidualRuntime does not yet implement the "
+                "complete JSON object stopping contract."
             )
         if personal_conditioning is not None:
             raise NotImplementedError(

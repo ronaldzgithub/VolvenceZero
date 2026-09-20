@@ -1,7 +1,7 @@
 # DLaaS API v1
 
 > Status: SHADOW contract
-> Last updated: 2026-08-30
+> Last updated: 2026-09-20
 > Owner: `dlaas-platform-*`
 > Related specs: `dlaas-platform.md`, `environment-interface.md`, `protocol-runtime.md`, `multi-timescale-learning.md`
 
@@ -72,6 +72,17 @@ affordance loop:
 
 `mode=raw` remains text-only unless the substrate runtime exposes a separate
 tool-aware generation API.
+
+### Strict JSON response format in raw mode
+
+For `mode=raw`, an OpenAI `response_format` with `type="json_schema"` and
+`json_schema.strict=true` enables substrate-owned generation stopping at the
+first complete JSON root object produced from the assistant completion start.
+Nested objects/arrays and braces inside escaped JSON strings are handled as
+JSON structure, not as textual stop sequences. `max_tokens` remains the hard
+upper bound when the object is incomplete. Requests without that strict
+response format keep ordinary text generation behavior; this raw-mode
+mechanism does not alter the lifeform expression path.
 
 ## Native Runtime Envelope
 

@@ -234,6 +234,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: object | None = None,
+        stop_after_complete_json_object: bool = False,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         conditioning_bank_carriers: tuple[
@@ -259,6 +260,11 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             raise NotImplementedError(
                 "SyntheticOpenWeightResidualRuntime cannot apply ACTIVE "
                 "steering; use the transformers runtime."
+            )
+        if stop_after_complete_json_object:
+            raise NotImplementedError(
+                "SyntheticOpenWeightResidualRuntime cannot stop after a "
+                "complete JSON object; use the transformers runtime."
             )
         del (
             prompt,

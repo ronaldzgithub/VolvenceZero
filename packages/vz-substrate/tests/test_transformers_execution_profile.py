@@ -374,6 +374,9 @@ def _generation_runtime(
     )
     runtime._execution_attestation = _attestation() if strict else None
     runtime._torch = torch
+    runtime._transformers = SimpleNamespace(
+        StoppingCriteriaList=lambda criteria: criteria
+    )
     runtime._tokenizer = _SizedChatTokenizer(token_count=input_token_count)
     runtime._model = model
     runtime._device = "cpu"
@@ -518,6 +521,40 @@ def test_successful_strict_generate_publishes_execution_and_budget_lineage() -> 
     assert result.context_budget.combined_token_count == 5
     assert model.generate_kwargs["use_cache"] is True
     assert captured_lengths == [3]
+
+
+def test_generate_wires_complete_json_stopping_criteria_only_when_requested() -> None:
+    runtime, _, model, _ = _generation_runtime(
+        strict=True,
+        input_token_count=3,
+    )
+
+    runtime.generate(
+        prompt="ignored",
+        chat_messages=(("user", "hello"),),
+        max_new_tokens=2,
+        temperature=0.0,
+        stop_after_complete_json_object=True,
+    )
+
+    criteria = model.generate_kwargs["stopping_criteria"]
+    assert len(criteria) == 1
+
+
+def test_generate_omits_json_stopping_criteria_for_ordinary_text() -> None:
+    runtime, _, model, _ = _generation_runtime(
+        strict=True,
+        input_token_count=3,
+    )
+
+    runtime.generate(
+        prompt="ignored",
+        chat_messages=(("user", "hello"),),
+        max_new_tokens=2,
+        temperature=0.0,
+    )
+
+    assert "stopping_criteria" not in model.generate_kwargs
 
 
 def test_strict_plain_generate_attests_chat_template_input_mode() -> None:

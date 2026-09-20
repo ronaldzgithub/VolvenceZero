@@ -295,6 +295,7 @@ class OpenWeightResidualRuntime(ABC):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: object | None = None,
+        stop_after_complete_json_object: bool = False,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         conditioning_bank_carriers: tuple[
@@ -322,6 +323,11 @@ class OpenWeightResidualRuntime(ABC):
         conditioning override ``generate``.
         """
         del generation_constraints, capture_residuals, sampling_seed, character_id
+        if stop_after_complete_json_object:
+            raise NotImplementedError(
+                f"{type(self).__name__} cannot stop generation after a "
+                "complete JSON root object."
+            )
         if steering_intervention is not None:
             raise NotImplementedError(
                 f"{type(self).__name__} cannot apply ACTIVE residual "

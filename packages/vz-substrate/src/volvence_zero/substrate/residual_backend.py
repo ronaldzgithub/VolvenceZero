@@ -33,6 +33,10 @@ from volvence_zero.substrate.adapter import (
     ResidualSequenceStep,
     SubstrateSnapshot,
 )
+from volvence_zero.substrate.generation_stopping import (
+    CompleteJsonObjectStoppingCriteria,
+    complete_json_object_prefix,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.agent.response import GenerationConstraints
@@ -2413,6 +2417,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: "GenerationConstraints | None" = None,
+        stop_after_complete_json_object: bool = False,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         personal_conditioning_carrier: str = "residual",
@@ -2435,6 +2440,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 raise ValueError(
                     f"sampling_seed must be non-negative, got {sampling_seed}."
                 )
+        if type(stop_after_complete_json_object) is not bool:
+            raise TypeError("stop_after_complete_json_object must be an exact bool")
         if personal_conditioning_carrier not in ("residual", "prefix_kv"):
             raise ValueError(
                 "unknown personal_conditioning_carrier "
@@ -2716,6 +2723,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "eos_token_id": self._generation_eos_token_id(),
                     "repetition_penalty": effective_repetition_penalty,
                 }
+                if stop_after_complete_json_object and not prefix_carrier_active:
+                    stop_criterion = CompleteJsonObjectStoppingCriteria(
+                        prompt_length=prompt_length,
+                        decode_generated_ids=lambda token_ids: (
+                            self._decode_generated_text(token_ids=token_ids)
+                        ),
+                    )
+                    generate_kwargs["stopping_criteria"] = (
+                        self._transformers.StoppingCriteriaList([stop_criterion])
+                    )
                 if capture_residuals:
                     # ``generate`` already computes the raw next-token logits
                     # for the prompt. Retaining that first step avoids a
@@ -2753,6 +2770,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         require_sampling_seed=(
                             personal_conditioning_carrier == "prefix_kv"
                             or bool(bank_prefix_pairs)
+                        ),
+                        stop_after_complete_json_object=(
+                            stop_after_complete_json_object
                         ),
                         first_step_logits_out=prefix_capture_logits,
                     )
@@ -2816,6 +2836,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         new_token_ids = output_ids[0, prompt_length:]
         generated_text = self._decode_generated_text(token_ids=new_token_ids)
+        if stop_after_complete_json_object:
+            complete_prefix = complete_json_object_prefix(generated_text)
+            if complete_prefix is not None:
+                generated_text = complete_prefix
         if generation_constraints is not None:
             generated_text = self._apply_generation_constraints(
                 text=generated_text,
@@ -4217,6 +4241,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         top_p: float,
         sampling_seed: int | None,
         require_sampling_seed: bool = True,
+        stop_after_complete_json_object: bool = False,
         first_step_logits_out: list[Any] | None = None,
     ):
         """Decode over a state-derived key/value prefix.
@@ -4337,6 +4362,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     break
                 generated.append(next_id)
                 seen.append(next_id)
+                if stop_after_complete_json_object:
+                    generated_ids = torch.tensor(
+                        generated, device=input_ids.device, dtype=input_ids.dtype
+                    )
+                    generated_text = self._decode_generated_text(
+                        token_ids=generated_ids
+                    )
+                    if complete_json_object_prefix(generated_text) is not None:
+                        break
                 step_input = torch.tensor(
                     [[next_id]], device=input_ids.device, dtype=input_ids.dtype
                 )

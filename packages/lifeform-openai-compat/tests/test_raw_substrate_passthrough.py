@@ -19,6 +19,7 @@ from lifeform_openai_compat import (
     ChatCompletionRequest,
     ChatMessage,
     GenerationConfig,
+    JsonSchemaResponseFormat,
     RawSubstrateUnavailable,
     estimate_prompt_tokens,
     raw_substrate_complete,
@@ -66,6 +67,7 @@ class _FakeRuntime:
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         capture_residuals: bool = True,
+        stop_after_complete_json_object: bool = False,
     ) -> _FakeGenerationResult:
         self.last_call = {
             "prompt": prompt,
@@ -74,6 +76,7 @@ class _FakeRuntime:
             "max_new_tokens": max_new_tokens,
             "temperature": temperature,
             "capture_residuals": capture_residuals,
+            "stop_after_complete_json_object": stop_after_complete_json_object,
         }
         return _FakeGenerationResult(
             text=self.canned_text, token_count=self.canned_token_count
@@ -154,11 +157,13 @@ def _request_from_messages(
     *messages: tuple[str, str],
     model: str = "raw-substrate-test",
     generation: GenerationConfig | None = None,
+    response_format: JsonSchemaResponseFormat | None = None,
 ) -> ChatCompletionRequest:
     return ChatCompletionRequest(
         model=model,
         messages=tuple(ChatMessage(role=role, content=content) for role, content in messages),
         generation=generation or GenerationConfig(),
+        response_format=response_format,
     )
 
 
@@ -210,6 +215,52 @@ def test_raw_passthrough_falls_back_to_defaults_when_unspecified() -> None:
     raw_substrate_complete(request=request, runtime=runtime)
     assert runtime.last_call["temperature"] == 0.7
     assert runtime.last_call["max_new_tokens"] == 512
+
+
+def test_raw_strict_json_schema_enables_complete_object_stopping() -> None:
+    runtime = _FakeRuntime()
+    request = _request_from_messages(
+        ("user", "return JSON"),
+        response_format=JsonSchemaResponseFormat(
+            name="result",
+            schema={"type": "object"},
+            strict=True,
+        ),
+    )
+
+    raw_substrate_complete(request=request, runtime=runtime)
+
+    assert runtime.last_call is not None
+    assert runtime.last_call["stop_after_complete_json_object"] is True
+
+
+def test_raw_text_request_does_not_enable_complete_object_stopping() -> None:
+    runtime = _FakeRuntime()
+
+    raw_substrate_complete(
+        request=_request_from_messages(("user", "ordinary text")),
+        runtime=runtime,
+    )
+
+    assert runtime.last_call is not None
+    assert runtime.last_call["stop_after_complete_json_object"] is False
+
+
+def test_raw_non_strict_schema_does_not_enable_complete_object_stopping() -> None:
+    runtime = _FakeRuntime()
+    request = _request_from_messages(
+        ("user", "return JSON"),
+        response_format=JsonSchemaResponseFormat(
+            name="result",
+            schema={"type": "object"},
+            strict=False,
+        ),
+    )
+
+    raw_substrate_complete(request=request, runtime=runtime)
+
+    assert runtime.last_call is not None
+    assert runtime.last_call["stop_after_complete_json_object"] is False
 
 
 def test_raw_passthrough_marks_finish_reason_length_when_budget_exhausted() -> None:
