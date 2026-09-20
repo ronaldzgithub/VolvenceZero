@@ -853,6 +853,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 chat_messages=chat_messages,
                 max_new_tokens=self._max_new_tokens,
                 temperature=generation_temperature,
+                stop_after_complete_json_object=contract is not None,
                 control_parameters=control_params,
                 control_scale=control_scale,
                 generation_constraints=constraints,

@@ -120,6 +120,7 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert response.text == "hello"
     assert runtime.calls
     assert runtime.calls[0]["capture_residuals"] is False
+    assert runtime.calls[0]["stop_after_complete_json_object"] is False
 
 
 def _intent_output_contract(*, exact_action: bool = False) -> ExpressionOutputContract:
@@ -205,6 +206,9 @@ def test_strict_expression_retries_format_only_against_same_context() -> None:
         '{"utterance":"我知道了","intended_action":"去检查水痕"}'
     )
     assert len(runtime.calls) == 2
+    assert [
+        call["stop_after_complete_json_object"] for call in runtime.calls
+    ] == [True, True]
     assert runtime.calls[0]["temperature"] == 0.0
     assert "Expression delivery contract" in runtime.calls[0]["chat_messages"][0][1]
     assert runtime.calls[1]["prompt"] == runtime.calls[0]["prompt"]
