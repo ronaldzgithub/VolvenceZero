@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from volvence_zero.application.runtime import (
     ApplicationModificationEvidence,
@@ -38,6 +38,47 @@ from volvence_zero.application.storage import (
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _reuse_retry_equivalent_action_evidence(
+    *,
+    current: CaseActionAbstractionEvidence,
+    prior: CaseActionAbstractionEvidence | None,
+) -> CaseActionAbstractionEvidence:
+    """Keep an admitted lineage stable across an idempotent job replay.
+
+    Credit records are occurrence-scoped audit rows and therefore receive new
+    UUIDs when the same deterministic slow-loop job is reconstructed after a
+    process failure. Those UUIDs do not make the already-admitted fictional
+    action/outcome a second experience. Reuse the durable evidence only when
+    every semantic field and every other Internal-RL lineage field is exactly
+    equal. Any actual action, outcome, family, capture, transition, or
+    optimizer drift remains a loud conflict at the proposal boundary.
+    """
+
+    if prior is None:
+        return current
+    if prior == current:
+        return prior
+    prior_lineage = prior.learning_lineage
+    current_lineage = current.learning_lineage
+    if prior_lineage is None or current_lineage is None:
+        retry_equivalent = False
+    else:
+        retry_equivalent = prior == replace(
+            current,
+            learning_lineage=replace(
+                current_lineage,
+                credit_record_ids=prior_lineage.credit_record_ids,
+            ),
+        )
+    if not retry_equivalent:
+        raise ValueError(
+            "Conflicting action-abstraction learning lineage for "
+            f"outcome_id={current.outcome_id!r}; deterministic retries may "
+            "differ only in occurrence-scoped credit_record_ids."
+        )
+    return prior
 
 
 @dataclass(frozen=True)
@@ -144,6 +185,10 @@ class ApplicationPriorProposalBuilder:
             prior_action_abstraction_experiences,
             current_action_abstraction_experiences,
         )
+        prior_action_abstraction_evidence_by_outcome = {
+            evidence.outcome_id: evidence
+            for evidence in inputs.prior_action_abstraction_evidence
+        }
         action_abstraction_groups: dict[
             str,
             list[ActionAbstractionExperience],
@@ -250,23 +295,31 @@ class ApplicationPriorProposalBuilder:
                             else ""
                         ),
                         action_abstraction_evidence=(
-                            CaseActionAbstractionEvidence(
-                                outcome_id=evidence.outcome_id,
-                                action_id=evidence.action_id,
-                                action_family_id=evidence.action_family_id,
-                                action_family_version=(
-                                    evidence.action_family_version
+                            _reuse_retry_equivalent_action_evidence(
+                                current=CaseActionAbstractionEvidence(
+                                    outcome_id=evidence.outcome_id,
+                                    action_id=evidence.action_id,
+                                    action_family_id=evidence.action_family_id,
+                                    action_family_version=(
+                                        evidence.action_family_version
+                                    ),
+                                    situation_statement=(
+                                        evidence.situation_statement
+                                    ),
+                                    action_statement=evidence.action_statement,
+                                    evidence=evidence.evidence,
+                                    confidence=evidence.confidence,
+                                    controller_code_digest=(
+                                        evidence.controller_code_digest
+                                    ),
+                                    learning_lineage=(
+                                        evidence.learning_lineage
+                                    ),
                                 ),
-                                situation_statement=(
-                                    evidence.situation_statement
+                                prior=(
+                                    prior_action_abstraction_evidence_by_outcome
+                                    .get(evidence.outcome_id)
                                 ),
-                                action_statement=evidence.action_statement,
-                                evidence=evidence.evidence,
-                                confidence=evidence.confidence,
-                                controller_code_digest=(
-                                    evidence.controller_code_digest
-                                ),
-                                learning_lineage=evidence.learning_lineage,
                             )
                             if (
                                 evidence.action_schema is None

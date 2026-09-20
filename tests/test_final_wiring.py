@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import json
 from types import SimpleNamespace
 
@@ -1166,6 +1167,99 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         and update.record.action_abstraction_evidence is None
         for update in post_promotion_proposal.case_memory_updates
     )
+
+
+def test_action_abstraction_retry_reuses_admitted_lineage_when_only_credit_ids_change():
+    first = ExperiencedActionEvidence(
+        outcome_id="chapter-replay:scene-a:outcome:prediction-a",
+        action_id="chapter-replay:scene-a:canonical-action",
+        situation_statement="A courier reaches a guarded crossing before the last bell.",
+        action_statement="Show the sealed medicine and identify the waiting patient.",
+        outcome_statement="The guard begins a documented inspection.",
+        evidence=("chapter:1:scene-a",),
+        confidence=0.9,
+        action_family_id="discovered_family_0",
+        action_family_version=2,
+        controller_code_digest=(0.01, 0.02, 0.03),
+        learning_lineage=_action_learning_lineage(
+            "chapter-replay:scene-a:outcome:prediction-a"
+        ),
+    )
+
+    def build(
+        current: ExperiencedActionEvidence,
+        *,
+        prior: tuple[CaseActionAbstractionEvidence, ...] = (),
+    ) -> ApplicationPriorUpdate:
+        proposal = ApplicationPriorProposalBuilder().build(
+            inputs=ApplicationPriorProposalInputs(
+                job_id="live-through-character:context-1:slow-loop:4",
+                closed_at_turn=4,
+                regime_id="protective_action",
+                knowledge_domains=(),
+                experience_domains=("moral_dilemma",),
+                case_problem_patterns=(),
+                case_risk_markers=("risk-high",),
+                boundary_trigger_reasons=(),
+                knowledge_weight=0.2,
+                experience_weight=0.8,
+                case_hit_count=0,
+                mean_experience_quality=0.85,
+                experienced_actions=(current,),
+                prior_action_abstraction_evidence=prior,
+            )
+        )
+        assert proposal is not None
+        return proposal
+
+    first_record = build(first).case_memory_updates[0].record
+    first_evidence = first_record.action_abstraction_evidence
+    assert first_evidence is not None
+    store = ApplicationCaseMemoryStore(records=(first_record,))
+    replay_lineage = replace(
+        first.learning_lineage,
+        credit_record_ids=("new-process-credit-1", "new-process-credit-2"),
+    )
+    replay = replace(first, learning_lineage=replay_lineage)
+    raw_replay_evidence = replace(
+        first_evidence,
+        learning_lineage=replay_lineage,
+    )
+
+    # The store remains fail-loud for a raw conflicting payload. Retry
+    # normalization belongs to the proposal owner, not the persistence gate.
+    with pytest.raises(
+        ValueError,
+        match="conflicting action_abstraction_evidence",
+    ):
+        store.upsert_records(
+            (
+                replace(
+                    first_record,
+                    action_abstraction_evidence=raw_replay_evidence,
+                ),
+            )
+        )
+
+    admitted = store.pending_action_abstraction_evidence()
+    retry_record = build(replay, prior=admitted).case_memory_updates[0].record
+    assert retry_record.case_id == first_record.case_id
+    assert retry_record.action_abstraction_evidence == first_evidence
+    store.upsert_records((retry_record,))
+    assert store.pending_action_abstraction_evidence() == admitted
+
+    capture_drift = replace(
+        replay,
+        learning_lineage=replace(
+            replay_lineage,
+            world_capture_id="world:changed-runtime-capture",
+        ),
+    )
+    with pytest.raises(
+        ValueError,
+        match="deterministic retries may differ only",
+    ):
+        build(capture_drift, prior=admitted)
 
 
 def test_action_abstraction_rejects_conflicting_duplicate_outcome():
