@@ -118,6 +118,7 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
     build_user_input_environment_event,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.integration import (
     _apply_application_prior_writeback,
     FinalIntegrationResult,
@@ -1738,6 +1739,7 @@ class AgentSessionRunner(
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
         self._session_post_queue.schedule()
@@ -2041,6 +2043,7 @@ class AgentSessionRunner(
             rare_heavy_result=rare_heavy_result,
             deferred_writeback_result=deferred_writeback_result,
             queue_state=self.session_post_queue_state,
+            expression_output_contract=expression_output_contract,
         )
 
     # ----- training (rare-heavy + online-fast) +

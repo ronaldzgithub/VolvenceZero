@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 import hashlib
+import json
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from volvence_zero.agent.response import LLMResponseSynthesizer, ResponseContext
+from volvence_zero.agent.response import (
+    LLMResponseSynthesizer,
+    ResponseContext,
+    StructuredExpressionOutputError,
+)
 from volvence_zero.application.runtime import (
     ResponseAssemblySnapshot,
     ResponseMode,
@@ -18,6 +23,7 @@ from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.substrate import (
     GenerationResult,
     SubstrateFingerprint,
@@ -108,6 +114,90 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert response.text == "hello"
     assert runtime.calls
     assert runtime.calls[0]["capture_residuals"] is False
+
+
+def _intent_output_contract() -> ExpressionOutputContract:
+    return ExpressionOutputContract(
+        schema_name="lifeform_intent_v1",
+        schema_json=json.dumps(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["utterance", "intended_action"],
+                "properties": {
+                    "utterance": {"type": "string", "minLength": 1},
+                    "intended_action": {"type": "string", "minLength": 1},
+                },
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+    )
+
+
+class _SequenceRuntime(_RecordingRuntime):
+    def __init__(self, outputs: list[str]) -> None:
+        super().__init__()
+        self.outputs = list(outputs)
+
+    def generate(self, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append(dict(kwargs))
+        return SimpleNamespace(
+            text=self.outputs.pop(0),
+            token_count=4,
+            personal_conditioning_applied=False,
+            character_prefix_applied=False,
+            character_prefix_id=None,
+            character_prefix_wiring_level="disabled",
+            conditioning_bank_carriers_applied=(),
+        )
+
+
+def test_strict_expression_retries_format_only_against_same_context() -> None:
+    runtime = _SequenceRuntime(
+        [
+            '{"utterance":"我知道了"}',
+            '{"utterance":"我知道了","intended_action":"去检查水痕"}',
+        ]
+    )
+    context = replace(
+        _context(), expression_output_contract=_intent_output_contract()
+    )
+
+    response = LLMResponseSynthesizer(runtime=runtime).synthesize(
+        context=context,
+        assembly=_assembly(),
+    )
+
+    assert response.text == (
+        '{"utterance":"我知道了","intended_action":"去检查水痕"}'
+    )
+    assert len(runtime.calls) == 2
+    assert runtime.calls[0]["temperature"] == 0.0
+    assert "Expression delivery contract" in runtime.calls[0]["chat_messages"][0][1]
+    assert runtime.calls[1]["prompt"] == runtime.calls[0]["prompt"]
+    assert runtime.calls[1]["control_parameters"] == runtime.calls[0][
+        "control_parameters"
+    ]
+    assert ("assistant", '{"utterance":"我知道了"}') in runtime.calls[1][
+        "chat_messages"
+    ]
+    assert "expression_format_retries=1" in response.rationale_tags
+
+
+def test_strict_expression_fails_loudly_after_one_retry() -> None:
+    runtime = _SequenceRuntime(["not json", '{"utterance":"still partial"}'])
+    context = replace(
+        _context(), expression_output_contract=_intent_output_contract()
+    )
+
+    with pytest.raises(StructuredExpressionOutputError):
+        LLMResponseSynthesizer(runtime=runtime).synthesize(
+            context=context,
+            assembly=_assembly(),
+        )
+
+    assert len(runtime.calls) == 2
 
 
 def test_evidence_profile_captures_normalized_conditioned_runtime_context() -> None:

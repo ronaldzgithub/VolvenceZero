@@ -74,6 +74,8 @@ from lifeform_service.verticals import (
     discover_companion_ablation_verticals,
     discover_verticals,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
+from volvence_zero.agent.response import StructuredExpressionOutputError
 
 __all__ = (
     "BundleScanReport",
@@ -82,6 +84,7 @@ __all__ = (
     "CharacterSessionBinding",
     "ContentAddressedTemplateBinding",
     "EinsteinBundleResolution",
+    "ExpressionOutputContract",
     "FigureBundleNotFound",
     "FigureBundleStore",
     "InvalidTemporalForkError",
@@ -90,6 +93,7 @@ __all__ = (
     "SessionManager",
     "SessionNotFoundError",
     "SnapshotNotRestorableError",
+    "StructuredExpressionOutputError",
     "TimeNodeNotFoundError",
     "TimeNodeSnapshot",
     "COMPANION_ABLATION_VERTICAL_NAMES",

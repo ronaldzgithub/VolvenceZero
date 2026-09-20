@@ -51,6 +51,7 @@ from typing import Any
 
 from lifeform_service import (
     ContentAddressedTemplateBinding,
+    ExpressionOutputContract,
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
@@ -410,7 +411,11 @@ async def lifeform_complete(
     if request.messages[-1].role == "tool":
         _submit_openai_tool_message(session=session, messages=request.messages)
         user_input = "Continue the turn using the submitted tool result."
-        result = await session.run_turn(user_input)
+        result = await _run_expression_turn(
+            session=session,
+            user_input=user_input,
+            request=request,
+        )
     else:
         user_input = extract_user_input(request.messages)
         tool_intent = _forced_tool_intent(request)
@@ -452,7 +457,11 @@ async def lifeform_complete(
                     rationale_tags=("tool-call",),
                 )
         else:
-            result = await session.run_turn(user_input)
+            result = await _run_expression_turn(
+                session=session,
+                user_input=user_input,
+                request=request,
+            )
 
     # Shared-runtime serialisation (hf-shared): the kernel fires the
     # session-post slow loop as a background task; under one shared
@@ -520,6 +529,33 @@ async def lifeform_complete(
         expression_intent=expression_intent,
         confidence=confidence,
         session=session,
+    )
+
+
+async def _run_expression_turn(
+    *,
+    session: Any,
+    user_input: str,
+    request: ChatCompletionRequest,
+) -> Any:
+    """Advance cognition once and attach any request-level face contract."""
+
+    response_format = request.response_format
+    if response_format is None:
+        return await session.run_turn(user_input)
+    contract = ExpressionOutputContract(
+        schema_name=response_format.name,
+        schema_json=json.dumps(
+            response_format.schema,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        strict=response_format.strict,
+    )
+    return await session.run_turn(
+        user_input,
+        expression_output_contract=contract,
     )
 
 

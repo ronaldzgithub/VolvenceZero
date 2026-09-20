@@ -24,6 +24,8 @@ single definition point for that split
 
 from __future__ import annotations
 
+import json
+
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.agent.response import ResponseContext
 from volvence_zero.regime import expression_brief_for_regime
@@ -215,6 +217,23 @@ def build_system_prompt(
     sections: list[str] = list(_INVARIANT_SYSTEM_SECTIONS)
     if context is None or context.prompt_state_delivery == "text":
         sections.extend(state_prompt_sections(assembly=assembly, context=context))
+    if context is not None and context.expression_output_contract is not None:
+        contract = context.expression_output_contract
+        # This section is request-derived delivery metadata, not cognitive
+        # state. It therefore survives prompt-state carrier suppression.
+        schema = json.dumps(
+            contract.schema,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        sections.append(
+            "Expression delivery contract for this turn. Return exactly one "
+            "JSON object and no markdown or surrounding prose. Preserve the "
+            "decision and voice produced by this lifeform; formatting must "
+            "not invent missing actions. "
+            f"Schema name: {contract.schema_name}. JSON Schema: {schema}"
+        )
     return "\n\n".join(sections)
 
 

@@ -56,6 +56,7 @@ from volvence_zero.credit.gate import (
 )
 from volvence_zero.dialogue_trace import DialogueOutcomeEvidence
 from volvence_zero.environment import EnvironmentEvent
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalIntegrationResult
 from volvence_zero.joint_loop import ScheduledJointLoopResult
@@ -409,6 +410,7 @@ class SessionObservationMixin:
         rare_heavy_result: "RareHeavyTurnResult | None" = None,
         deferred_writeback_result: WritebackResult | None = None,
         queue_state: SessionPostSlowLoopQueueState | None = None,
+        expression_output_contract: ExpressionOutputContract | None = None,
     ) -> "AgentTurnResult":
         from volvence_zero.agent.session import AgentTurnResult
 
@@ -755,6 +757,7 @@ class SessionObservationMixin:
                 prompt_state_delivery=self._config.prompt_state_delivery,
                 dynamic_residual_wiring=(self._config.generation_dynamic_residual.value),
                 steering_intervention=active_steering_intervention,
+                expression_output_contract=expression_output_contract,
             ),
             assembly=response_assembly,
         )

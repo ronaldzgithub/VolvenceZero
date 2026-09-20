@@ -115,6 +115,15 @@ class GenerationConfig:
 
 
 @dataclass(frozen=True)
+class JsonSchemaResponseFormat:
+    """Strict JSON delivery contract for one expression turn."""
+
+    name: str
+    schema: dict[str, Any]
+    strict: bool = True
+
+
+@dataclass(frozen=True)
 class ChatCompletionRequest:
     """Parsed OpenAI Chat Completions POST body.
 
@@ -133,6 +142,7 @@ class ChatCompletionRequest:
     tools: tuple[OpenAIToolDefinition, ...] = ()
     tool_choice: str | dict[str, Any] | None = None
     parallel_tool_calls: bool = False
+    response_format: JsonSchemaResponseFormat | None = None
     user: str = ""  # OpenAI's top-level ``user`` field (auditing hint)
 
     @staticmethod
@@ -195,6 +205,7 @@ class ChatCompletionRequest:
         gen = _parse_generation_config(payload)
         tools = _parse_tools(payload.get("tools", ()))
         tool_choice = _parse_tool_choice(payload.get("tool_choice"))
+        response_format = _parse_response_format(payload.get("response_format"))
         parallel_tool_calls = payload.get("parallel_tool_calls", False)
         if not isinstance(parallel_tool_calls, bool):
             raise ValueError("invalid_parallel_tool_calls: must be a boolean")
@@ -229,8 +240,45 @@ class ChatCompletionRequest:
             tools=tools,
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
             user=user,
         )
+
+
+def _parse_response_format(raw: object) -> JsonSchemaResponseFormat | None:
+    if raw is None:
+        return None
+    if isinstance(raw, dict) and raw.get("type") == "text":
+        return None
+    if not isinstance(raw, dict) or raw.get("type") != "json_schema":
+        raise ValueError(
+            "invalid_response_format: only type=json_schema is supported"
+        )
+    json_schema = raw.get("json_schema")
+    if not isinstance(json_schema, dict):
+        raise ValueError(
+            "invalid_response_format: json_schema must be an object"
+        )
+    name = json_schema.get("name")
+    schema = json_schema.get("schema")
+    strict = json_schema.get("strict", True)
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(
+            "invalid_response_format: json_schema.name must be non-empty"
+        )
+    if not isinstance(schema, dict):
+        raise ValueError(
+            "invalid_response_format: json_schema.schema must be an object"
+        )
+    if strict is not True:
+        raise ValueError(
+            "invalid_response_format: only strict=true is supported"
+        )
+    return JsonSchemaResponseFormat(
+        name=name.strip(),
+        schema=dict(schema),
+        strict=True,
+    )
 
 
 def _optional_string(item: dict[str, Any], key: str, *, index: int) -> str:

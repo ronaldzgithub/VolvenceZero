@@ -18,6 +18,7 @@ from lifeform_openai_compat import (
     ChatCompletionUsage,
     ChatMessage,
     GenerationConfig,
+    JsonSchemaResponseFormat,
 )
 
 
@@ -114,6 +115,39 @@ def test_unknown_payload_keys_are_ignored() -> None:
         }
     )
     assert parsed.generation == GenerationConfig()
+    assert parsed.response_format is None
+
+
+def test_parses_strict_json_schema_response_format() -> None:
+    schema = {
+        "type": "object",
+        "required": ["utterance", "intended_action"],
+        "additionalProperties": False,
+        "properties": {
+            "utterance": {"type": "string"},
+            "intended_action": {"type": "string"},
+        },
+    }
+    parsed = ChatCompletionRequest.from_payload(
+        {
+            "model": "x",
+            "messages": [{"role": "user", "content": "respond"}],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "lifeform_intent_v1",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+        }
+    )
+
+    assert parsed.response_format == JsonSchemaResponseFormat(
+        name="lifeform_intent_v1",
+        schema=schema,
+        strict=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +188,21 @@ def test_unknown_payload_keys_are_ignored() -> None:
         (
             {"model": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {"k": 1}},
             "invalid_metadata",
+        ),
+        (
+            {
+                "model": "x",
+                "messages": [{"role": "user", "content": "hi"}],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "intent",
+                        "strict": False,
+                        "schema": {"type": "object"},
+                    },
+                },
+            },
+            "invalid_response_format",
         ),
     ],
 )

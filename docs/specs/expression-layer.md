@@ -50,6 +50,11 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
     `ResponseContext.character_grounding_statement` 进入集中 prompt assembly，并用
     `character_grounding_ref` 发布 lineage。它是 state-derived expression carrier，不是
     用户文本路由规则；`prompt_state_delivery="suppressed"` 时必须 fail loudly，不能静默丢弃。
+11. **结构化交付仍属于 Face**：调用方可为单次表达附加 strict JSON Schema。
+    schema 只约束同一数字生命已经形成的决定如何装入传输包，不参与 cognition、
+    memory、PE 或 world-state。首次无效时，表达 owner 可在同一 cognitive assembly 上
+    做至多一次 format-only retry；无效文本不进入历史。重试仍无效必须失败，禁止补
+    默认字段、把玩家动作改写成 NPC 意图，或再跑一次 lifeform turn。
 
 ## 工程挑战
 
@@ -113,6 +118,8 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 
 ## 变更日志
 
+- **2026-09-20**: 新增 request-level strict schema 表达交付与一次同 assembly
+  format-only retry，明确 schema/retry 均不取得角色决策或记忆所有权。
 - **2026-07-31**: 新增 character grounding 表达载体。角色 vertical 可发布一段
   owner-rendered 第一人称身份 / lived-state grounding；集中 prompt assembly 负责渲染，
   LLM 与 kernel response 均发布 `character_grounding=<ref>` 审计标签。

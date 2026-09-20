@@ -23,6 +23,7 @@ from lifeform_openai_compat import (
     ChatCompletionRequest,
     ChatMessage,
     GenerationConfig,
+    JsonSchemaResponseFormat,
     LifeformCompletionResult,
     SessionResolution,
     derive_session_id,
@@ -63,14 +64,21 @@ class _FakeLifeformSession:
         self.session_id = session_id
         self.turn_summaries: list[_FakeTurnSummary] = []
         self.run_turn_calls: list[str] = []
+        self.expression_output_contracts: list[Any | None] = []
         # The real LifeformSession always exposes an affordance invoker
         # (the service attaches a default MCP bundle). ``None`` here means
         # "no server-side tool loop", so non-tool turns go straight to
         # ``run_turn`` — which is what these bridge tests exercise.
         self.mcp_invoker = None
 
-    async def run_turn(self, user_input: str) -> _FakeRunResult:
+    async def run_turn(
+        self,
+        user_input: str,
+        *,
+        expression_output_contract: Any | None = None,
+    ) -> _FakeRunResult:
         self.run_turn_calls.append(user_input)
+        self.expression_output_contracts.append(expression_output_contract)
         self.turn_summaries.append(_FakeTurnSummary(pe_magnitude=0.42))
         return _FakeRunResult(
             response=_FakeResponse(
@@ -769,6 +777,38 @@ async def test_lifeform_complete_sends_only_latest_user_message_to_kernel() -> N
     await lifeform_complete(request=request, manager=manager)
     session = manager._sessions["explicit-test-arc"]  # noqa: SLF001
     assert session.run_turn_calls == ["latest turn"]
+
+
+@pytest.mark.asyncio
+async def test_lifeform_complete_attaches_schema_to_the_same_single_turn() -> None:
+    manager = _FakeSessionManager()
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["utterance", "intended_action"],
+        "properties": {
+            "utterance": {"type": "string"},
+            "intended_action": {"type": "string"},
+        },
+    }
+    request = ChatCompletionRequest(
+        model="lifeform-character",
+        messages=(ChatMessage(role="user", content="react"),),
+        metadata={"session_id": "structured-turn"},
+        response_format=JsonSchemaResponseFormat(
+            name="lifeform_intent_v1",
+            schema=schema,
+        ),
+    )
+
+    await lifeform_complete(request=request, manager=manager)
+
+    session = manager._sessions["structured-turn"]
+    assert session.run_turn_calls == ["react"]
+    assert len(session.expression_output_contracts) == 1
+    contract = session.expression_output_contracts[0]
+    assert contract.schema_name == "lifeform_intent_v1"
+    assert contract.schema == schema
 
 
 async def test_lifeform_complete_fingerprint_includes_vertical_name() -> None:

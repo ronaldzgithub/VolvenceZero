@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import math
 import time
+
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError, ValidationError
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankLatentCarrier,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -45,6 +50,30 @@ class RuntimeContextEvidence:
             or self.generation_latency_ms < 0.0
         ):
             raise ValueError("runtime context evidence latency is invalid")
+
+
+class StructuredExpressionOutputError(RuntimeError):
+    """The expression layer exhausted its strict-format retry."""
+
+
+def _validate_structured_expression(
+    *,
+    text: str,
+    contract: ExpressionOutputContract,
+) -> str | None:
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return f"invalid JSON at offset {exc.pos}"
+    try:
+        validator = Draft202012Validator(contract.schema)
+        validator.validate(value)
+    except SchemaError as exc:
+        raise ValueError("expression output contract contains an invalid schema") from exc
+    except ValidationError as exc:
+        path = ".".join(str(part) for part in exc.absolute_path) or "$"
+        return f"schema mismatch at {path}: {exc.message}"
+    return None
 
 
 @dataclass(frozen=True)
@@ -198,6 +227,9 @@ class ResponseContext:
     # is admitted here. SHADOW previews remain in ``shadow_snapshots`` and
     # can never reach user-visible generation through this field.
     steering_intervention: SteeringIntervention | None = None
+    # Request-level face/delivery contract. It reaches only expression after
+    # cognition has published its immutable assembly.
+    expression_output_contract: ExpressionOutputContract | None = None
 
     def __post_init__(self) -> None:
         if self.sampling_seed is not None:
@@ -734,24 +766,56 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 context.steering_intervention
             )
         generation_started = time.perf_counter()
-        result = self._runtime.generate(
-            prompt=user_input,
-            system_context=system_prompt,
-            chat_messages=chat_messages,
-            max_new_tokens=self._max_new_tokens,
-            temperature=self._temperature,
-            control_parameters=control_params,
-            control_scale=control_scale,
-            generation_constraints=constraints,
-            personal_conditioning=context.personal_conditioning,
-            sampling_seed=context.sampling_seed,
-            # The expression layer consumes text + token_count only. Residual
-            # captures are owned by substrate/control paths; retaining every
-            # hooked hidden state during long benchmark arcs can crash native
-            # torch/CUDA on Windows.
-            capture_residuals=self._capture_runtime_context,
-            **carrier_kwargs,
+        expression_retry_count = 0
+        generation_temperature = (
+            0.0
+            if context.expression_output_contract is not None
+            else self._temperature
         )
+        while True:
+            result = self._runtime.generate(
+                prompt=user_input,
+                system_context=system_prompt,
+                chat_messages=chat_messages,
+                max_new_tokens=self._max_new_tokens,
+                temperature=generation_temperature,
+                control_parameters=control_params,
+                control_scale=control_scale,
+                generation_constraints=constraints,
+                personal_conditioning=context.personal_conditioning,
+                sampling_seed=context.sampling_seed,
+                # The expression layer consumes text + token_count only.
+                # Residual captures are owned by substrate/control paths.
+                capture_residuals=self._capture_runtime_context,
+                **carrier_kwargs,
+            )
+            candidate = result.text.strip()
+            contract = context.expression_output_contract
+            if contract is None:
+                break
+            validation_error = _validate_structured_expression(
+                text=candidate,
+                contract=contract,
+            )
+            if validation_error is None:
+                break
+            if expression_retry_count >= 1:
+                raise StructuredExpressionOutputError(
+                    "structured expression output remained invalid after "
+                    f"one format-only retry: {validation_error}"
+                )
+            expression_retry_count += 1
+            correction = (
+                "Your previous expression did not satisfy the delivery "
+                f"contract ({validation_error}). Re-express the same decision "
+                "and voice as exactly one schema-valid JSON object. Do not "
+                "invent, remove, or change the intended action."
+            )
+            chat_messages = (
+                *chat_messages,
+                ("assistant", candidate or "<empty response>"),
+                ("user", correction),
+            )
         generation_latency_ms = (
             time.perf_counter() - generation_started
         ) * 1000.0
@@ -814,13 +878,21 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             "decode_fp="
             + decode_fingerprint(
                 constraints=constraints,
-                temperature=self._temperature,
+                temperature=generation_temperature,
                 max_new_tokens=self._max_new_tokens,
                 sampling_seed=context.sampling_seed,
             )
         )
         if context.sampling_seed is not None:
             rationale_parts.append(f"sampling_seed={context.sampling_seed}")
+        if context.expression_output_contract is not None:
+            rationale_parts.append(
+                "expression_schema="
+                f"{context.expression_output_contract.schema_name}"
+            )
+            rationale_parts.append(
+                f"expression_format_retries={expression_retry_count}"
+            )
         if self._character_id:
             rationale_parts.append(f"character_id={self._character_id}")
             rationale_parts.append(

@@ -41,6 +41,7 @@ from lifeform_openai_compat.dto import (
     ChatCompletionUsage,
     ChatMessage,
     GenerationConfig,
+    JsonSchemaResponseFormat,
 )
 from lifeform_openai_compat.raw_substrate import (
     RawSubstrateUnavailable,
@@ -66,6 +67,7 @@ __all__ = (
     "ChatCompletionUsage",
     "ChatMessage",
     "GenerationConfig",
+    "JsonSchemaResponseFormat",
     "LifeformCompletionResult",
     "RawSubstrateUnavailable",
     "SessionResolution",

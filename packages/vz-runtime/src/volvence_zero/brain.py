@@ -33,6 +33,7 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentOutcome,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.evaluation import RelationshipContinuityEvaluationModule
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.integration import FinalRolloutConfig, resolve_final_rollout_config
@@ -739,11 +740,13 @@ class BrainSession:
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         return await self._runner.run_turn(
             user_input,
             environment_event=environment_event,
             apprenticeship_turn=apprenticeship_turn,
+            expression_output_contract=expression_output_contract,
         )
 
     async def preview_preference_action_forecast(
@@ -814,6 +817,7 @@ class BrainSession:
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         try:
             asyncio.get_running_loop()
@@ -823,6 +827,7 @@ class BrainSession:
                     user_input,
                     environment_event=environment_event,
                     apprenticeship_turn=apprenticeship_turn,
+                    expression_output_contract=expression_output_contract,
                 )
             )
         raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")

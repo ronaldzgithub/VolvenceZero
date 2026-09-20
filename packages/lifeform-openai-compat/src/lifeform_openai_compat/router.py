@@ -60,6 +60,7 @@ import uuid
 from typing import Any
 
 from aiohttp import web
+from lifeform_service import StructuredExpressionOutputError
 
 from lifeform_openai_compat.dto import ChatCompletionRequest
 from lifeform_openai_compat.raw_substrate import (
@@ -309,6 +310,12 @@ async def _dispatch_lifeform(
         return _error(
             status=409,
             error="session_end_user_mismatch",
+            detail=str(exc),
+        )
+    except StructuredExpressionOutputError as exc:
+        return _error(
+            status=503,
+            error="structured_expression_output_invalid",
             detail=str(exc),
         )
     except ValueError as exc:

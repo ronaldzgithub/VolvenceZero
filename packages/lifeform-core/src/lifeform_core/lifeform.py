@@ -64,6 +64,7 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
     build_environment_event,
 )
+from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import (
     MemoryCheckpointPersistenceReceipt,
@@ -2022,6 +2023,7 @@ class LifeformSession:
         environment_provenance: str | None = None,
         environment_consent_context: tuple[str, ...] = (),
         environment_frame: EnvironmentFrame | None = None,
+        expression_output_contract: ExpressionOutputContract | None = None,
     ) -> Any:
         """Run one turn through the kernel.
 
@@ -2099,6 +2101,10 @@ class LifeformSession:
             # without the parameter keep working.
             if "apprenticeship_turn" in signature.parameters:
                 call_kwargs["apprenticeship_turn"] = apprentice_turn
+            if "expression_output_contract" in signature.parameters:
+                call_kwargs["expression_output_contract"] = (
+                    expression_output_contract
+                )
             result = await run_turn_async(user_input, **call_kwargs)
         finally:
             # Leak-free invariant: restore the prior override state
