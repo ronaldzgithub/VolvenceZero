@@ -29,6 +29,7 @@ from collections import OrderedDict
 from volvence_zero.semantic_embedding import stub_semantic_embedding
 from volvence_zero.substrate.adapter import FeatureSignal
 from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
+from volvence_zero.substrate.runtime_execution import runtime_resource_guard
 
 
 def _project_feature_surface(
@@ -94,23 +95,34 @@ class SubstrateTextEncoderBackend:
         if not text.strip():
             return stub_semantic_embedding(text, dim=dim)
         key = (text, dim)
-        cached = self._cache.get(key)
-        if cached is not None:
-            self._cache.move_to_end(key)
-            return cached
-        capture = self._runtime.capture(source_text=text)
-        vector = _project_feature_surface(capture.feature_surface, dim=dim)
-        norm = math.sqrt(sum(value * value for value in vector))
-        # No usable substrate signal (e.g. degenerate capture) -> stub so the
-        # consumer still gets a discriminative vector rather than zeros.
-        if norm <= 1e-9:
-            vector = stub_semantic_embedding(text, dim=dim)
-        if self._cache_size > 0:
-            self._cache[key] = vector
-            self._cache.move_to_end(key)
-            while len(self._cache) > self._cache_size:
-                self._cache.popitem(last=False)
-        return vector
+        # The embedding path shares the residual runtime's model and tokenizer
+        # with proposal generation.  Keep the complete cache-miss transaction
+        # under the same reentrant resource guard: otherwise ``capture`` can
+        # toggle a FastTokenizer's truncation state while a proposal call is
+        # borrowing the Rust backend (``RuntimeError: Already borrowed``).
+        # Guarding lookup through write also makes concurrent misses for one
+        # key collapse to a single capture and keeps OrderedDict LRU mutation
+        # thread-safe.  A failed capture exits without populating the cache;
+        # the guard releases normally so a later call can recover.
+        with runtime_resource_guard(self._runtime):
+            cached = self._cache.get(key)
+            if cached is not None:
+                self._cache.move_to_end(key)
+                return cached
+            capture = self._runtime.capture(source_text=text)
+            vector = _project_feature_surface(capture.feature_surface, dim=dim)
+            norm = math.sqrt(sum(value * value for value in vector))
+            # No usable substrate signal (e.g. degenerate capture) -> stub so
+            # the consumer still gets a discriminative vector rather than
+            # zeros.
+            if norm <= 1e-9:
+                vector = stub_semantic_embedding(text, dim=dim)
+            if self._cache_size > 0:
+                self._cache[key] = vector
+                self._cache.move_to_end(key)
+                while len(self._cache) > self._cache_size:
+                    self._cache.popitem(last=False)
+            return vector
 
 
 __all__ = ["SubstrateTextEncoderBackend"]

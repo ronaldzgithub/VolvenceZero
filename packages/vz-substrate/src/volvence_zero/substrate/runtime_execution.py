@@ -41,6 +41,13 @@ _EXECUTION_LOCKS: WeakKeyDictionary[object, threading.RLock] = (
 _TOKENIZER_LOCKS: WeakKeyDictionary[object, threading.RLock] = (
     WeakKeyDictionary()
 )
+# A few built-in/tokenizer test doubles are deliberately unhashable dataclasses,
+# which WeakKeyDictionary cannot index. They are process-long runtime resources,
+# so retaining their identity alongside the fallback lock is both bounded by the
+# loaded runtimes and prevents Python id reuse from joining unrelated resources.
+_UNHASHABLE_TOKENIZER_LOCKS: dict[
+    int, tuple[object, threading.RLock]
+] = {}
 _SAFE_OPERATION_KIND = re.compile(r"^[a-zA-Z0-9_.:-]{1,80}$")
 _LOG = logging.getLogger("volvence_zero.substrate.runtime_execution")
 
@@ -115,7 +122,15 @@ def _serial_executor_for(runtime: object) -> ThreadPoolExecutor:
 
 def _tokenizer_lock_for(tokenizer: object) -> threading.RLock:
     with _EXECUTORS_GUARD:
-        lock = _TOKENIZER_LOCKS.get(tokenizer)
+        try:
+            lock = _TOKENIZER_LOCKS.get(tokenizer)
+        except TypeError:
+            identity = id(tokenizer)
+            entry = _UNHASHABLE_TOKENIZER_LOCKS.get(identity)
+            if entry is None or entry[0] is not tokenizer:
+                entry = (tokenizer, threading.RLock())
+                _UNHASHABLE_TOKENIZER_LOCKS[identity] = entry
+            return entry[1]
         if lock is None:
             lock = threading.RLock()
             _TOKENIZER_LOCKS[tokenizer] = lock

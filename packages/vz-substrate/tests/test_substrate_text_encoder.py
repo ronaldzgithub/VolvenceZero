@@ -15,7 +15,11 @@ Two layers:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
+import threading
+import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,6 +29,8 @@ from volvence_zero.semantic_embedding import (
     stub_semantic_embedding,
 )
 from volvence_zero.substrate import (
+    FeatureSignal,
+    HFTextGenerationProvider,
     SubstrateTextEncoderBackend,
     SyntheticOpenWeightResidualRuntime,
 )
@@ -82,6 +88,32 @@ def test_backend_caches_repeat_calls() -> None:
     assert runtime.capture_calls == 1
 
 
+def test_concurrent_cache_miss_is_captured_once() -> None:
+    class _SlowCountingRuntime(SyntheticOpenWeightResidualRuntime):
+        def __init__(self) -> None:
+            super().__init__(model_id="synthetic-slow-counting")
+            self.capture_calls = 0
+
+        def capture(self, *, source_text: str):
+            self.capture_calls += 1
+            time.sleep(0.01)
+            return super().capture(source_text=source_text)
+
+    runtime = _SlowCountingRuntime()
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+    barrier = threading.Barrier(8)
+
+    def embed_once() -> tuple[float, ...]:
+        barrier.wait()
+        return backend.embed("shared prototype text", dim=8)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        vectors = tuple(executor.map(lambda _: embed_once(), range(8)))
+
+    assert vectors == (vectors[0],) * 8
+    assert runtime.capture_calls == 1
+
+
 def test_cache_size_zero_disables_caching() -> None:
     class _CountingRuntime(SyntheticOpenWeightResidualRuntime):
         def __init__(self) -> None:
@@ -96,6 +128,157 @@ def test_cache_size_zero_disables_caching() -> None:
     backend = SubstrateTextEncoderBackend(runtime, cache_size=0)
     backend.embed("prototype text", dim=8)
     backend.embed("prototype text", dim=8)
+    assert runtime.capture_calls == 2
+
+
+class _FastTokenizerCaptureRuntime:
+    """Minimal shared runtime exercising the real Rust tokenizer backend."""
+
+    def __init__(self, tokenizer) -> None:
+        self._tokenizer = tokenizer
+        self.capture_calls = 0
+        self.fail_next_capture = False
+
+    @property
+    def runtime_execution_owner(self) -> object:
+        return self
+
+    @property
+    def runtime_tokenizer_owner(self) -> object:
+        return self._tokenizer
+
+    def capture(self, *, source_text: str):
+        self.capture_calls += 1
+        if self.fail_next_capture:
+            self.fail_next_capture = False
+            raise RuntimeError("test capture failure")
+        encoded = self._tokenizer(
+            source_text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=8,
+        )
+        token_count = int(encoded["input_ids"].shape[-1])
+        return SimpleNamespace(
+            feature_surface=(
+                FeatureSignal(
+                    name="token-count",
+                    values=(float(token_count), float(len(source_text) % 17 + 1)),
+                    source="test-fast-tokenizer",
+                ),
+            )
+        )
+
+
+class _EchoGenerationModel:
+    def generate(self, input_ids, **_kwargs):
+        return input_ids
+
+
+def _in_memory_fast_tokenizer():
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+    from tokenizers.pre_tokenizers import Whitespace
+    from transformers import PreTrainedTokenizerFast
+
+    rust_backend = Tokenizer(
+        WordLevel(
+            {
+                "[UNK]": 0,
+                "[PAD]": 1,
+                "alpha": 2,
+                "beta": 3,
+                "embedding": 4,
+                "proposal": 5,
+            },
+            unk_token="[UNK]",
+        )
+    )
+    rust_backend.pre_tokenizer = Whitespace()
+    return PreTrainedTokenizerFast(
+        tokenizer_object=rust_backend,
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+    )
+
+
+@pytest.mark.skipif(not _hf_stack_available(), reason="requires transformers + torch")
+def test_embedding_and_proposal_serialize_shared_fast_tokenizer() -> None:
+    """Embedding truncation=True must not race proposal truncation=False.
+
+    ``PreTrainedTokenizerFast`` mutates truncation state in its Rust backend
+    for each call. Unguarded mixed calls reliably raise ``Already borrowed``;
+    both paths must therefore converge on the runtime/tokenizer resource gate.
+    """
+
+    tokenizer = _in_memory_fast_tokenizer()
+    runtime = _FastTokenizerCaptureRuntime(tokenizer)
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=1024)
+    provider = HFTextGenerationProvider(
+        model=_EchoGenerationModel(),
+        tokenizer=tokenizer,
+        use_chat_template=False,
+        runtime_execution_owner=runtime,
+    )
+    worker_count = 6
+    iterations = 150
+    barrier = threading.Barrier(worker_count)
+    runtime_errors: list[str] = []
+    errors_guard = threading.Lock()
+
+    def exercise(worker_index: int) -> None:
+        barrier.wait()
+        for iteration in range(iterations):
+            try:
+                if worker_index % 2 == 0:
+                    backend.embed(
+                        f"embedding alpha beta {worker_index} {iteration}",
+                        dim=2,
+                    )
+                else:
+                    provider.generate(
+                        prompt=f"proposal alpha beta {worker_index} {iteration}"
+                    )
+            except RuntimeError as exc:
+                with errors_guard:
+                    runtime_errors.append(str(exc))
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        tuple(executor.map(exercise, range(worker_count)))
+
+    assert runtime_errors == []
+    assert runtime.capture_calls == (worker_count // 2) * iterations
+
+    cached_text = "embedding alpha beta 0 0"
+    capture_calls = runtime.capture_calls
+    first = backend.embed(cached_text, dim=2)
+    second = backend.embed(cached_text, dim=2)
+    assert first == second
+    assert runtime.capture_calls == capture_calls
+
+
+@pytest.mark.skipif(not _hf_stack_available(), reason="requires transformers + torch")
+def test_fast_tokenizer_guard_releases_after_capture_failure() -> None:
+    tokenizer = _in_memory_fast_tokenizer()
+    runtime = _FastTokenizerCaptureRuntime(tokenizer)
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+    provider = HFTextGenerationProvider(
+        model=_EchoGenerationModel(),
+        tokenizer=tokenizer,
+        use_chat_template=False,
+        runtime_execution_owner=runtime,
+    )
+    runtime.fail_next_capture = True
+
+    with pytest.raises(RuntimeError, match="test capture failure"):
+        backend.embed("embedding alpha beta", dim=2)
+
+    # The failed value was not cached and the reentrant resource lock was
+    # released: both proposal generation and a retry can use the tokenizer.
+    assert provider.generate(prompt="proposal alpha beta") == ""
+    recovered = backend.embed("embedding alpha beta", dim=2)
+    assert len(recovered) == 2
+    assert backend.embed("embedding alpha beta", dim=2) == recovered
     assert runtime.capture_calls == 2
 
 
@@ -114,8 +297,6 @@ def test_real_runtime_separates_track_prototypes_better_than_stub() -> None:
     self_text = "feel overwhelmed need support warmth steadiness reassurance emotional care"
 
     stub_world = stub_semantic_embedding(world_text, dim=8)
-    stub_self = stub_semantic_embedding(self_text, dim=8)
-    stub_sep = 1.0 - stub_cosine_similarity(stub_world, stub_self)
 
     runtime = build_builtin_transformers_runtime()
     backend = SubstrateTextEncoderBackend(runtime)
