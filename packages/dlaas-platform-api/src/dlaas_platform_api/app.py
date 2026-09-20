@@ -87,6 +87,7 @@ from dlaas_platform_launcher import (
     InteractionForwardingLauncherProtocol,
     LauncherProtocol,
     OperationsForwardingLauncherProtocol,
+    SessionStateForwardingLauncherProtocol,
     VerticalBrainForwardingLauncherProtocol,
 )
 from dlaas_platform_launcher.instance_manager import default_vertical_resolver
@@ -354,6 +355,10 @@ def _add_operations_brain_routes(app: web.Application) -> None:
     """Attach uniform Brain routes plus legacy Operations aliases."""
 
     for prefix in ("/dlaas", "/dlaas/v1"):
+        app.router.add_get(
+            f"{prefix}/instances/{{ai_id}}/sessions/{{session_id}}",
+            _handle_instance_session_state,
+        )
         app.router.add_post(
             f"{prefix}/instances/{{ai_id}}/sessions",
             _handle_instance_session_create,
@@ -3197,6 +3202,79 @@ async def _handle_instance_session_create(request: web.Request) -> web.Response:
         payload={"vertical": vertical},
     )
     return web.json_response(body, status=201 if created else 200)
+
+
+async def _handle_instance_session_state(request: web.Request) -> web.Response:
+    """Read one live session's kernel-owned scene state without creating it."""
+
+    ai_id = request.match_info.get("ai_id", "").strip()
+    session_id = request.match_info.get("session_id", "").strip()
+    if not ai_id:
+        return _json_error(status=400, error="invalid_ai_id", detail="ai_id is required")
+    if not session_id:
+        return _json_error(
+            status=400,
+            error="invalid_session_id",
+            detail="session_id is required",
+        )
+
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, SessionStateForwardingLauncherProtocol):
+        try:
+            status, body = await launcher.forward_session_state(
+                ai_id=ai_id,
+                session_id=session_id,
+            )
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(status=502, error="pod_forward_failed", detail=str(exc))
+        return web.json_response(body, status=status)
+    if isinstance(launcher, InteractionForwardingLauncherProtocol):
+        return _json_error(
+            status=501,
+            error="pod_session_state_forwarding_unavailable",
+            detail="the multi-pod launcher does not expose read-only session state forwarding",
+        )
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        session = await manager.get_session(session_id)
+        vertical = manager.vertical_name_for(session_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except SessionNotFoundError:
+        return web.json_response(
+            {
+                "status": "not_found",
+                "error": "session_not_found",
+                "ai_id": ai_id,
+                "session_id": session_id,
+                "exists": False,
+                "open_scene_id": None,
+            },
+            status=404,
+        )
+
+    open_scene = getattr(session, "open_scene", None)
+    open_scene_id = (
+        getattr(open_scene, "scene_id", None) if open_scene is not None else None
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "contract": "dlaas.session-state.v1",
+            "ai_id": ai_id,
+            "session_id": session_id,
+            "vertical": vertical,
+            "exists": True,
+            "open_scene_id": open_scene_id,
+        }
+    )
 
 
 async def _handle_operations_context_pack(request: web.Request) -> web.Response:

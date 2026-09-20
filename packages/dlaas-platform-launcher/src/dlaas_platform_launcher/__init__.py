@@ -25,6 +25,7 @@ from dlaas_platform_launcher.launcher_protocol import (
     InteractionForwardingLauncherProtocol,
     LauncherProtocol,
     OperationsForwardingLauncherProtocol,
+    SessionStateForwardingLauncherProtocol,
     VerticalBrainForwardingLauncherProtocol,
 )
 from dlaas_platform_launcher.multi_pod_launcher import MultiPodLauncher
@@ -48,6 +49,7 @@ __all__ = (
     "InteractionForwardingLauncherProtocol",
     "LauncherProtocol",
     "OperationsForwardingLauncherProtocol",
+    "SessionStateForwardingLauncherProtocol",
     "VerticalBrainForwardingLauncherProtocol",
     "MultiPodLauncher",
     "RemoteInstanceManager",

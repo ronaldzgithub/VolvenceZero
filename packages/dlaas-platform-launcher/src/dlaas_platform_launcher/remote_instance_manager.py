@@ -107,6 +107,28 @@ class RemoteInstanceManager:
             )
         return status, body
 
+    async def forward_session_state(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+    ) -> tuple[int, dict]:
+        """Read session state from the owning pod without creating it."""
+
+        status, body = await self._transport(
+            "GET",
+            (
+                f"{self._base_url}/dlaas/v1/instances/{quote(ai_id, safe='')}/"
+                f"sessions/{quote(session_id, safe='')}"
+            ),
+            None,
+        )
+        if status >= 500:
+            raise RuntimeError(
+                f"pod session state read failed for ai_id={ai_id!r}: {body}"
+            )
+        return status, body
+
     async def forward_operations_request(
         self,
         *,

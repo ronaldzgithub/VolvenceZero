@@ -21,6 +21,7 @@ from typing import Any
 from dlaas_platform_launcher.launcher_protocol import (
     ExplicitSessionForwardingLauncherProtocol,
     OperationsForwardingLauncherProtocol,
+    SessionStateForwardingLauncherProtocol,
     VerticalBrainForwardingLauncherProtocol,
 )
 from dlaas_platform_contracts import InstanceLifecycleState, InstanceStatus
@@ -155,6 +156,24 @@ class MultiPodLauncher:
             )
         self._router.record_interaction(ai_id)
         return await manager.forward_session_create(ai_id=ai_id, payload=payload)
+
+    async def forward_session_state(
+        self,
+        *,
+        ai_id: str,
+        session_id: str,
+    ) -> tuple[int, dict]:
+        """Read session state from the pod that owns ``ai_id``."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, SessionStateForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support session state forwarding."
+            )
+        return await manager.forward_session_state(
+            ai_id=ai_id,
+            session_id=session_id,
+        )
 
     async def forward_operations_request(
         self,
