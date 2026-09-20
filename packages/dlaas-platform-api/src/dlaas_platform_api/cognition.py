@@ -71,7 +71,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Iterable
 
 from aiohttp import web
@@ -136,6 +136,9 @@ class CognitionSnapshot:
     eval_alert_count: int
     memory_entries: int
     raw_readout: dict[str, Any] = field(default_factory=dict)
+    # Appended after the legacy fields so positional construction of the
+    # pre-sequence contract keeps binding ``raw_readout`` correctly.
+    snapshot_sequence: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -166,23 +169,7 @@ class CognitionSnapshotStore:
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA synchronous = NORMAL;")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS cognition_snapshots (
-                    snapshot_id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL DEFAULT '',
-                    ai_id TEXT NOT NULL DEFAULT '',
-                    session_id TEXT NOT NULL DEFAULT '',
-                    source TEXT NOT NULL DEFAULT '',
-                    captured_at_ms INTEGER NOT NULL DEFAULT 0,
-                    row_json TEXT NOT NULL DEFAULT '{}'
-                );
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cog_ai_time "
-                "ON cognition_snapshots (tenant_id, ai_id, captured_at_ms);"
-            )
+            self._initialise_sqlite(conn)
             self._conn = conn
         else:
             self._mem = []
@@ -191,39 +178,41 @@ class CognitionSnapshotStore:
     def durable(self) -> bool:
         return self._conn is not None
 
-    def append(self, row: dict[str, Any]) -> None:
+    def append(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Append or replay one row and return its persisted representation.
+
+        ``snapshot_sequence`` is allocated monotonically inside the
+        ``(tenant_id, ai_id, session_id)`` partition when absent. A caller
+        replaying a durable row may supply its positive sequence; replaying an
+        existing ``snapshot_id`` without a sequence preserves the original
+        allocation. Both backends implement the same collision rules.
+        """
         with self._lock:
             if self._conn is not None:
-                self._conn.execute(
-                    "INSERT OR REPLACE INTO cognition_snapshots "
-                    "(snapshot_id, tenant_id, ai_id, session_id, source, "
-                    "captured_at_ms, row_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        str(row.get("snapshot_id", "")),
-                        str(row.get("tenant_id", "")),
-                        str(row.get("ai_id", "")),
-                        str(row.get("session_id", "")),
-                        str(row.get("source", "")),
-                        int(row.get("captured_at_ms", 0) or 0),
-                        json.dumps(row),
-                    ),
-                )
+                stored = self._append_sqlite(row)
             else:
                 assert self._mem is not None
-                self._mem.append(row)
+                stored = self._append_memory(row)
         self._maybe_sweep()
+        return stored
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         if self._conn is not None:
             with self._lock:
                 rows = self._conn.execute(
-                    "SELECT row_json FROM cognition_snapshots"
+                    "SELECT snapshot_sequence, row_json FROM cognition_snapshots"
                 ).fetchall()
             for r in rows:
                 try:
-                    yield json.loads(r["row_json"])
+                    payload = json.loads(r["row_json"])
                 except (TypeError, ValueError):  # pragma: no cover - defensive
                     continue
+                if not isinstance(payload, dict):  # pragma: no cover - defensive
+                    continue
+                # The indexed column is authoritative. Keeping the field in
+                # row_json as well makes exported/replayed rows self-contained.
+                payload["snapshot_sequence"] = int(r["snapshot_sequence"])
+                yield payload
         else:
             assert self._mem is not None
             yield from list(self._mem)
@@ -271,6 +260,281 @@ class CognitionSnapshotStore:
             self.sweep(now_ms=now)
         except sqlite3.Error:  # pragma: no cover - defensive
             _LOG.exception("cognition retention sweep failed")
+
+    @staticmethod
+    def _create_snapshot_table(conn: sqlite3.Connection, table: str) -> None:
+        if table not in {"cognition_snapshots", "cognition_snapshots_sequence_migration"}:
+            raise ValueError(f"unsupported cognition snapshot table name: {table!r}")
+        conn.execute(
+            f"""
+            CREATE TABLE {table} (
+                snapshot_id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL DEFAULT '',
+                ai_id TEXT NOT NULL DEFAULT '',
+                session_id TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                captured_at_ms INTEGER NOT NULL DEFAULT 0,
+                snapshot_sequence INTEGER NOT NULL CHECK (snapshot_sequence > 0),
+                row_json TEXT NOT NULL DEFAULT '{{}}'
+            );
+            """
+        )
+
+    @classmethod
+    def _initialise_sqlite(cls, conn: sqlite3.Connection) -> None:
+        """Create the schema or atomically migrate the legacy row shape.
+
+        The legacy table lacked ``snapshot_sequence``. Rebuilding rather than
+        merely adding a nullable column preserves the NOT NULL/positive
+        invariant. Backfill order is deterministic inside each partition and
+        the assigned value is written both to the indexed column and row_json.
+        SQLite DDL is transactional, so malformed legacy JSON leaves the old
+        table untouched instead of exposing a partially migrated database.
+        """
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'cognition_snapshots'"
+            ).fetchone()
+            if exists is None:
+                cls._create_snapshot_table(conn, "cognition_snapshots")
+            else:
+                columns = {
+                    str(row[1])
+                    for row in conn.execute(
+                        "PRAGMA table_info(cognition_snapshots)"
+                    ).fetchall()
+                }
+                if "snapshot_sequence" not in columns:
+                    cls._migrate_legacy_sequence(conn)
+                else:
+                    invalid = conn.execute(
+                        "SELECT snapshot_id FROM cognition_snapshots "
+                        "WHERE snapshot_sequence IS NULL OR snapshot_sequence <= 0 "
+                        "LIMIT 1"
+                    ).fetchone()
+                    if invalid is not None:
+                        raise ValueError(
+                            "cognition snapshot database contains an invalid "
+                            f"snapshot_sequence for {invalid[0]!r}"
+                        )
+                    cls._synchronise_sequence_json(conn)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cog_ai_time "
+                "ON cognition_snapshots (tenant_id, ai_id, captured_at_ms);"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_cog_session_sequence "
+                "ON cognition_snapshots "
+                "(tenant_id, ai_id, session_id, snapshot_sequence);"
+            )
+            conn.execute("COMMIT")
+        except (json.JSONDecodeError, sqlite3.Error, TypeError, ValueError):
+            conn.execute("ROLLBACK")
+            raise
+
+    @classmethod
+    def _migrate_legacy_sequence(cls, conn: sqlite3.Connection) -> None:
+        migration_table = "cognition_snapshots_sequence_migration"
+        conn.execute(f"DROP TABLE IF EXISTS {migration_table}")
+        cls._create_snapshot_table(conn, migration_table)
+        rows = conn.execute(
+            "SELECT rowid, snapshot_id, tenant_id, ai_id, session_id, source, "
+            "captured_at_ms, row_json FROM cognition_snapshots "
+            "ORDER BY tenant_id, ai_id, session_id, captured_at_ms, rowid, snapshot_id"
+        ).fetchall()
+        counters: dict[tuple[str, str, str], int] = {}
+        for row in rows:
+            partition = (str(row[2]), str(row[3]), str(row[4]))
+            sequence = counters.get(partition, 0) + 1
+            counters[partition] = sequence
+            payload = json.loads(row[7])
+            if not isinstance(payload, dict):
+                raise ValueError(
+                    f"legacy cognition snapshot {row[1]!r} row_json is not an object"
+                )
+            payload["snapshot_sequence"] = sequence
+            conn.execute(
+                f"INSERT INTO {migration_table} "
+                "(snapshot_id, tenant_id, ai_id, session_id, source, "
+                "captured_at_ms, snapshot_sequence, row_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(row[1]),
+                    *partition,
+                    str(row[5]),
+                    int(row[6]),
+                    sequence,
+                    json.dumps(payload),
+                ),
+            )
+        conn.execute("DROP TABLE cognition_snapshots")
+        conn.execute(
+            f"ALTER TABLE {migration_table} RENAME TO cognition_snapshots"
+        )
+
+    @staticmethod
+    def _synchronise_sequence_json(conn: sqlite3.Connection) -> None:
+        rows = conn.execute(
+            "SELECT snapshot_id, snapshot_sequence, row_json "
+            "FROM cognition_snapshots"
+        ).fetchall()
+        for row in rows:
+            payload = json.loads(row[2])
+            if not isinstance(payload, dict):
+                raise ValueError(
+                    f"cognition snapshot {row[0]!r} row_json is not an object"
+                )
+            sequence = int(row[1])
+            if payload.get("snapshot_sequence") != sequence:
+                payload["snapshot_sequence"] = sequence
+                conn.execute(
+                    "UPDATE cognition_snapshots SET row_json = ? WHERE snapshot_id = ?",
+                    (json.dumps(payload), str(row[0])),
+                )
+
+    @staticmethod
+    def _requested_sequence(row: dict[str, Any]) -> int | None:
+        raw = row.get("snapshot_sequence")
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            raise ValueError("snapshot_sequence must be a positive integer")
+        try:
+            sequence = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("snapshot_sequence must be a positive integer") from exc
+        if sequence <= 0:
+            raise ValueError("snapshot_sequence must be a positive integer")
+        return sequence
+
+    @staticmethod
+    def _partition(row: dict[str, Any]) -> tuple[str, str, str]:
+        return (
+            str(row.get("tenant_id", "")),
+            str(row.get("ai_id", "")),
+            str(row.get("session_id", "")),
+        )
+
+    def _append_memory(self, row: dict[str, Any]) -> dict[str, Any]:
+        assert self._mem is not None
+        snapshot_id = str(row.get("snapshot_id", ""))
+        requested = self._requested_sequence(row)
+        partition = self._partition(row)
+        existing_index = next(
+            (
+                index
+                for index, candidate in enumerate(self._mem)
+                if str(candidate.get("snapshot_id", "")) == snapshot_id
+            ),
+            None,
+        )
+        if existing_index is not None:
+            existing = self._mem[existing_index]
+            if self._partition(existing) != partition:
+                raise ValueError("snapshot_id replay cannot change its session partition")
+            existing_sequence = int(existing["snapshot_sequence"])
+            if requested is not None and requested != existing_sequence:
+                raise ValueError("snapshot_id replay cannot change snapshot_sequence")
+            sequence = existing_sequence
+        elif requested is not None:
+            sequence = requested
+        else:
+            sequence = 1 + max(
+                (
+                    int(candidate.get("snapshot_sequence", 0) or 0)
+                    for candidate in self._mem
+                    if self._partition(candidate) == partition
+                ),
+                default=0,
+            )
+        collision = next(
+            (
+                candidate
+                for candidate in self._mem
+                if self._partition(candidate) == partition
+                and int(candidate.get("snapshot_sequence", 0) or 0) == sequence
+                and str(candidate.get("snapshot_id", "")) != snapshot_id
+            ),
+            None,
+        )
+        if collision is not None:
+            raise ValueError(
+                "snapshot_sequence already belongs to another snapshot in this session"
+            )
+        stored = dict(row)
+        stored["snapshot_sequence"] = sequence
+        if existing_index is None:
+            self._mem.append(stored)
+        else:
+            self._mem[existing_index] = stored
+        return dict(stored)
+
+    def _append_sqlite(self, row: dict[str, Any]) -> dict[str, Any]:
+        assert self._conn is not None
+        conn = self._conn
+        snapshot_id = str(row.get("snapshot_id", ""))
+        requested = self._requested_sequence(row)
+        partition = self._partition(row)
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            existing = conn.execute(
+                "SELECT tenant_id, ai_id, session_id, snapshot_sequence "
+                "FROM cognition_snapshots WHERE snapshot_id = ?",
+                (snapshot_id,),
+            ).fetchone()
+            if existing is not None:
+                existing_partition = (
+                    str(existing["tenant_id"]),
+                    str(existing["ai_id"]),
+                    str(existing["session_id"]),
+                )
+                if existing_partition != partition:
+                    raise ValueError(
+                        "snapshot_id replay cannot change its session partition"
+                    )
+                existing_sequence = int(existing["snapshot_sequence"])
+                if requested is not None and requested != existing_sequence:
+                    raise ValueError(
+                        "snapshot_id replay cannot change snapshot_sequence"
+                    )
+                sequence = existing_sequence
+            elif requested is not None:
+                sequence = requested
+            else:
+                latest = conn.execute(
+                    "SELECT COALESCE(MAX(snapshot_sequence), 0) AS sequence "
+                    "FROM cognition_snapshots "
+                    "WHERE tenant_id = ? AND ai_id = ? AND session_id = ?",
+                    partition,
+                ).fetchone()
+                sequence = int(latest["sequence"]) + 1
+            stored = dict(row)
+            stored["snapshot_sequence"] = sequence
+            conn.execute(
+                "INSERT INTO cognition_snapshots "
+                "(snapshot_id, tenant_id, ai_id, session_id, source, "
+                "captured_at_ms, snapshot_sequence, row_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(snapshot_id) DO UPDATE SET "
+                "source = excluded.source, "
+                "captured_at_ms = excluded.captured_at_ms, "
+                "row_json = excluded.row_json",
+                (
+                    snapshot_id,
+                    *partition,
+                    str(row.get("source", "")),
+                    int(row.get("captured_at_ms", 0) or 0),
+                    sequence,
+                    json.dumps(stored),
+                ),
+            )
+            conn.execute("COMMIT")
+            return stored
+        except (sqlite3.Error, TypeError, ValueError):
+            conn.execute("ROLLBACK")
+            raise
 
 
 def _retention_days_from_env() -> int | None:
@@ -355,8 +619,8 @@ def record_cognition_snapshot(
         memory_entries=_extract_memory_entries(snapshots),
         raw_readout=readout_bundle_json if isinstance(readout_bundle_json, dict) else {},
     )
-    cognition_store(request).append(snapshot.to_json())
-    return snapshot
+    stored = cognition_store(request).append(snapshot.to_json())
+    return replace(snapshot, snapshot_sequence=int(stored["snapshot_sequence"]))
 
 
 def attach_cognition_routes(app: web.Application) -> None:

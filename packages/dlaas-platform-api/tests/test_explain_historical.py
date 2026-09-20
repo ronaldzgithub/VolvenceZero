@@ -14,11 +14,16 @@ Lightweight fakes — no aiohttp app or kernel session required.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
+import pytest
+
+import dlaas_platform_api.app as app_module
 from dlaas_platform_api.app import (
     _as_mapping,
     _explain_chain_from_readout,
+    _handle_explain,
     _persisted_turn_snapshots,
 )
 from dlaas_platform_api.cognition import COGNITION_SNAPSHOTS_KEY
@@ -48,6 +53,50 @@ def test_persisted_turn_snapshots_filters_and_orders_oldest_first() -> None:
     request = _request_with_store(rows)
     out = _persisted_turn_snapshots(request, ai_id="ai_a", session_id="s1")
     assert [r["snapshot_id"] for r in out] == ["c1", "c2", "c3"]
+
+
+def test_persisted_turn_snapshots_orders_by_sequence_despite_clock_regression() -> None:
+    rows = [
+        _row("ai_a", "s1", 100, snapshot_id="c3", snapshot_sequence=3),
+        _row("ai_a", "s1", 300, snapshot_id="c1", snapshot_sequence=1),
+        _row("ai_a", "s1", 200, snapshot_id="c2", snapshot_sequence=2),
+    ]
+    out = _persisted_turn_snapshots(
+        _request_with_store(rows), ai_id="ai_a", session_id="s1"
+    )
+    assert [r["snapshot_id"] for r in out] == ["c1", "c2", "c3"]
+
+
+@pytest.mark.asyncio
+async def test_historical_explain_reports_resolved_snapshot_sequence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_session_from_query(request: object, ai_id: str) -> object:
+        del request, ai_id
+        return SimpleNamespace(session_id="s1", latest_active_snapshots={})
+
+    monkeypatch.setattr(app_module, "_session_from_query", _fake_session_from_query)
+    request = SimpleNamespace(
+        app={
+            COGNITION_SNAPSHOTS_KEY: [
+                _row(
+                    "ai_a",
+                    "s1",
+                    100,
+                    snapshot_id="c1",
+                    snapshot_sequence=4,
+                    source="interaction",
+                    raw_readout={},
+                )
+            ]
+        },
+        match_info={"ai_id": "ai_a"},
+        query={"session_id": "s1", "turn_index": "0"},
+    )
+    response = await _handle_explain(request)
+    payload = json.loads(response.text)
+    assert payload["status"] == "ok"
+    assert payload["resolved"]["snapshot_sequence"] == 4
 
 
 def test_persisted_turn_snapshots_empty_when_store_missing() -> None:

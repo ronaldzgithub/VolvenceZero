@@ -1872,6 +1872,7 @@ async def _handle_explain(request: web.Request) -> web.Response:
     resolved = {
         "source": "historical",
         "turn_index": resolved_pos,
+        "snapshot_sequence": int(row.get("snapshot_sequence", 0) or 0),
         "captured_at_ms": int(row.get("captured_at_ms", 0) or 0),
         "snapshot_id": str(row.get("snapshot_id", "") or ""),
         "snapshot_source": str(row.get("source", "") or ""),
@@ -1907,7 +1908,13 @@ def _persisted_turn_snapshots(
         ]
     except Exception:  # noqa: BLE001 -- explain must not 500 on a read miss
         return []
-    rows.sort(key=lambda row: int(row.get("captured_at_ms", 0) or 0))
+    rows.sort(
+        key=lambda row: (
+            int(row.get("snapshot_sequence", 0) or 0),
+            int(row.get("captured_at_ms", 0) or 0),
+            str(row.get("snapshot_id", "")),
+        )
+    )
     return rows
 
 
