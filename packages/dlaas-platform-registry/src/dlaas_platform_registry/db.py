@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 
 _SCHEMA_SQL = (
@@ -402,6 +402,25 @@ _SCHEMA_SQL = (
         FOREIGN KEY (template_id) REFERENCES templates(template_id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS scene_end_ledger (
+        schema_id TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        contract_id TEXT NOT NULL,
+        ai_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        request_sha256 TEXT NOT NULL,
+        status TEXT NOT NULL,
+        lease_token TEXT NOT NULL,
+        lease_expires_at_ms INTEGER NOT NULL,
+        response_status INTEGER,
+        response_body_json TEXT,
+        unknown_reason TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY (contract_id, ai_id, idempotency_key)
+    );
+    """,
 )
 
 
@@ -666,6 +685,39 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             if "duplicate column name" not in str(exc).lower():
                 raise
 
+    # Schema v14: registry-owned exactly-once decision ledger for keyed
+    # report scene closure. Forward-create keeps existing registries intact.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scene_end_ledger (
+            schema_id TEXT NOT NULL,
+            schema_version INTEGER NOT NULL,
+            contract_id TEXT NOT NULL,
+            ai_id TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            request_sha256 TEXT NOT NULL,
+            status TEXT NOT NULL,
+            lease_token TEXT NOT NULL,
+            lease_expires_at_ms INTEGER NOT NULL,
+            response_status INTEGER,
+            response_body_json TEXT,
+            unknown_reason TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (contract_id, ai_id, idempotency_key)
+        );
+        """
+    )
+
+    try:
+        conn.execute(
+            "ALTER TABLE scene_end_ledger "
+            "ADD COLUMN unknown_reason TEXT NOT NULL DEFAULT ''"
+        )
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
 
 # ---------------------------------------------------------------------------
 # Postgres backend (debt D2)
@@ -755,7 +807,7 @@ class PostgresConnectionAdapter:
         try:
             self._conn.close()
         except Exception:  # pragma: no cover - defensive
-            pass
+            return
 
 
 def _init_schema_postgres(adapter: "PostgresConnectionAdapter") -> None:
@@ -777,6 +829,7 @@ def _init_schema_postgres(adapter: "PostgresConnectionAdapter") -> None:
         "ALTER TABLE templates ADD COLUMN IF NOT EXISTS coverage_policy TEXT NOT NULL DEFAULT 'passthrough'",
         "ALTER TABLE templates ADD COLUMN IF NOT EXISTS figure_time_window TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS plugins_json TEXT NOT NULL DEFAULT '[]'",
+        "ALTER TABLE scene_end_ledger ADD COLUMN IF NOT EXISTS unknown_reason TEXT NOT NULL DEFAULT ''",
     )
     for stmt in pg_alters:
         adapter.execute(stmt)
@@ -845,9 +898,9 @@ class Registry:
         try:
             self._conn.close()
         except sqlite3.Error:  # pragma: no cover - defensive
-            pass
+            return
         except Exception:  # pragma: no cover - defensive (postgres adapter)
-            pass
+            return
 
 
 __all__ = [

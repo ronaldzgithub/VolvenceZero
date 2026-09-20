@@ -232,6 +232,15 @@ from dlaas_platform_contracts.resources import (
     TemplateVersionSpec,
     TenantSpec,
 )
+from dlaas_platform_contracts.report_scene_end import (
+    REPORT_SCENE_END_LEDGER_SCHEMA,
+    REPORT_SCENE_END_LEDGER_SCHEMA_VERSION,
+    ReportSceneEndRequest,
+    SceneEndLedgerRecord,
+    SceneEndLedgerStatus,
+    SceneEndReservation,
+    SceneEndReserveOutcome,
+)
 from dlaas_platform_contracts.training import (
     ProtocolSubmission,
     ProtocolSubmissionSourceType,
@@ -397,10 +406,17 @@ __all__ = (
     "PromotionDecision",
     "QuotaSnapshot",
     "ReadinessReport",
+    "REPORT_SCENE_END_LEDGER_SCHEMA",
+    "REPORT_SCENE_END_LEDGER_SCHEMA_VERSION",
+    "ReportSceneEndRequest",
     "ReadoutBundle",
     "ReadoutView",
     "RubricEntry",
     "ShellKind",
+    "SceneEndLedgerRecord",
+    "SceneEndLedgerStatus",
+    "SceneEndReservation",
+    "SceneEndReserveOutcome",
     "ShellSpec",
     "SleepRequest",
     "SnapshotExportRequest",

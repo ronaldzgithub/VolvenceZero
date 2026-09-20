@@ -98,6 +98,24 @@ def test_all_known_tables_have_primary_keys() -> None:
     assert TABLE_PRIMARY_KEYS["governance_records"] == ("record_kind", "record_id")
 
 
+def test_scene_end_composite_key_and_do_nothing_are_postgres_safe() -> None:
+    assert TABLE_PRIMARY_KEYS["scene_end_ledger"] == (
+        "contract_id",
+        "ai_id",
+        "idempotency_key",
+    )
+    sql = (
+        "INSERT INTO scene_end_ledger "
+        "(contract_id, ai_id, idempotency_key) VALUES (?, ?, ?) "
+        "ON CONFLICT (contract_id, ai_id, idempotency_key) DO NOTHING"
+    )
+    translated = translate_statement(sql)
+    assert "VALUES (%s, %s, %s)" in translated
+    assert translated.endswith(
+        "ON CONFLICT (contract_id, ai_id, idempotency_key) DO NOTHING"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Backend selection
 # ---------------------------------------------------------------------------

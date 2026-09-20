@@ -268,6 +268,11 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
   必须明确为 `process_local`，不得充当跨进程恢复证据。durability 是 fail-closed
   三态契约：filesystem/Postgres=`restart_durable`、InMemory=`process_local`、未声明
   能力的自定义 backend=`unknown`；下游不得把后两者当作 restart proof。
+- receipt 由 Memory owner 的 `to_json()` 统一序列化，并提供
+  `is_restart_durable` typed 判定；DLaaS keyed report 只能原样嵌入该 payload，
+  不得在 platform 侧重算 hash、entry count 或 durability。scene end 已发生但
+  receipt 缺失/非 `restart_durable` 时，Registry ledger 必须记为
+  `OUTCOME_UNKNOWN`，不能自动重复 scene closure。
 - `promotion_threshold` 属于 Memory owner 的可回滚低风险自适应参数
 - 显式 `MemoryEntry` 属于 artifact / durable explanation layer，不等同于主记忆真相
 - semantic index 属于 Memory owner 内部 derived index，不向外暴露独立 owner
@@ -339,6 +344,11 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 | 协作 | 评估体系（5.7）| F4 学习质量中的记忆沉淀质量评估 |
 
 ## 变更日志
+
+- 2026-09-20: `MemoryCheckpointPersistenceReceipt` 增加 owner-authored
+  `to_json()` / `is_restart_durable` 公共边界，供 DLaaS keyed report 在
+  `end_scene` + slow drain 后取得可重启持久化证据；platform 只验证并原样存储
+  receipt，不成为第二 Memory owner。
 
 - 2026-09-20: checkpoint save/load 新增 owner-authored typed persistence receipt；
   hash 绑定实际后端回读的序列化 bytes，load receipt 对照恢复后 owner 再导出 hash，

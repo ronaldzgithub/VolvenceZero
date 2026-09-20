@@ -81,6 +81,11 @@ from dlaas_platform_registry.persona_lifecycle_store import (
     PersonaLifecycleStore,
 )
 from dlaas_platform_registry.shells import ShellNotFound, ShellStore
+from dlaas_platform_registry.scene_end_ledger import (
+    DEFAULT_SCENE_END_LEASE_MS,
+    SceneEndLedgerStore,
+    SceneEndLedgerTransitionError,
+)
 from dlaas_platform_registry.training_jobs import (
     TrainingJobNotFound,
     TrainingJobStore,
@@ -130,6 +135,9 @@ __all__ = (
     "PlatformAuthConfig",
     "REGISTRY_APP_KEY",
     "Registry",
+    "DEFAULT_SCENE_END_LEASE_MS",
+    "SceneEndLedgerStore",
+    "SceneEndLedgerTransitionError",
     "ShellNotFound",
     "ShellStore",
     "TemplateNotFound",

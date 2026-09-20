@@ -247,6 +247,36 @@ class MemoryCheckpointPersistenceReceipt:
         if not isinstance(self.restored_matches_persisted, bool):
             raise ValueError("load receipt requires bool restored_matches_persisted")
 
+    @property
+    def is_restart_durable(self) -> bool:
+        """Whether this complete owner-validated receipt crosses restart."""
+
+        return self.durability == "restart_durable"
+
+    def to_json(self) -> dict[str, object]:
+        """Serialize the receipt at its owner boundary.
+
+        Consumers must not reconstruct or reinterpret Memory internals.  The
+        stable public payload is authored here and may be embedded verbatim in
+        a DLaaS scene-end response/ledger.
+        """
+
+        return {
+            "schema_id": self.schema_id,
+            "schema_version": self.schema_version,
+            "operation": self.operation,
+            "checkpoint_id": self.checkpoint_id,
+            "checkpoint_key": self.checkpoint_key,
+            "checkpoint_version": self.checkpoint_version,
+            "payload_sha256": self.payload_sha256,
+            "payload_bytes": self.payload_bytes,
+            "entry_count": self.entry_count,
+            "durability": self.durability,
+            "completed_at_ms": self.completed_at_ms,
+            "restored_payload_sha256": self.restored_payload_sha256,
+            "restored_matches_persisted": self.restored_matches_persisted,
+        }
+
 
 def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
     """Reconstruct a MemoryStoreCheckpoint from a deserialized dict.

@@ -3051,6 +3051,7 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `contract_state` | ContractRegistry | `dlaas-platform-registry`（SQLite CRUD 已实现） | ContractState | ACTIVE（platform control plane） | CRUD 时 / lifecycle 切换 | `dlaas-platform-launcher`（adopt / awake）、`dlaas-platform-api`（runtime 路由） |
 | `instance_status` | InstanceManager | `dlaas-platform-launcher`（instance map 已实现） | InstanceStatus | ACTIVE（platform control plane） | adopt / awake / sleep / evict | `dlaas-platform-api`、`dlaas-platform-ops` |
 | `handoff_ticket_state` | HandoffQueue | `dlaas-platform-ops`（queue / ticket / SSE 已实现） | HandoffTicketState | ACTIVE（platform control plane） | rupture_state 快照触发 / 操作员手动 | `dlaas-platform-api`、admin SSE stream |
+| `report_scene_end_ledger` | SceneEndLedgerStore | `dlaas-platform-registry` schema v14 | `SceneEndLedgerRecord`（canonical request SHA-256、RESERVED/COMPLETED/OUTCOME_UNKNOWN、lease、原始 response、unknown reason） | ACTIVE（platform governance fact） | keyed report reserve / heartbeat / terminal CAS | `dlaas-platform-api` parent ingress；runtime 与 `vz-*` 禁止读取 |
 
 **platform-side slot 不变量**：
 
@@ -3058,6 +3059,11 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 - 平台 owner 把 kernel 视为单向调用对象（`lifeform-core.Lifeform` facade + `lifeform-service` HTTP），从不让 kernel 知道 platform 存在
 - handoff_ticket_state 的触发证据来自**读** `vz-cognition.rupture_state.RuptureStateSnapshot`，平台不在 kernel 里加任何 handoff owner
 - focus_person 写入路径只走 `BrainSession.submit_profile_event`；platform 只持有 `(ai_id, person_id)` 索引，**不**持有 person belief / preference / role 副本
+- `report_scene_end_ledger` 只拥有破坏性 report 的执行/重放事实，不拥有 scene、
+  Memory checkpoint 或认知状态；Memory receipt 必须由 `vz-memory` owner
+  `to_json()` 发布。父入口先 reserve 再 local/remote dispatch；lease 过期、异常、
+  transport/5xx 或非 restart-durable receipt 都永久进入 `OUTCOME_UNKNOWN`，禁止
+  自动重复 `end_scene`。
 - identity_link 只是把 `(tenant_id, ai_id, canonical_end_user_ref)` 拼成 `volvence_zero.memory.UserIdentity.scope_key` 字符串，0 改 vz-memory schema
 
 ### 6.2 Owner 字段扩展（stable readouts + migration log mirror）

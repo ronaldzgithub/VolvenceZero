@@ -103,6 +103,22 @@ def test_filesystem_receipt_proves_save_then_fresh_store_load_equivalence(
     assert save_receipt.completed_at_ms > 0
     assert save_receipt.restored_payload_sha256 is None
     assert save_receipt.restored_matches_persisted is None
+    assert save_receipt.is_restart_durable is True
+    assert save_receipt.to_json() == {
+        "schema_id": save_receipt.schema_id,
+        "schema_version": save_receipt.schema_version,
+        "operation": save_receipt.operation,
+        "checkpoint_id": save_receipt.checkpoint_id,
+        "checkpoint_key": save_receipt.checkpoint_key,
+        "checkpoint_version": save_receipt.checkpoint_version,
+        "payload_sha256": save_receipt.payload_sha256,
+        "payload_bytes": save_receipt.payload_bytes,
+        "entry_count": save_receipt.entry_count,
+        "durability": save_receipt.durability,
+        "completed_at_ms": save_receipt.completed_at_ms,
+        "restored_payload_sha256": None,
+        "restored_matches_persisted": None,
+    }
     assert source.latest_persistence_receipt == save_receipt
 
     restarted_backend = FileSystemPersistenceBackend(base_dir=str(tmp_path))
@@ -185,6 +201,7 @@ def test_in_memory_receipt_is_explicitly_process_local() -> None:
     assert backend.durability == "process_local"
     assert save_receipt is not None
     assert save_receipt.durability == "process_local"
+    assert save_receipt.is_restart_durable is False
     assert load_receipt is not None
     assert load_receipt.durability == "process_local"
     assert load_receipt.restored_matches_persisted is True

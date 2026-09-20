@@ -49,6 +49,7 @@ TABLE_PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "applications": ("application_id",),
     "org_application_approvals": ("tenant_id", "application_id"),
     "training_jobs": ("ai_id", "job_id"),
+    "scene_end_ledger": ("contract_id", "ai_id", "idempotency_key"),
 }
 
 
