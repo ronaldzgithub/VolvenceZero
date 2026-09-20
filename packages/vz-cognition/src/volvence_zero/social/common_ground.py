@@ -520,6 +520,7 @@ class LLMCommonGroundProposalRuntime:
                 user_input=user_input,
                 turn_index=turn_index,
             ),
+            operation_kind="common_ground_proposal",
         )
 
 

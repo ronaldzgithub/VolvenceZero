@@ -6,11 +6,14 @@ import asyncio
 import threading
 import time
 
+import pytest
+
 from volvence_zero.semantic_state.llm_runtime import LLMSemanticProposalRuntime
 from volvence_zero.social import (
     LLMCommonGroundProposalRuntime,
     LLMToMProposalRuntime,
 )
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 
 
 class _BlockingSharedState:
@@ -21,6 +24,7 @@ class _BlockingSharedState:
         self.call_count = 0
         self.active_calls = 0
         self.max_active_calls = 0
+        self.thread_ids: set[int] = set()
 
 
 class _SharedRuntimeOwner:
@@ -50,6 +54,7 @@ class _BlockingProvider:
         with state._lock:
             state.call_count += 1
             state.active_calls += 1
+            state.thread_ids.add(threading.get_ident())
             state.max_active_calls = max(
                 state.max_active_calls,
                 state.active_calls,
@@ -148,3 +153,39 @@ def test_shared_proposal_provider_stays_off_loop_and_single_flight() -> None:
     assert len(results) == 5
     assert state.call_count == 5
     assert state.max_active_calls == 1
+    assert len(state.thread_ids) == 1
+
+
+def test_serial_owner_executor_recovers_after_failure_without_logging_secret(
+    caplog,
+) -> None:
+    owner = _SharedRuntimeOwner()
+    thread_ids: list[int] = []
+
+    def fail_once() -> str:
+        thread_ids.append(threading.get_ident())
+        raise RuntimeError("provider-secret=must-not-enter-log")
+
+    def succeed() -> str:
+        thread_ids.append(threading.get_ident())
+        return "recovered"
+
+    async def exercise() -> str:
+        with pytest.raises(RuntimeError, match="provider-secret"):
+            await run_runtime_call(
+                runtime=owner,
+                operation=fail_once,
+                operation_kind="semantic_proposal:commitment",
+            )
+        return await run_runtime_call(
+            runtime=owner,
+            operation=succeed,
+            operation_kind="semantic_proposal:commitment",
+        )
+
+    assert asyncio.run(exercise()) == "recovered"
+    assert len(set(thread_ids)) == 1
+    assert "operation_kind=semantic_proposal:commitment" in caplog.text
+    assert "cause_type=RuntimeError" in caplog.text
+    assert "failure_fingerprint=" in caplog.text
+    assert "provider-secret" not in caplog.text

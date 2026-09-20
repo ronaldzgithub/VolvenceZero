@@ -800,6 +800,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 context=context,
                 assembly=assembly,
             ),
+            operation_kind="expression_generation",
         )
 
     @staticmethod

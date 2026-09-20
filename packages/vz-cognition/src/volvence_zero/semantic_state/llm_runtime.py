@@ -773,6 +773,7 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
                 previous_snapshot=previous_snapshot,
                 turn_index=turn_index,
             ),
+            operation_kind=f"semantic_proposal:{target_slot}",
         )
 
     def _base_propose(

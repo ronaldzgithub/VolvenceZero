@@ -488,6 +488,7 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         capture = await run_runtime_call(
             runtime=self._runtime,
             operation=operation,
+            operation_kind="substrate_capture",
         )
         runtime_origin = getattr(self._runtime, "runtime_origin", "unknown")
         fallback_active = 1 if getattr(self._runtime, "fallback_active", False) else 0

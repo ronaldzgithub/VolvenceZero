@@ -1386,6 +1386,7 @@ class LLMToMProposalRuntime(SemanticProposalRuntime):
                 previous_snapshot=previous_snapshot,
                 turn_index=turn_index,
             ),
+            operation_kind=f"tom_proposal:{target_slot}",
         )
 
     def _decisions_for_turn(
