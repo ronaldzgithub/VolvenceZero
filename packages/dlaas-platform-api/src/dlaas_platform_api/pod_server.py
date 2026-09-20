@@ -29,6 +29,7 @@ from dlaas_platform_api.substrate_profiles import (
     build_runtime_for_profile,
 )
 from dlaas_platform_api.app import (
+    _handle_trusted_cognitive_turn,
     _handle_trusted_data_export,
     _handle_trusted_scene_end_report,
 )
@@ -85,6 +86,10 @@ def build_pod_app(
     app.router.add_post(
         "/internal/dlaas/instances/{ai_id}/scene-end-report",
         _handle_trusted_scene_end_report,
+    )
+    app.router.add_post(
+        "/internal/dlaas/instances/{ai_id}/cognitive-turn",
+        _handle_trusted_cognitive_turn,
     )
     app.router.add_post(
         "/internal/dlaas/instances/{ai_id}/data/export-memory",

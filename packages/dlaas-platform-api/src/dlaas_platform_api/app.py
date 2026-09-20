@@ -80,6 +80,7 @@ from dlaas_platform_contracts import (
     WebhookSubscription,
 )
 from dlaas_platform_launcher import (
+    CognitiveTurnForwardingLauncherProtocol,
     DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     INSTANCE_MANAGER_APP_KEY,
@@ -106,6 +107,7 @@ from dlaas_platform_ops import (
 )
 from dlaas_platform_registry import (
     ApplicationStore,
+    CognitiveTurnLedgerStore,
     ContractNotFound,
     GovernanceRecordNotFound,
     GovernanceStore,
@@ -174,7 +176,10 @@ from dlaas_platform_api.streaming import (
 )
 from dlaas_platform_api.scene_end_report import (
     dispatch_keyed_report,
-    valid_idempotency_key,
+)
+from dlaas_platform_api.idempotency import valid_idempotency_key
+from dlaas_platform_api.cognitive_turn_idempotency import (
+    dispatch_keyed_cognitive_turn,
 )
 from dlaas_platform_api.third_party_llm import attach_third_party_llm_routes
 from dlaas_platform_api.training_executor import (
@@ -218,6 +223,7 @@ _DEBUG_SCHEMAS_KEY = "dlaas_debug_schemas"
 _DEBUG_EVENTS_KEY = "dlaas_debug_events"
 _DEBUG_ANALYSES_KEY = "dlaas_debug_analyses"
 _SCENE_END_LEDGER_STORE_KEY = "dlaas_scene_end_ledger_store"
+_COGNITIVE_TURN_LEDGER_STORE_KEY = "dlaas_cognitive_turn_ledger_store"
 
 
 def attach_dlaas_routes(
@@ -301,6 +307,7 @@ def attach_dlaas_full_stack(
     app[INSTANCE_MANAGER_APP_KEY] = instance_manager
     app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
     app[_SCENE_END_LEDGER_STORE_KEY] = SceneEndLedgerStore(registry)
+    app[_COGNITIVE_TURN_LEDGER_STORE_KEY] = CognitiveTurnLedgerStore(registry)
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
     _register_openai_compat_cognition_hook(app)
@@ -3287,6 +3294,24 @@ async def _handle_interaction(request: web.Request) -> web.StreamResponse:
                 idempotency_key=raw_key,
             )
 
+    if envelope.interaction_type is InteractionType.COGNITIVE_TURN:
+        raw_key = request.headers.get("Idempotency-Key", "")
+        if not valid_idempotency_key(raw_key):
+            return _json_error(
+                status=400,
+                error="invalid_idempotency_key",
+                detail=(
+                    "cognitive_turn requires an Idempotency-Key that is "
+                    "non-blank, at most 256 printable characters"
+                ),
+            )
+        return await _dispatch_keyed_cognitive_turn(
+            request,
+            ai_id=ai_id,
+            envelope=envelope,
+            idempotency_key=raw_key,
+        )
+
     return await _dispatch_envelope_to_instance(request, ai_id, envelope)
 
 
@@ -3314,6 +3339,29 @@ async def _handle_trusted_scene_end_report(
         envelope,
         require_report_persistence=True,
     )
+
+
+async def _handle_trusted_cognitive_turn(
+    request: web.Request,
+) -> web.StreamResponse:
+    """Pod-only dispatch after the parent has durably reserved the turn."""
+
+    try:
+        envelope = await _parse_envelope(request)
+    except _EnvelopeError as exc:
+        return _json_error(status=400, error=exc.code, detail=exc.detail)
+    if envelope.interaction_type is not InteractionType.COGNITIVE_TURN:
+        return _json_error(
+            status=400,
+            error="cognitive_turn_required",
+            detail="trusted cognitive-turn route accepts cognitive_turn only",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    if not ai_id:
+        return _json_error(
+            status=400, error="invalid_ai_id", detail="ai_id is required"
+        )
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
 
 
 async def _dispatch_keyed_report(
@@ -3344,6 +3392,41 @@ async def _dispatch_keyed_report(
         envelope=envelope,
         idempotency_key=idempotency_key,
         store=store if isinstance(store, SceneEndLedgerStore) else None,
+        run_dispatch=_run,
+    )
+
+
+async def _dispatch_keyed_cognitive_turn(
+    request: web.Request,
+    *,
+    ai_id: str,
+    envelope: InteractionEnvelope,
+    idempotency_key: str,
+) -> web.StreamResponse:
+    if envelope.output_contract.stream:
+        return _json_error(
+            status=400,
+            error="keyed_cognitive_turn_stream_not_supported",
+            detail=(
+                "cognitive_turn requires one replayable JSON response; "
+                "output_contract.stream must be false"
+            ),
+        )
+    store = request.app.get(_COGNITIVE_TURN_LEDGER_STORE_KEY)
+
+    async def _run() -> web.StreamResponse:
+        return await _dispatch_envelope_to_instance(
+            request,
+            ai_id,
+            envelope,
+            require_cognitive_turn_idempotency=True,
+        )
+
+    return await dispatch_keyed_cognitive_turn(
+        ai_id=ai_id,
+        envelope=envelope,
+        idempotency_key=idempotency_key,
+        store=store if isinstance(store, CognitiveTurnLedgerStore) else None,
         run_dispatch=_run,
     )
 
@@ -3802,6 +3885,7 @@ async def _dispatch_envelope_to_instance(
     envelope: InteractionEnvelope,
     *,
     require_report_persistence: bool = False,
+    require_cognitive_turn_idempotency: bool = False,
 ) -> web.StreamResponse:
     ops_bundle = request.app.get(OPS_BUNDLE_APP_KEY)
     if isinstance(ops_bundle, OpsBundle):
@@ -3820,11 +3904,16 @@ async def _dispatch_envelope_to_instance(
     # (MultiPodLauncher), the owning pod holds the session, so forward
     # the whole envelope over RPC instead of resolving a local manager.
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    forward = (
-        getattr(launcher, "forward_scene_end_report", None)
-        if require_report_persistence
-        else getattr(launcher, "forward_interaction", None)
-    )
+    if require_report_persistence:
+        forward = getattr(launcher, "forward_scene_end_report", None)
+    elif require_cognitive_turn_idempotency:
+        forward = (
+            launcher.forward_cognitive_turn
+            if isinstance(launcher, CognitiveTurnForwardingLauncherProtocol)
+            else None
+        )
+    else:
+        forward = getattr(launcher, "forward_interaction", None)
     if callable(forward):
         try:
             forwarded = await forward(ai_id=ai_id, envelope=envelope)
@@ -3839,7 +3928,10 @@ async def _dispatch_envelope_to_instance(
                 status=502, error="pod_forward_failed", detail=str(exc)
             )
         forwarded_status = 200
-        if require_report_persistence:
+        trusted_status_response = (
+            require_report_persistence or require_cognitive_turn_idempotency
+        )
+        if trusted_status_response:
             if (
                 not isinstance(forwarded, tuple)
                 or len(forwarded) != 2
@@ -3849,7 +3941,7 @@ async def _dispatch_envelope_to_instance(
                 return _json_error(
                     status=502,
                     error="pod_forward_contract_invalid",
-                    detail="trusted scene-end forward must return (status, JSON body)",
+                    detail="trusted forward must return (status, JSON body)",
                 )
             forwarded_status, body = forwarded
         else:

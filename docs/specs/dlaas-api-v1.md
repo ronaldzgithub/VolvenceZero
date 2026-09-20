@@ -197,6 +197,45 @@ binding (legacy sticky reuse) or repeat the exact same binding; a different
 binding for the same session fails `409 session_template_binding_mismatch`.
 The complete envelope survives multi-pod `to_json()` forwarding unchanged.
 
+### Keyed cognitive turns
+
+Every `interaction_type=cognitive_turn` request MUST carry a non-blank
+printable `Idempotency-Key` header of at most 256 characters and MUST request
+one JSON response (`output_contract.stream=false`). Unlike keyed `report`,
+there is no legacy unkeyed path: a missing or invalid key is rejected before
+session lookup or `LifeformSession.run_turn`.
+
+The Registry is the unique owner of the independent
+`dlaas.cognitive-turn-ledger` contract and its schema-v15 table. Its key is
+`(contract_id, ai_id, idempotency_key)`. The canonical request SHA-256 binds
+`ai_id / contract_id / session_id / end_user_ref / interaction_type /
+protocol_version / mode / human_brief / structured_context / feedback /
+target_person_ids / lang` and the complete
+`template_binding / perceived_event / cognition_task / expression_contract`.
+The recursively frozen request value prevents later mutation of nested frame,
+schema, or binding values from changing that identity. `output_contract` is
+transport-only and is deliberately excluded from the digest.
+
+Before any local `run_turn` or parent-to-pod dispatch, the parent atomically
+reserves the key. Missing/unavailable ledger state returns
+`503 cognitive_turn_ledger_unavailable` without running the turn. A different
+payload under the same key returns `409 idempotency_key_payload_conflict`; the
+same payload under a live lease returns `409 cognitive_turn_in_progress`.
+Heartbeats extend only a still-live lease, and completion uses a lease-token +
+unexpired-lease CAS. A completed 2xx or deterministic 4xx response is stored
+verbatim and replayed with `Idempotency-Replayed: true` without another
+`run_turn`.
+
+An expired lease, dispatch/provider exception, upstream 5xx, non-JSON or
+otherwise unrecordable response, or completion CAS failure is never retried.
+After the parent durably writes `OUTCOME_UNKNOWN`, the first affected request
+and every later request return `409 cognitive_turn_outcome_unknown` with the
+stable `unknown_reason`. If even that terminal write fails, the API returns
+`503 cognitive_turn_ledger_finalize_failed` and explicitly does not claim a
+safe retry. Multi-pod execution uses a pod-only trusted route that carries no
+caller idempotency key; the parent Registry remains the sole ledger owner and
+preserves the pod's original 2xx/4xx/5xx status for finalization.
+
 ### Keyed `report` scene closure
 
 `interaction_type=report` may carry a non-blank printable

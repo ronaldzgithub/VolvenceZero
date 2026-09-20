@@ -4,6 +4,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 import pytest
 
+from dlaas_platform_api import app as app_module
 from dlaas_platform_api.app import attach_dlaas_routes
 from dlaas_platform_api.dispatch import dispatch_envelope
 from dlaas_platform_contracts import InteractionEnvelope
@@ -13,6 +14,7 @@ from lifeform_service import (
     ContentAddressedTemplateBinding,
     SessionNotFoundError,
 )
+from dlaas_platform_registry import CognitiveTurnLedgerStore, Registry
 from volvence_zero.cognition_task import CognitionTaskKind
 from volvence_zero.environment import EnvironmentEventKind
 
@@ -130,12 +132,17 @@ class _Manager:
 async def _post(manager: _Manager, payload: dict[str, object]):
     app = web.Application()
     app["session_manager"] = manager
+    app[app_module._COGNITIVE_TURN_LEDGER_STORE_KEY] = CognitiveTurnLedgerStore(
+        Registry()
+    )
     attach_dlaas_routes(app)
     client = TestClient(TestServer(app))
     await client.start_server()
     try:
         response = await client.post(
-            "/dlaas/v1/instances/ai-qiao/interactions", json=payload
+            "/dlaas/v1/instances/ai-qiao/interactions",
+            json=payload,
+            headers={"Idempotency-Key": "test-cognitive-turn"},
         )
         return response.status, await response.json()
     finally:
@@ -201,6 +208,86 @@ async def test_route_creates_first_session_from_exact_template_binding() -> None
     ]
     assert manager.session is not None
     assert len(manager.session.calls) == 1
+
+
+async def test_route_replays_completed_turn_without_second_run_turn() -> None:
+    manager = _Manager()
+    app = web.Application()
+    app["session_manager"] = manager
+    app[app_module._COGNITIVE_TURN_LEDGER_STORE_KEY] = CognitiveTurnLedgerStore(
+        Registry()
+    )
+    attach_dlaas_routes(app)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        headers = {"Idempotency-Key": "route-replay"}
+        first = await client.post(
+            "/dlaas/v1/instances/ai-qiao/interactions",
+            json=_payload(),
+            headers=headers,
+        )
+        replay = await client.post(
+            "/dlaas/v1/instances/ai-qiao/interactions",
+            json=_payload(),
+            headers=headers,
+        )
+        assert first.status == replay.status == 200
+        assert replay.headers["Idempotency-Replayed"] == "true"
+        assert manager.session is not None
+        assert len(manager.session.calls) == 1
+    finally:
+        await client.close()
+
+
+async def test_route_turn_exception_is_unknown_and_retry_does_not_run_again() -> None:
+    class _FailingSession(_Session):
+        async def run_turn(self, perception: str, **kwargs: object) -> _Result:
+            self.calls.append((perception, kwargs))
+            raise RuntimeError("provider failed after turn start")
+
+    class _FailingManager(_Manager):
+        async def create_session(
+            self,
+            *,
+            session_id: str,
+            user_id: str | None = None,
+            template_binding: ContentAddressedTemplateBinding | None = None,
+        ) -> _Session:
+            self.create_calls.append(template_binding)
+            self.binding = template_binding
+            self.user_id = user_id
+            self.session = _FailingSession()
+            return self.session
+
+    manager = _FailingManager()
+    app = web.Application()
+    app["session_manager"] = manager
+    app[app_module._COGNITIVE_TURN_LEDGER_STORE_KEY] = CognitiveTurnLedgerStore(
+        Registry()
+    )
+    attach_dlaas_routes(app)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        headers = {"Idempotency-Key": "route-exception"}
+        first = await client.post(
+            "/dlaas/v1/instances/ai-qiao/interactions",
+            json=_payload(),
+            headers=headers,
+        )
+        retry = await client.post(
+            "/dlaas/v1/instances/ai-qiao/interactions",
+            json=_payload(),
+            headers=headers,
+        )
+        assert first.status == retry.status == 409
+        assert (await first.json())["error"] == "cognitive_turn_outcome_unknown"
+        assert (await retry.json())["error"] == "cognitive_turn_outcome_unknown"
+        assert manager.session is not None
+        assert len(manager.session.calls) == 1
+    finally:
+        await client.close()
 
 
 async def test_route_rejects_unknown_cognition_kind_with_400() -> None:

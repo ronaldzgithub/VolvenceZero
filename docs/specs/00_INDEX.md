@@ -1044,8 +1044,8 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 
 | Spec | 内容 |
 |------|------|
-| [dlaas-platform.md](./dlaas-platform.md) | 6 个 `dlaas-platform-*` wheel 切分（contracts / registry / launcher / api / ops / eval）；typed `InteractionEnvelope` 路由表（chat/observe/feedback/teach/task/report/command）；`OutputAct` 包装；platform 不持有任何 cognitive state |
-| [dlaas-api-v1.md](./dlaas-api-v1.md) | DLaaS v1 对外 API：OpenAI-compatible facade、native runtime envelope、adoption contract、protocol/training intake、environment/feedback convenience aliases、wake/sleep/status lifecycle |
+| [dlaas-platform.md](./dlaas-platform.md) | 6 个 `dlaas-platform-*` wheel 切分（contracts / registry / launcher / api / ops / eval）；typed `InteractionEnvelope` 路由表（含 native cognitive turn）；Registry-owned cognitive-turn/report 独立幂等 ledger；`OutputAct` 包装；platform 不持有任何 cognitive state |
+| [dlaas-api-v1.md](./dlaas-api-v1.md) | DLaaS v1 对外 API：OpenAI-compatible facade、native runtime envelope、强制 keyed cognitive turn、keyed report closure、adoption contract、protocol/training intake、environment/feedback aliases、wake/sleep/status lifecycle |
 | [interactive-cognition-entry.md](./interactive-cognition-entry.md) | 交互认知进入路径 SSOT：两个前门（native typed envelope + OpenAI-compat）→ session → kernel run_turn → cognition snapshot → readouts/explain/health；OpenAI 路径可观测性对齐（`openai_compat_on_turn` hook）；`/explain` 历史回合诚实解析；学徒教学（teach/feedback/corpus）入口 |
 
 **核心不变量**：

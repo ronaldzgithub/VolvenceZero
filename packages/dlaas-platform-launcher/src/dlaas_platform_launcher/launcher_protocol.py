@@ -53,6 +53,15 @@ class SceneEndReportForwardingLauncherProtocol(Protocol):
 
 
 @runtime_checkable
+class CognitiveTurnForwardingLauncherProtocol(Protocol):
+    """Trusted parent-to-pod cognitive turn with original HTTP status."""
+
+    async def forward_cognitive_turn(
+        self, *, ai_id: str, envelope: Any
+    ) -> tuple[int, dict[str, Any]]: ...
+
+
+@runtime_checkable
 class DataExportForwardingLauncherProtocol(Protocol):
     """Forward a scoped Memory export to the pod owning ``ai_id``."""
 
@@ -117,6 +126,7 @@ class OperationsForwardingLauncherProtocol(Protocol):
 
 
 __all__ = [
+    "CognitiveTurnForwardingLauncherProtocol",
     "DataExportForwardingLauncherProtocol",
     "ExplicitSessionForwardingLauncherProtocol",
     "InteractionForwardingLauncherProtocol",

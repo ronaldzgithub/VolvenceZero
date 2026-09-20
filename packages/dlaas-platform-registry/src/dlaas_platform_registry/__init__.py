@@ -86,6 +86,11 @@ from dlaas_platform_registry.scene_end_ledger import (
     SceneEndLedgerStore,
     SceneEndLedgerTransitionError,
 )
+from dlaas_platform_registry.cognitive_turn_ledger import (
+    CognitiveTurnLedgerStore,
+    CognitiveTurnLedgerTransitionError,
+    DEFAULT_COGNITIVE_TURN_LEASE_MS,
+)
 from dlaas_platform_registry.training_jobs import (
     TrainingJobNotFound,
     TrainingJobStore,
@@ -117,6 +122,9 @@ __all__ = (
     "CultivationRecordSpec",
     "CultivationStatus",
     "CultivationStore",
+    "CognitiveTurnLedgerStore",
+    "CognitiveTurnLedgerTransitionError",
+    "DEFAULT_COGNITIVE_TURN_LEASE_MS",
     "EvalStore",
     "ExamQuestionNotFound",
     "ExamRunNotFound",

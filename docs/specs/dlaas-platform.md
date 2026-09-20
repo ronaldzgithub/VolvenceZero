@@ -79,7 +79,7 @@ wake/sleep/status lifecycle.
 | Wheel | 职责 | 边界规则 |
 |---|---|---|
 | `dlaas-platform-contracts` | 全部 frozen dataclass + JSON schema：`InteractionEnvelope` / `OutputAct` / `TenantSpec` / `ShellSpec` / `AssetSpec` / `TemplateSpec` / `ContractSpec` / `FocusPersonSpec` / `IdentityLinkSpec` / `HandoffTicketSpec` 等 | 零 lifeform/runtime import；只复用 `vz-contracts` 的 typed immutable contracts |
-| `dlaas-platform-registry` | SQLite/Postgres-backed 持久化 + auth 中间件；唯一 owner of tenant/shell/asset/template/contract/focus_person/identity_link/handoff_ticket/exam_run/interview_run/persona_lifecycle | 不调内核；不调 lifeform-* internals |
+| `dlaas-platform-registry` | SQLite/Postgres-backed 持久化 + auth 中间件；唯一 owner of tenant/shell/asset/template/contract/focus_person/identity_link/handoff_ticket/exam_run/interview_run/persona_lifecycle，以及独立的 cognitive-turn / report 执行幂等 ledger | 不调内核；不调 lifeform-* internals；两个 ledger 不共表、不拥有认知或场景状态 |
 | `dlaas-platform-launcher` | `InstanceManager`：管 `{ai_id → Lifeform}`，shared substrate，awake/sleep，LRU eviction | 通过 `lifeform-core.Lifeform` facade + `lifeform-service.SessionManager` 进入运行时 |
 | `dlaas-platform-api` | aiohttp `/dlaas/*` router + 三种 auth header 中间件 + `OutputAct` 包装 | 端点入口，不持有任何 cognitive state |
 | `dlaas-platform-ops` | pause/resume/operator-message/handoff queue/SSE conversations stream；ledger | 只读 rupture_state / vitals / pe 快照做 ops 决策 |
@@ -90,7 +90,7 @@ wake/sleep/status lifecycle.
 | `interaction_type` | kernel 入口 | 说明 |
 |---|---|---|
 | `chat` | `LifeformSession.run_turn(USER_INPUT)` | 普通对话 |
-| `cognitive_turn` | `LifeformSession.run_turn(SCENE_EVENT, cognition_task_contract=..., expression_output_contract=...)` | `perceived_event.perception` 是唯一进入记忆/CaseMemory 的世界证据；task 与 expression 是独立 typed contract。event id、scene id、timestamp 由 Lifeform owner 生成，客户端不得提供。 |
+| `cognitive_turn` | Registry reserve → `LifeformSession.run_turn(SCENE_EVENT, cognition_task_contract=..., expression_output_contract=...)` → terminal CAS | 必须有合法 `Idempotency-Key`；parent 在任何 local/remote `run_turn` 前持久 reserve。`perceived_event.perception` 是唯一进入记忆/CaseMemory 的世界证据；task 与 expression 是独立 typed contract。event id、scene id、timestamp 由 Lifeform owner 生成，客户端不得提供。 |
 | `observe` | `IngestionPipeline.run` 或 `BrainSession.submit_{semantic_events,profile_event,task_event,reviewed_knowledge_event,tool_result}` | 按 `structured_context.observation_type` switch |
 | `feedback` | `LifeformSession.submit_dialogue_outcome(kind=…)` | 复用 `DialogueExternalOutcomeKind` typed enum |
 | `teach` / `task` | `LifeformSession.run_turn(trigger_kind=APPRENTICE)` | 复用 vitals apprentice override 路径 |
@@ -141,3 +141,4 @@ shell 不接受的 capability 由 platform-api 在出站时 degrade 到 `text` +
 - 2026-08-30: 新增显式 instance session 与 Operations Brain 路由；平台只经 `lifeform-service` 公共 adapter 投影 domain contract，并为 session/context/outcome 补齐 multi-pod sticky forwarding，禁止退化为 interaction 文本路由。
 - 2026-08-30: 将上述 forwarding 抽成 Coding/Venture/Operations 共用的 `forward_brain_request` 与 `/brain/*` 路径；Operations 专用方法和 URL 作为兼容别名保留，parent 继续只做 placement/audit/usage。
 - 2026-09-20: 新增原生 `cognitive_turn` transport，将角色实际感知、认知任务和表达 schema 分离；支持精确 content-addressed template binding，sticky session 复用时必须 exact-match，禁止经 `human_brief` / `structured_context` 注入任务或未来世界状态。
+- 2026-09-21: Registry schema v15 新增独立 `cognitive_turn_ledger`；强制 keyed native turn 在 `run_turn` 前 reserve，以 lease/heartbeat/unexpired CAS 保证单次执行。2xx/确定性4xx可重放；过期、异常、5xx、不可记录或 CAS 失败永久 UNKNOWN。parent 是唯一 owner，pod-only route 不接收 caller key。

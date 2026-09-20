@@ -3068,6 +3068,7 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
 | `instance_status` | InstanceManager | `dlaas-platform-launcher`（instance map 已实现） | InstanceStatus | ACTIVE（platform control plane） | adopt / awake / sleep / evict | `dlaas-platform-api`、`dlaas-platform-ops` |
 | `handoff_ticket_state` | HandoffQueue | `dlaas-platform-ops`（queue / ticket / SSE 已实现） | HandoffTicketState | ACTIVE（platform control plane） | rupture_state 快照触发 / 操作员手动 | `dlaas-platform-api`、admin SSE stream |
 | `report_scene_end_ledger` | SceneEndLedgerStore | `dlaas-platform-registry` schema v14 | `SceneEndLedgerRecord`（canonical request SHA-256、RESERVED/COMPLETED/OUTCOME_UNKNOWN、lease、原始 response、unknown reason） | ACTIVE（platform governance fact） | keyed report reserve / heartbeat / terminal CAS | `dlaas-platform-api` parent ingress；runtime 与 `vz-*` 禁止读取 |
+| `cognitive_turn_ledger` | CognitiveTurnLedgerStore | `dlaas-platform-registry` schema v15 | `CognitiveTurnLedgerRecord`（完整认知语义输入 canonical SHA-256、RESERVED/COMPLETED/OUTCOME_UNKNOWN、lease、原始 response、unknown reason） | ACTIVE（platform execution identity；不属于 cognitive state） | 每个 native cognitive turn 在 `run_turn` 前 reserve / heartbeat / unexpired terminal CAS | `dlaas-platform-api` parent ingress；runtime、pod 与 `vz-*` 禁止读取/续租/完成 |
 
 **platform-side slot 不变量**：
 
@@ -3080,6 +3081,13 @@ hashed metadata，对外返回 content-addressed opaque ref。真人自由文本
   `to_json()` 发布。父入口先 reserve 再 local/remote dispatch；lease 过期、异常、
   transport/5xx 或非 restart-durable receipt 都永久进入 `OUTCOME_UNKNOWN`，禁止
   自动重复 `end_scene`。
+- `cognitive_turn_ledger` 与 scene-end ledger 不共表、不复用 owner。其唯一 key 是
+  `(contract_id, ai_id, idempotency_key)`；canonical hash 覆盖 template binding、实际感知、
+  cognition task、expression contract 与其它 turn 语义身份，排除 transport-only
+  `output_contract`。parent 必须先持久 reserve 才可 local/remote `run_turn`；COMPLETED
+  原样重放且标记 `Idempotency-Replayed: true`。lease 过期、异常、5xx、不可记录或
+  completion CAS 失败永久 UNKNOWN，首次与后续调用均返回 typed unknown，禁止自动
+  再次运行该 turn。pod-only trusted transport 不携 caller key，因此不能成为第二 ledger owner。
 - identity_link 只是把 `(tenant_id, ai_id, canonical_end_user_ref)` 拼成 `volvence_zero.memory.UserIdentity.scope_key` 字符串，0 改 vz-memory schema
 
 ### 6.2 Owner 字段扩展（stable readouts + migration log mirror）

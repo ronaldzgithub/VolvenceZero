@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 
 _SCHEMA_SQL = (
@@ -421,6 +421,25 @@ _SCHEMA_SQL = (
         PRIMARY KEY (contract_id, ai_id, idempotency_key)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS cognitive_turn_ledger (
+        schema_id TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        contract_id TEXT NOT NULL,
+        ai_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        request_sha256 TEXT NOT NULL,
+        status TEXT NOT NULL,
+        lease_token TEXT NOT NULL,
+        lease_expires_at_ms INTEGER NOT NULL,
+        response_status INTEGER,
+        response_body_json TEXT,
+        unknown_reason TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY (contract_id, ai_id, idempotency_key)
+    );
+    """,
 )
 
 
@@ -717,6 +736,30 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
     except sqlite3.OperationalError as exc:
         if "duplicate column name" not in str(exc).lower():
             raise
+
+    # Schema v15: separate Registry-owned exactly-once ledger for native
+    # cognitive turns. It must never share the report scene-end owner/table.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cognitive_turn_ledger (
+            schema_id TEXT NOT NULL,
+            schema_version INTEGER NOT NULL,
+            contract_id TEXT NOT NULL,
+            ai_id TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            request_sha256 TEXT NOT NULL,
+            status TEXT NOT NULL,
+            lease_token TEXT NOT NULL,
+            lease_expires_at_ms INTEGER NOT NULL,
+            response_status INTEGER,
+            response_body_json TEXT,
+            unknown_reason TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (contract_id, ai_id, idempotency_key)
+        );
+        """
+    )
 
 
 # ---------------------------------------------------------------------------

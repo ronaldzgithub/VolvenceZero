@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from dlaas_platform_launcher.launcher_protocol import (
+    CognitiveTurnForwardingLauncherProtocol,
     DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     OperationsForwardingLauncherProtocol,
@@ -156,6 +157,20 @@ class MultiPodLauncher:
             )
         self._router.record_interaction(ai_id)
         return await forward(ai_id=ai_id, envelope=envelope)
+
+    async def forward_cognitive_turn(
+        self, *, ai_id: str, envelope: Any
+    ) -> tuple[int, dict]:
+        """Forward a parent-reserved cognitive turn over pod-only transport."""
+
+        manager = self.manager_for(ai_id)
+        if not isinstance(manager, CognitiveTurnForwardingLauncherProtocol):
+            raise RuntimeError(
+                f"pod manager for ai_id={ai_id!r} does not support trusted "
+                "cognitive-turn forwarding."
+            )
+        self._router.record_interaction(ai_id)
+        return await manager.forward_cognitive_turn(ai_id=ai_id, envelope=envelope)
 
     async def forward_data_export(
         self,

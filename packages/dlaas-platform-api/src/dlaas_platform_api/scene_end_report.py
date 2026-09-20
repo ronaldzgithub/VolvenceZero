@@ -19,18 +19,10 @@ from dlaas_platform_registry import (
     SceneEndLedgerStore,
     SceneEndLedgerTransitionError,
 )
+from dlaas_platform_api.idempotency import valid_idempotency_key
 
 
 _LOG = logging.getLogger("dlaas_platform_api.scene_end_report")
-
-
-def valid_idempotency_key(value: str) -> bool:
-    return bool(
-        value
-        and value.strip()
-        and len(value) <= 256
-        and all(character.isprintable() for character in value)
-    )
 
 
 def _json_error(

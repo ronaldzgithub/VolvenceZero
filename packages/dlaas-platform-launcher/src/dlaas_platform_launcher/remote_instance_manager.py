@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable
 from urllib.parse import quote
 
+from dlaas_platform_contracts import InteractionEnvelope
 from dlaas_platform_launcher.instance_manager import InstanceNotFound
 
 Transport = Callable[[str, str, "dict[str, Any] | None"], Awaitable[tuple[int, dict]]]
@@ -108,6 +109,24 @@ class RemoteInstanceManager:
             raise RuntimeError(
                 f"pod scene-end report failed for ai_id={ai_id!r}: {body}"
             )
+        return status, body
+
+    async def forward_cognitive_turn(
+        self, *, ai_id: str, envelope: InteractionEnvelope
+    ) -> tuple[int, dict]:
+        """Use the parent-reserved pod-only route and preserve HTTP status."""
+
+        payload = envelope.to_json()
+        status, body = await self._transport(
+            "POST",
+            (
+                f"{self._base_url}/internal/dlaas/instances/"
+                f"{quote(ai_id, safe='')}/cognitive-turn"
+            ),
+            payload,
+        )
+        if status == 404:
+            raise InstanceNotFound(ai_id)
         return status, body
 
     async def forward_data_export(

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from dlaas_platform_contracts import InteractionEnvelope
 from dlaas_platform_launcher import (
+    CognitiveTurnForwardingLauncherProtocol,
     DataExportForwardingLauncherProtocol,
     ExplicitSessionForwardingLauncherProtocol,
     InstanceManager,
@@ -36,6 +38,7 @@ def test_multi_pod_launcher_conforms_to_protocol() -> None:
     assert isinstance(launcher, OperationsForwardingLauncherProtocol)
     assert isinstance(launcher, VerticalBrainForwardingLauncherProtocol)
     assert isinstance(launcher, SceneEndReportForwardingLauncherProtocol)
+    assert isinstance(launcher, CognitiveTurnForwardingLauncherProtocol)
     assert isinstance(launcher, DataExportForwardingLauncherProtocol)
 
 
@@ -48,6 +51,52 @@ class _FakeEnvelope:
 
     def to_json(self) -> dict:
         return {"human_brief": self._text}
+
+
+def _cognitive_envelope() -> InteractionEnvelope:
+    return InteractionEnvelope.from_json(
+        {
+            "contract_id": "contract-1",
+            "session_id": "session-1",
+            "end_user_ref": "player-1",
+            "interaction_type": "cognitive_turn",
+            "perceived_event": {
+                "action_id": "action-1",
+                "perception": "I saw it.",
+                "frame": {
+                    "actor": {
+                        "actor_id": "player-1",
+                        "actor_kind": "player_character",
+                        "display_name": "Player",
+                    },
+                    "active_speaker_id": "player-1",
+                    "addressee_ids": ["npc-1"],
+                    "subject_ids": ["player-1"],
+                    "audience_ids": ["npc-1"],
+                },
+                "provenance": "world:action-1",
+            },
+            "cognition_task": {
+                "kind": "choose_observable_action",
+                "required_readouts": ["response_action_realization"],
+            },
+            "expression_contract": {
+                "schema_name": "intent",
+                "schema": {
+                    "type": "object",
+                    "properties": {"intended_action": {"type": "string"}},
+                    "required": ["intended_action"],
+                },
+                "strict": True,
+                "exact_bindings": [
+                    {
+                        "json_pointer": "/intended_action",
+                        "source": "response_action_realization.action_statement",
+                    }
+                ],
+            },
+        }
+    )
 
 
 def _transport_recording(responses):
@@ -102,6 +151,20 @@ async def test_remote_scene_end_report_uses_internal_route_and_preserves_status(
     assert transport.calls == [
         ("POST", url, {"human_brief": "x"}),
     ]
+
+
+async def test_remote_cognitive_turn_uses_internal_route_and_preserves_5xx() -> None:
+    url = "http://pod/internal/dlaas/instances/ai_1/cognitive-turn"
+    transport = _transport_recording(
+        {url: (502, {"status": "error", "error": "provider_failed"})}
+    )
+    proxy = RemoteInstanceManager(base_url="http://pod", transport=transport)
+    assert isinstance(proxy, CognitiveTurnForwardingLauncherProtocol)
+    envelope = _cognitive_envelope()
+    assert await proxy.forward_cognitive_turn(
+        ai_id="ai_1", envelope=envelope
+    ) == (502, {"status": "error", "error": "provider_failed"})
+    assert transport.calls == [("POST", url, envelope.to_json())]
 
 
 async def test_remote_data_export_uses_pod_only_route_and_preserves_status() -> None:
@@ -222,6 +285,10 @@ class _FakePodManager:
         self.forwarded.append(f"report:{ai_id}")
         return 200, {"pod": self.pod_id, "ai_id": ai_id}
 
+    async def forward_cognitive_turn(self, *, ai_id, envelope):
+        self.forwarded.append(f"cognitive:{ai_id}")
+        return 200, {"pod": self.pod_id, "ai_id": ai_id}
+
     async def forward_data_export(self, *, ai_id, end_user_ref):
         self.exports.append((ai_id, end_user_ref))
         return 200, {"pod": self.pod_id, "ai_id": ai_id}
@@ -314,6 +381,19 @@ async def test_scene_end_report_follows_sticky_pod_placement() -> None:
     assert body["pod"] == owner
     owning_fake = a if a.pod_id == owner else b
     assert owning_fake.forwarded == ["report:ai_1"]
+
+
+async def test_cognitive_turn_follows_sticky_pod_placement() -> None:
+    launcher, a, b = _launcher_two_pods()
+    await launcher.acquire(ai_id="ai_1", runtime_template_id="companion")
+    owner = launcher.router.resolve("ai_1").runtime_pod_id
+    status, body = await launcher.forward_cognitive_turn(
+        ai_id="ai_1", envelope=_cognitive_envelope()
+    )
+    assert status == 200
+    assert body["pod"] == owner
+    owning_fake = a if a.pod_id == owner else b
+    assert owning_fake.forwarded == ["cognitive:ai_1"]
 
 
 async def test_data_export_follows_sticky_pod_placement() -> None:
