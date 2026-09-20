@@ -23,7 +23,9 @@ from volvence_zero.semantic_embedding import (
     semantic_cosine,
     semantic_embedding_backend_status,
     semantic_embedding,
+    semantic_embedding_async,
     semantic_topic_similarity,
+    semantic_topic_similarity_async,
 )
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
@@ -43,6 +45,7 @@ from volvence_zero.application.storage import (
 from volvence_zero.application.action_abstraction import (
     ActionApplicabilityEvaluator,
     NoOpActionApplicabilityEvaluator,
+    evaluate_action_applicability_async,
 )
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutInputs,
@@ -220,9 +223,9 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 )
             )
         for index, entry in enumerate(entries, start=1):
-            problem_pattern = _entry_problem_pattern(entry)
-            user_state_pattern = _entry_user_state_pattern(entry)
-            risk_markers = _entry_risk_markers(
+            problem_pattern = await _entry_problem_pattern_async(entry)
+            user_state_pattern = await _entry_user_state_pattern_async(entry)
+            risk_markers = await _entry_risk_markers_async(
                 entry=entry,
                 prediction_error=prediction_error,
                 retrieval_policy=retrieval_policy,
@@ -336,7 +339,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         task_prior = _clamp(
             sum(1.0 for hit in hits if Track.WORLD.value in hit.track_tags) / total_hits
         )
-        action_grounding = _select_action_grounding(
+        action_grounding = await _select_action_grounding_async(
             records=action_candidate_records,
             entries=(
                 memory_value.retrieved_entries
@@ -484,7 +487,7 @@ def _select_action_grounding(
             semantic_topic_similarity(query_text, prototype)
             for prototype in _ACTION_REQUEST_PROTOTYPES
         )
-        reflective_alignment = max(
+        _reflective_alignment = max(
             semantic_topic_similarity(query_text, prototype)
             for prototype in _REFLECTIVE_OPINION_PROTOTYPES
         )
@@ -600,6 +603,204 @@ def _select_action_grounding(
         selected.confidence * 0.55
         + case_alignment * 0.45
     )
+    return CaseActionGrounding(
+        source_case_id=selected.case_id,
+        abstract_action=abstract_action,
+        action_labels=action_labels,
+        action_statement=action_statement,
+        action_request_alignment=action_request_alignment,
+        case_alignment=case_alignment,
+        confidence=confidence,
+        description=(
+            "CaseMemory owner selected a reviewed intervention sequence "
+            f"for abstract_action={abstract_action} from case={selected.case_id}; "
+            f"action_request_alignment={action_request_alignment:.3f} "
+            f"case_alignment={case_alignment:.3f}."
+        ),
+    )
+
+
+async def _select_action_grounding_async(
+    *,
+    records: tuple[CaseMemoryRecord, ...],
+    entries: tuple[MemoryEntry, ...],
+    user_input: str | None = None,
+    cognition_task_contract: CognitionTaskContract | None = None,
+    abstract_action: str | None,
+    action_applicability_evaluator: ActionApplicabilityEvaluator,
+) -> CaseActionGrounding | None:
+    """Live-path action grounding through the canonical async seam.
+
+    The explicit loops are intentional: an async embedding cannot be hidden
+    inside ``max(generator)`` without either calling the sync seam or creating
+    un-awaited coroutine objects.
+    """
+
+    if abstract_action is None or not records:
+        return None
+    current_turn_entries = tuple(
+        entry
+        for entry in entries
+        if "user_input" in entry.tags and entry.content.strip()
+    )
+    choose_observable_action = (
+        cognition_task_contract is not None
+        and cognition_task_contract.kind
+        is CognitionTaskKind.CHOOSE_OBSERVABLE_ACTION
+    )
+    if user_input is None:
+        if not current_turn_entries:
+            return None
+        ranked_query_entries: list[tuple[float, MemoryEntry]] = []
+        for entry in current_turn_entries:
+            alignment = await semantic_topic_similarity_async(
+                entry.content.strip(),
+                _ACTION_REQUEST_PROTOTYPES[0],
+            )
+            ranked_query_entries.append((alignment, entry))
+        action_request_alignment, query_entry = max(
+            ranked_query_entries,
+            key=lambda item: (
+                item[0],
+                item[1].created_at_ms,
+                item[1].last_accessed_ms,
+                item[1].entry_id,
+            ),
+        )
+        query_text = query_entry.content.strip()
+        if (
+            not choose_observable_action
+            and action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT
+        ):
+            return None
+    else:
+        query_text = user_input.strip()
+        if not query_text:
+            return None
+        action_request_alignment = -1.0
+        for prototype in _ACTION_REQUEST_PROTOTYPES:
+            alignment = await semantic_topic_similarity_async(
+                query_text,
+                prototype,
+            )
+            action_request_alignment = max(action_request_alignment, alignment)
+        _reflective_alignment = -1.0
+        for prototype in _REFLECTIVE_OPINION_PROTOTYPES:
+            alignment = await semantic_topic_similarity_async(
+                query_text,
+                prototype,
+            )
+            _reflective_alignment = max(_reflective_alignment, alignment)
+        backend_state, _backend_owner, _backend_conflict = (
+            semantic_embedding_backend_status()
+        )
+        minimum_alignment = (
+            _MIN_ACTION_REQUEST_ALIGNMENT_REAL_BACKEND
+            if backend_state == "backend"
+            else _MIN_ACTION_REQUEST_ALIGNMENT
+        )
+        wide_action_alignment: float | None = None
+        wide_reflective_alignment: float | None = None
+        if backend_state == "backend":
+            query_embedding = await semantic_embedding_async(
+                query_text,
+                dim=_REAL_ACTION_EMBEDDING_DIM,
+            )
+            wide_action_alignment = -1.0
+            for prototype in _ACTION_REQUEST_PROTOTYPES:
+                prototype_embedding = await semantic_embedding_async(
+                    prototype,
+                    dim=_REAL_ACTION_EMBEDDING_DIM,
+                )
+                wide_action_alignment = max(
+                    wide_action_alignment,
+                    semantic_cosine(query_embedding, prototype_embedding),
+                )
+            wide_reflective_alignment = -1.0
+            for prototype in _REFLECTIVE_OPINION_PROTOTYPES:
+                prototype_embedding = await semantic_embedding_async(
+                    prototype,
+                    dim=_REAL_ACTION_EMBEDDING_DIM,
+                )
+                wide_reflective_alignment = max(
+                    wide_reflective_alignment,
+                    semantic_cosine(query_embedding, prototype_embedding),
+                )
+        if not choose_observable_action and (
+            action_request_alignment < minimum_alignment
+            or (
+                backend_state == "backend"
+                and wide_action_alignment is not None
+                and wide_reflective_alignment is not None
+                and wide_action_alignment - wide_reflective_alignment
+                < _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND
+            )
+        ):
+            return None
+    if current_turn_entries:
+        applicability_context = "\n\n".join(
+            entry.content.strip()
+            for entry in sorted(
+                current_turn_entries,
+                key=lambda item: (
+                    item.created_at_ms,
+                    item.last_accessed_ms,
+                    item.entry_id,
+                ),
+            )
+        )
+    else:
+        applicability_context = query_text
+
+    ranked: list[tuple[float, float, str, CaseMemoryRecord]] = []
+    for record in records:
+        if not record.intervention_ordering:
+            continue
+        promotion = record.action_abstraction_promotion
+        if promotion is not None:
+            applicability = await evaluate_action_applicability_async(
+                action_applicability_evaluator,
+                query_text=applicability_context,
+                schema_id=promotion.schema_id,
+                applicability_conditions=promotion.applicability_conditions,
+                risk_markers=record.risk_markers,
+            )
+            if (
+                applicability is None
+                or not applicability.applicable
+                or applicability.confidence
+                < _MIN_ACTION_APPLICABILITY_CONFIDENCE
+            ):
+                continue
+        applicability_text = " ".join(
+            (
+                record.problem_pattern,
+                record.user_state_pattern,
+                *record.risk_markers,
+            )
+        )
+        case_alignment = await semantic_topic_similarity_async(
+            query_text,
+            applicability_text,
+        )
+        score = _clamp(
+            case_alignment * 0.65
+            + record.relevance_score * 0.25
+            + record.confidence * 0.10
+        )
+        ranked.append((score, case_alignment, record.case_id, record))
+    if not ranked:
+        return None
+    _score, case_alignment, _case_id, selected = max(
+        ranked,
+        key=lambda item: (item[0], item[1], item[2]),
+    )
+    action_labels = tuple(selected.intervention_ordering)
+    if not action_labels:
+        return None
+    rendered_steps = tuple(label.replace("_", " ") for label in action_labels)
+    action_statement = "I will " + ", then ".join(rendered_steps) + "."
+    confidence = _clamp(selected.confidence * 0.55 + case_alignment * 0.45)
     return CaseActionGrounding(
         source_case_id=selected.case_id,
         abstract_action=abstract_action,

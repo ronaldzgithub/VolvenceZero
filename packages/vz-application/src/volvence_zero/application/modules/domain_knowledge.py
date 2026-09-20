@@ -87,12 +87,15 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
         memory_value = memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None
         memory_text = _memory_text(memory_value)
         unresolved_conflicts: list[str] = []
-        if retrieval_policy.jurisdiction_required and not _has_jurisdiction_context(memory_text):
+        if (
+            retrieval_policy.jurisdiction_required
+            and not await _has_jurisdiction_context_async(memory_text)
+        ):
             unresolved_conflicts.append("jurisdiction-unspecified")
         hits: list[KnowledgeHit] = []
         domain_biases = dict(self._rare_heavy_state.domain_template_biases) if self._rare_heavy_state is not None else {}
         records = (
-            self._store.query(
+            await self._store.query_async(
                 domains=retrieval_policy.knowledge_domains,
                 query_text=f"{memory_text} {retrieval_policy.intent_description}",
                 jurisdiction_required=retrieval_policy.jurisdiction_required,

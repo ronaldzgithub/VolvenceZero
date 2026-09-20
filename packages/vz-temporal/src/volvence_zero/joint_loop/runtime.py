@@ -1588,7 +1588,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     session_reports=prior_session_reports + (session_report,),
                 )
             )
-        replay_result = self._evaluation_backbone.run_default_evolution_benchmark(
+        replay_result = await self._evaluation_backbone.run_default_evolution_benchmark_async(
             timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
         )
         evolution_judgement = self._evaluation_backbone.judge_evolution_candidate(

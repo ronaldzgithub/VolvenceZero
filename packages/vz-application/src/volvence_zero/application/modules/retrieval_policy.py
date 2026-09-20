@@ -104,7 +104,7 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
             world_temporal_snapshot if world_weight >= self_weight else self_temporal_snapshot
         )
         abstract_action = active_temporal_snapshot.active_abstract_action
-        knowledge_domains = _knowledge_domains(
+        knowledge_domains = await _knowledge_domains_async(
             dual_track_snapshot=dual_track_snapshot,
             regime_id=regime_id,
             world_weight=world_weight,

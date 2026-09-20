@@ -7,6 +7,7 @@ independent, schema-free experiences share one stable family identity.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, replace
 import json
 from json import JSONDecodeError
@@ -114,6 +115,21 @@ class NoOpActionApplicabilityEvaluator:
         del query_text, schema_id, applicability_conditions, risk_markers
         return None
 
+    async def evaluate_async(
+        self,
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> ActionApplicabilityDecision | None:
+        return self.evaluate(
+            query_text=query_text,
+            schema_id=schema_id,
+            applicability_conditions=applicability_conditions,
+            risk_markers=risk_markers,
+        )
+
 
 class LLMActionApplicabilityEvaluator:
     """Structured applicability evaluator backed by an injected provider."""
@@ -143,7 +159,66 @@ class LLMActionApplicabilityEvaluator:
             or not applicability_conditions
         ):
             return None
-        prompt = _load_action_applicability_prompt_template().format(
+        prompt = self._build_prompt(
+            query_text=query_text,
+            schema_id=schema_id,
+            applicability_conditions=applicability_conditions,
+            risk_markers=risk_markers,
+        )
+        raw = self._provider.generate(
+            prompt=prompt,
+            max_new_tokens=self._max_new_tokens,
+            temperature=0.0,
+        )
+        return _parse_action_applicability_decision(raw)
+
+    async def evaluate_async(
+        self,
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> ActionApplicabilityDecision | None:
+        """Evaluate on the provider's canonical async execution boundary."""
+
+        if (
+            not query_text.strip()
+            or not schema_id.strip()
+            or not applicability_conditions
+        ):
+            return None
+        prompt = self._build_prompt(
+            query_text=query_text,
+            schema_id=schema_id,
+            applicability_conditions=applicability_conditions,
+            risk_markers=risk_markers,
+        )
+        # Import lazily so offline consumers of vz-application keep their
+        # existing sync-only surface. Live providers run through the same
+        # per-owner model/tokenizer executor used by semantic proposals; a
+        # naked ``asyncio.to_thread(provider.generate, ...)`` would bypass
+        # that owner boundary.
+        from volvence_zero.substrate.text_generation import generate_text_async
+
+        raw = await generate_text_async(
+            self._provider,
+            prompt=prompt,
+            max_new_tokens=self._max_new_tokens,
+            temperature=0.0,
+            operation_kind="action_applicability",
+        )
+        return _parse_action_applicability_decision(raw)
+
+    @staticmethod
+    def _build_prompt(
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> str:
+        return _load_action_applicability_prompt_template().format(
             evidence_json=json.dumps(
                 {
                     "current_situation_and_request": query_text,
@@ -158,12 +233,39 @@ class LLMActionApplicabilityEvaluator:
             ),
             output_schema=_load_action_applicability_schema_text(),
         )
-        raw = self._provider.generate(
-            prompt=prompt,
-            max_new_tokens=self._max_new_tokens,
-            temperature=0.0,
+
+
+async def evaluate_action_applicability_async(
+    evaluator: ActionApplicabilityEvaluator,
+    *,
+    query_text: str,
+    schema_id: str,
+    applicability_conditions: tuple[str, ...],
+    risk_markers: tuple[str, ...],
+) -> ActionApplicabilityDecision | None:
+    """Invoke an evaluator without blocking live orchestration.
+
+    New evaluators expose ``evaluate_async``. Older third-party/offline
+    implementations remain compatible through a worker-thread adapter. The
+    built-in LLM evaluator never takes that fallback: its own async method
+    dispatches through the canonical model/tokenizer owner executor.
+    """
+
+    evaluate_async = getattr(evaluator, "evaluate_async", None)
+    if evaluate_async is not None:
+        return await evaluate_async(
+            query_text=query_text,
+            schema_id=schema_id,
+            applicability_conditions=applicability_conditions,
+            risk_markers=risk_markers,
         )
-        return _parse_action_applicability_decision(raw)
+    return await asyncio.to_thread(
+        evaluator.evaluate,
+        query_text=query_text,
+        schema_id=schema_id,
+        applicability_conditions=applicability_conditions,
+        risk_markers=risk_markers,
+    )
 
 
 @dataclass(frozen=True)
@@ -638,6 +740,7 @@ __all__ = [
     "ActionAbstractionTextProvider",
     "ActionSchemaGeneralizationAudit",
     "LLMActionApplicabilityEvaluator",
+    "evaluate_action_applicability_async",
     "LearnedActionSchemaCandidate",
     "LLMActionAbstractionDecoder",
     "merge_action_abstraction_experiences",

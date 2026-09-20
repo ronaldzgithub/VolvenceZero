@@ -11,6 +11,7 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
     "vz-memory==0.1.*",
     "vz-cognition==0.1.*",
 ]

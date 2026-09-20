@@ -15,6 +15,7 @@ Two layers:
 
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import threading
@@ -34,6 +35,7 @@ from volvence_zero.substrate import (
     SubstrateTextEncoderBackend,
     SyntheticOpenWeightResidualRuntime,
 )
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 
 
 def _hf_stack_available() -> bool:
@@ -112,6 +114,121 @@ def test_concurrent_cache_miss_is_captured_once() -> None:
 
     assert vectors == (vectors[0],) * 8
     assert runtime.capture_calls == 1
+
+
+async def test_embed_async_runs_capture_on_owner_thread_without_blocking_loop() -> None:
+    class _ThreadRecordingRuntime(SyntheticOpenWeightResidualRuntime):
+        def __init__(self) -> None:
+            super().__init__(model_id="synthetic-async-thread")
+            self.capture_thread_name = ""
+            self.capture_started = threading.Event()
+
+        def capture(self, *, source_text: str):
+            self.capture_thread_name = threading.current_thread().name
+            self.capture_started.set()
+            time.sleep(0.08)
+            return super().capture(source_text=source_text)
+
+    runtime = _ThreadRecordingRuntime()
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+    task = asyncio.create_task(backend.embed_async("async prototype", dim=8))
+
+    assert await asyncio.to_thread(runtime.capture_started.wait, 2.0)
+    heartbeat_ticks = 0
+    while not task.done():
+        heartbeat_ticks += 1
+        await asyncio.sleep(0.005)
+
+    vector = await task
+    assert len(vector) == 8
+    assert heartbeat_ticks >= 3
+    assert runtime.capture_thread_name.startswith("vz-runtime-owner")
+    assert runtime.capture_thread_name != threading.current_thread().name
+
+
+async def test_embed_async_waits_for_owner_contention_without_blocking_loop() -> None:
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-contention")
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+    owner_entered = threading.Event()
+    owner_release = threading.Event()
+
+    def hold_owner() -> None:
+        owner_entered.set()
+        assert owner_release.wait(timeout=2.0)
+
+    holder = asyncio.create_task(
+        run_runtime_call(
+            runtime=runtime,
+            operation=hold_owner,
+            operation_kind="test_hold_owner",
+        )
+    )
+    assert await asyncio.to_thread(owner_entered.wait, 2.0)
+
+    embedding = asyncio.create_task(
+        backend.embed_async("queued async prototype", dim=8)
+    )
+    heartbeat_ticks = 0
+    for _ in range(8):
+        heartbeat_ticks += 1
+        await asyncio.sleep(0.005)
+
+    assert not holder.done()
+    assert not embedding.done()
+    owner_release.set()
+    await holder
+    vector = await embedding
+    assert heartbeat_ticks == 8
+    assert len(vector) == 8
+
+
+async def test_embed_async_same_key_misses_are_single_flight() -> None:
+    class _SlowCountingRuntime(SyntheticOpenWeightResidualRuntime):
+        def __init__(self) -> None:
+            super().__init__(model_id="synthetic-async-single-flight")
+            self.capture_calls = 0
+            self.capture_threads: list[str] = []
+
+        def capture(self, *, source_text: str):
+            self.capture_calls += 1
+            self.capture_threads.append(threading.current_thread().name)
+            time.sleep(0.02)
+            return super().capture(source_text=source_text)
+
+    runtime = _SlowCountingRuntime()
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+    vectors = await asyncio.gather(
+        *(backend.embed_async("shared async prototype", dim=8) for _ in range(12))
+    )
+
+    assert vectors == [vectors[0]] * 12
+    assert runtime.capture_calls == 1
+    assert len(runtime.capture_threads) == 1
+    assert runtime.capture_threads[0].startswith("vz-runtime-owner")
+
+
+async def test_embed_async_failure_does_not_cache_and_retry_recovers() -> None:
+    class _FailOnceRuntime(SyntheticOpenWeightResidualRuntime):
+        def __init__(self) -> None:
+            super().__init__(model_id="synthetic-async-recovery")
+            self.capture_calls = 0
+
+        def capture(self, *, source_text: str):
+            self.capture_calls += 1
+            if self.capture_calls == 1:
+                raise RuntimeError("test async capture failure")
+            return super().capture(source_text=source_text)
+
+    runtime = _FailOnceRuntime()
+    backend = SubstrateTextEncoderBackend(runtime, cache_size=16)
+
+    with pytest.raises(RuntimeError, match="test async capture failure"):
+        await backend.embed_async("recoverable async prototype", dim=8)
+
+    recovered = await backend.embed_async("recoverable async prototype", dim=8)
+    cached = await backend.embed_async("recoverable async prototype", dim=8)
+    assert recovered == cached
+    assert runtime.capture_calls == 2
 
 
 def test_cache_size_zero_disables_caching() -> None:

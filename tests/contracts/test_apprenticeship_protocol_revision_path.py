@@ -203,3 +203,90 @@ def test_queue_router_dependency_declares_alignment_slot() -> None:
         "apprenticeship_protocol_alignment"
         in ProtocolRevisionQueueModule.dependencies
     )
+
+
+def test_sync_offline_alignment_api_remains_available() -> None:
+    value = ApprenticeshipProtocolAlignmentModule()._run(
+        alignment=_alignment_snapshot((_constraint(target_key=_AVOID_TEXT),)),
+        strategy=_playbook(
+            (_rule(rule_id=_LINEAGE_RULE_ID, avoid=_AVOID_TEXT),)
+        ),
+        knowledge=None,
+    )
+
+    assert value.version_space_status == "inconsistent"
+    assert value.contradiction_refs
+
+
+async def test_live_constraints_use_async_semantic_seam_and_yield_loop() -> None:
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        set_semantic_embedding_backend,
+    )
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class _AsyncOnlyBackend:
+        def __init__(self) -> None:
+            self.async_calls = 0
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("live protocol alignment called sync embed")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            self.async_calls += 1
+            if self.async_calls == 1:
+                started.set()
+                await release.wait()
+            await asyncio.sleep(0)
+            return tuple(
+                1.0 if index == 0 else 0.0 for index in range(dim)
+            )
+
+    backend = _AsyncOnlyBackend()
+    set_semantic_embedding_backend(backend, owner="protocol-alignment-async")
+    module = ApprenticeshipProtocolAlignmentModule()
+    upstream = {
+        "apprenticeship_alignment": Snapshot(
+            slot_name="apprenticeship_alignment",
+            owner="ApprenticeshipAlignmentModule",
+            version=1,
+            timestamp_ms=0,
+            value=_alignment_snapshot((_constraint(target_key=_AVOID_TEXT),)),
+        ),
+        "strategy_playbook": Snapshot(
+            slot_name="strategy_playbook",
+            owner="StrategyPlaybookModule",
+            version=1,
+            timestamp_ms=0,
+            value=_playbook(
+                (_rule(rule_id=_LINEAGE_RULE_ID, avoid=_AVOID_TEXT),)
+            ),
+        ),
+    }
+    process_task = asyncio.create_task(module.process(upstream))
+    heartbeat_ran = False
+    try:
+        await asyncio.wait_for(started.wait(), timeout=0.5)
+        assert not process_task.done()
+        await asyncio.sleep(0)
+        heartbeat_ran = True
+        release.set()
+        value = (await process_task).value
+    finally:
+        release.set()
+        if not process_task.done():
+            process_task.cancel()
+            await asyncio.gather(process_task, return_exceptions=True)
+        reset_semantic_embedding_backend()
+
+    assert heartbeat_ran is True
+    assert backend.async_calls > 0
+    assert value.version_space_status == "inconsistent"
+    assert value.contradiction_refs

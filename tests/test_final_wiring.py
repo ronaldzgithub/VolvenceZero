@@ -3559,3 +3559,291 @@ def test_reflection_promotion_eligible_accepts_high_accuracy():
     )
     assert eligible is True
     assert "eligible" in reason
+
+
+def _async_semantic_test_substrate() -> FeatureSurfaceSubstrateAdapter:
+    return FeatureSurfaceSubstrateAdapter(
+        model_id="async-application-test",
+        feature_surface=(
+            FeatureSignal(
+                name="decision-pressure",
+                values=(0.72,),
+                source="test",
+            ),
+        ),
+    )
+
+
+class _AsyncOnlyApplicationEmbeddingBackend:
+    def __init__(self) -> None:
+        self.async_calls = 0
+
+    def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+        raise AssertionError("live application path called sync embed")
+
+    async def embed_async(
+        self,
+        text: str,
+        *,
+        dim: int,
+    ) -> tuple[float, ...]:
+        self.async_calls += 1
+        await asyncio.sleep(0)
+        return tuple(1.0 if index == 0 else 0.0 for index in range(dim))
+
+
+async def test_live_application_modules_use_async_embedding_and_yield_loop():
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        set_semantic_embedding_backend,
+    )
+
+    backend = _AsyncOnlyApplicationEmbeddingBackend()
+    set_semantic_embedding_backend(backend, owner="async-live-test")
+    stop_heartbeat = asyncio.Event()
+    heartbeat_ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal heartbeat_ticks
+        while not stop_heartbeat.is_set():
+            heartbeat_ticks += 1
+            await asyncio.sleep(0)
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        result = await run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_async_semantic_test_substrate(),
+            user_input=(
+                "I am overwhelmed, but I need to choose one concrete action "
+                "about this family decision now."
+            ),
+            session_id="async-application-session",
+            wave_id="async-application-wave",
+        )
+    finally:
+        stop_heartbeat.set()
+        await heartbeat_task
+        reset_semantic_embedding_backend()
+
+    assert backend.async_calls > 0
+    assert heartbeat_ticks > 1
+    assert "retrieval_policy" in result.active_snapshots
+    assert "domain_knowledge" in result.active_snapshots
+    assert "case_memory" in result.active_snapshots
+
+
+async def test_case_memory_live_grounding_awaits_async_evaluator():
+    from volvence_zero.application import (
+        ActionApplicabilityDecision,
+        CaseActionAbstractionPromotion,
+        CaseMemoryModule,
+    )
+    from volvence_zero.cognition_task import (
+        CognitionTaskContract,
+        CognitionTaskKind,
+    )
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        set_semantic_embedding_backend,
+    )
+
+    baseline = await run_final_wiring_turn(
+        config=FinalRolloutConfig(),
+        substrate_adapter=_async_semantic_test_substrate(),
+        user_input="A stranger faces immediate harm. What action will you take?",
+        session_id="async-case-baseline",
+        wave_id="async-case-baseline-wave",
+    )
+    record = CaseMemoryRecord(
+        case_id="case:async-applicability",
+        domain="general_guidance_patterns",
+        problem_pattern="imminent-third-party-harm",
+        user_state_pattern="decisive-protective-action",
+        risk_markers=("risk-high",),
+        track_tags=("world",),
+        regime_tags=(),
+        intervention_ordering=("step between them", "secure the weapon"),
+        outcome_label="stable",
+        delayed_signal_count=1,
+        escalation_observed=False,
+        repair_observed=False,
+        confidence=0.94,
+        relevance_score=0.96,
+        description="A reviewed protective intervention sequence.",
+        action_abstraction_promotion=CaseActionAbstractionPromotion(
+            schema_id="protect-unknown-third-party",
+            action_family_id="discovered_family_0",
+            action_family_version=1,
+            source_outcome_ids=("outcome-a", "outcome-b"),
+            applicability_conditions=(
+                "a third party faces imminent physical harm",
+            ),
+        ),
+    )
+
+    class _AsyncOnlyEvaluator:
+        def __init__(self) -> None:
+            self.async_calls = 0
+
+        def evaluate(self, **kwargs: object) -> ActionApplicabilityDecision | None:
+            raise AssertionError("live CaseMemory path called sync evaluator")
+
+        async def evaluate_async(
+            self,
+            **kwargs: object,
+        ) -> ActionApplicabilityDecision | None:
+            self.async_calls += 1
+            await asyncio.sleep(0)
+            return ActionApplicabilityDecision(
+                applicable=True,
+                confidence=0.97,
+                rationale="All reviewed applicability conditions are present.",
+            )
+
+    evaluator = _AsyncOnlyEvaluator()
+    embedding_backend = _AsyncOnlyApplicationEmbeddingBackend()
+    set_semantic_embedding_backend(
+        embedding_backend,
+        owner="async-case-test",
+    )
+    module = CaseMemoryModule(
+        user_input="A stranger faces immediate harm. What action will you take?",
+        cognition_task_contract=CognitionTaskContract(
+            kind=CognitionTaskKind.CHOOSE_OBSERVABLE_ACTION,
+        ),
+        store=ApplicationCaseMemoryStore(records=(record,)),
+        action_applicability_evaluator=evaluator,
+    )
+    upstream = {
+        slot: baseline.active_snapshots[slot]
+        for slot in (
+            "retrieval_policy",
+            "memory",
+            "dual_track",
+            "prediction_error",
+        )
+    }
+    try:
+        snapshot = (await module.process(upstream)).value
+    finally:
+        reset_semantic_embedding_backend()
+
+    assert evaluator.async_calls == 1
+    assert embedding_backend.async_calls > 0
+    assert snapshot.action_grounding is not None
+    assert snapshot.action_grounding.source_case_id == record.case_id
+
+
+async def test_llm_action_evaluator_runs_provider_on_owner_executor():
+    import threading
+
+    loop = asyncio.get_running_loop()
+    started = asyncio.Event()
+    release = threading.Event()
+    loop_thread_id = threading.get_ident()
+
+    class _BlockingProvider:
+        worker_thread_id: int | None = None
+
+        @property
+        def runtime_execution_owner(self) -> object:
+            return self
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 192,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            self.worker_thread_id = threading.get_ident()
+            loop.call_soon_threadsafe(started.set)
+            if not release.wait(timeout=1.0):
+                raise TimeoutError("event loop did not release provider")
+            return json.dumps(
+                {
+                    "applicable": True,
+                    "confidence": 0.93,
+                    "rationale": "The current situation satisfies the schema.",
+                }
+            )
+
+    provider = _BlockingProvider()
+    evaluator = LLMActionApplicabilityEvaluator(provider=provider)
+    task = asyncio.create_task(
+        evaluator.evaluate_async(
+            query_text="A third party faces immediate harm.",
+            schema_id="protect-unknown-third-party",
+            applicability_conditions=(
+                "a third party faces imminent physical harm",
+            ),
+            risk_markers=("risk-high",),
+        )
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=0.5)
+    assert not task.done()
+    assert provider.worker_thread_id != loop_thread_id
+    release.set()
+    decision = await task
+    assert decision is not None
+    assert decision.applicable is True
+
+
+async def test_action_applicability_async_adapter_supports_sync_only_evaluator():
+    import threading
+
+    from volvence_zero.application.action_abstraction import (
+        ActionApplicabilityDecision,
+        evaluate_action_applicability_async,
+    )
+
+    loop = asyncio.get_running_loop()
+    started = asyncio.Event()
+    release = threading.Event()
+    loop_thread_id = threading.get_ident()
+
+    class _LegacySyncEvaluator:
+        worker_thread_id: int | None = None
+
+        def evaluate(
+            self,
+            *,
+            query_text: str,
+            schema_id: str,
+            applicability_conditions: tuple[str, ...],
+            risk_markers: tuple[str, ...],
+        ) -> ActionApplicabilityDecision | None:
+            del query_text, schema_id, applicability_conditions, risk_markers
+            self.worker_thread_id = threading.get_ident()
+            loop.call_soon_threadsafe(started.set)
+            if not release.wait(timeout=1.0):
+                raise TimeoutError("event loop did not release legacy evaluator")
+            return ActionApplicabilityDecision(
+                applicable=True,
+                confidence=0.91,
+                rationale="Legacy evaluator accepted the current context.",
+            )
+
+    evaluator = _LegacySyncEvaluator()
+    task = asyncio.create_task(
+        evaluate_action_applicability_async(
+            evaluator,
+            query_text="A third party faces immediate harm.",
+            schema_id="protect-unknown-third-party",
+            applicability_conditions=(
+                "a third party faces imminent physical harm",
+            ),
+            risk_markers=("risk-high",),
+        )
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=0.5)
+    assert not task.done()
+    assert evaluator.worker_thread_id != loop_thread_id
+    release.set()
+    decision = await task
+    assert decision is not None
+    assert decision.applicable is True

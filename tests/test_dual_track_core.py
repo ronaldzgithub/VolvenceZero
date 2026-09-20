@@ -329,3 +329,167 @@ def test_dual_track_prefers_semantic_owner_descriptions_over_shared_projection()
     assert snapshot.value.self_track.active_goals[0] == "relationship_state:owner-published relationship state"
     assert snapshot.value.world_track.controller_source == "semantic-owner"
     assert snapshot.value.self_track.controller_source == "semantic-owner"
+
+
+def test_live_cognition_semantics_are_async_and_yield_to_heartbeat():
+    from volvence_zero.apprenticeship import (
+        ApprenticeshipAlignmentModule,
+        build_intent_constraint,
+    )
+    from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        set_semantic_embedding_backend,
+    )
+
+    class _AsyncOnlyBackend:
+        def __init__(self) -> None:
+            self.async_calls = 0
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("live cognition called synchronous embed")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            self.async_calls += 1
+            await asyncio.sleep(0)
+            return tuple(
+                1.0 if index == 0 else 0.0 for index in range(dim)
+            )
+
+    async def exercise_live_callers() -> tuple[int, int]:
+        backend = _AsyncOnlyBackend()
+        set_semantic_embedding_backend(backend, owner="cognition-live-test")
+        heartbeat_ticks = 0
+        stop_heartbeat = asyncio.Event()
+
+        async def heartbeat() -> None:
+            nonlocal heartbeat_ticks
+            while not stop_heartbeat.is_set():
+                heartbeat_ticks += 1
+                await asyncio.sleep(0)
+
+        heartbeat_task = asyncio.create_task(heartbeat())
+        try:
+            memory = MemoryStore()
+            shared_entry = memory.write(
+                MemoryWriteRequest(
+                    content="stabilize the task while preserving trust",
+                    track=Track.SHARED,
+                    stratum=MemoryStratum.TRANSIENT,
+                    strength=0.8,
+                ),
+                timestamp_ms=1,
+            )
+            await DualTrackModule(
+                wiring_level=WiringLevel.ACTIVE
+            ).process_standalone(
+                world_entries=(),
+                self_entries=(),
+                shared_entries=(shared_entry,),
+            )
+            backbone = EvaluationBackbone()
+            await EvaluationModule(
+                backbone=backbone,
+                wiring_level=WiringLevel.ACTIVE,
+            ).process_standalone(
+                session_id="async-live",
+                wave_id="turn-1",
+                timestamp_ms=2,
+            )
+            await backbone.run_default_evolution_benchmark_async(timestamp_ms=3)
+            await ApprenticeshipAlignmentModule(
+                wiring_level=WiringLevel.ACTIVE,
+                apprenticeship=True,
+            ).process_standalone(
+                apprenticeship=True,
+                constraints=(
+                    build_intent_constraint(
+                        constraint_id="guidance-1",
+                        statement="keep the response grounded",
+                        target_key="grounded response",
+                        confidence=0.8,
+                        source_turn=1,
+                    ),
+                ),
+                turn_index=1,
+            )
+        finally:
+            stop_heartbeat.set()
+            await heartbeat_task
+            reset_semantic_embedding_backend()
+        return backend.async_calls, heartbeat_ticks
+
+    async_calls, heartbeat_ticks = asyncio.run(exercise_live_callers())
+    assert async_calls > 0
+    assert heartbeat_ticks > 1
+
+
+def test_non_apprenticeship_returns_before_cognition_embedding():
+    from companion_standard.semantic_state import (
+        BeliefAssumptionSnapshot,
+        SemanticRecord,
+    )
+
+    from volvence_zero.apprenticeship import (
+        ApprenticeshipAlignmentModule,
+        VersionSpaceStatus,
+    )
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        set_semantic_embedding_backend,
+    )
+
+    class _NoEmbeddingBackend:
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("non-apprenticeship turn called sync embed")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            raise AssertionError("non-apprenticeship turn called async embed")
+
+    belief = BeliefAssumptionSnapshot(
+        beliefs=(
+            SemanticRecord(
+                record_id="belief-1",
+                summary="known fact",
+                detail="this would require embedding if collected",
+                confidence=0.8,
+                status="active",
+                source_turn=1,
+                evidence="test",
+            ),
+        ),
+        assumptions=(),
+        verification_needs=(),
+        contradiction_refs=(),
+        mean_confidence=0.8,
+        control_signal=0.0,
+        description="test belief state",
+    )
+    set_semantic_embedding_backend(_NoEmbeddingBackend(), owner="idle-test")
+    try:
+        snapshot = asyncio.run(
+            ApprenticeshipAlignmentModule(
+                wiring_level=WiringLevel.ACTIVE,
+                apprenticeship=False,
+            ).process_standalone(
+                apprenticeship=False,
+                belief_assumption=belief,
+                guidance_text="ignored on a normal turn",
+                turn_index=1,
+            )
+        )
+    finally:
+        reset_semantic_embedding_backend()
+
+    assert snapshot.value.version_space_status == VersionSpaceStatus.IDLE.value
+    assert snapshot.value.active_constraint_count == 0

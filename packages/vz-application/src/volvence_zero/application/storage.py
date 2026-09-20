@@ -14,6 +14,7 @@ from volvence_zero.memory import (
 )
 from volvence_zero.semantic_embedding import (
     semantic_embedding as _semantic_embedding,
+    semantic_embedding_async as _semantic_embedding_async,
     stub_cosine_similarity as _cosine_similarity,
 )
 
@@ -590,6 +591,51 @@ class ApplicationDomainKnowledgeStore:
             semantic_similarity = _clamp((_cosine_similarity(query_embedding, record_embedding) + 1.0) / 2.0)
             jurisdiction_bonus = 0.08 if jurisdiction_required and "local-law-sensitive" in record.jurisdiction_tags else 0.0
             score = record.confidence * 0.52 + semantic_similarity * 0.40 + jurisdiction_bonus
+            scored.append((score, record))
+        scored.sort(key=lambda item: (-item[0], item[1].record_id))
+        return tuple(record for _, record in scored[:limit])
+
+    async def query_async(
+        self,
+        *,
+        domains: tuple[str, ...],
+        query_text: str,
+        jurisdiction_required: bool,
+        limit: int = 3,
+    ) -> tuple[DomainKnowledgeRecord, ...]:
+        """Live-path query that never runs a sync embedding on the loop."""
+
+        query_embedding = await _semantic_embedding_async(query_text)
+        scored: list[tuple[float, DomainKnowledgeRecord]] = []
+        for record in self._records.values():
+            if domains and record.domain not in domains:
+                continue
+            record_embedding = await _semantic_embedding_async(
+                " ".join(
+                    (
+                        record.title,
+                        record.summary,
+                        record.snippet,
+                        " ".join(record.topic_tags),
+                        " ".join(record.jurisdiction_tags),
+                    )
+                )
+            )
+            semantic_similarity = _clamp(
+                (_cosine_similarity(query_embedding, record_embedding) + 1.0)
+                / 2.0
+            )
+            jurisdiction_bonus = (
+                0.08
+                if jurisdiction_required
+                and "local-law-sensitive" in record.jurisdiction_tags
+                else 0.0
+            )
+            score = (
+                record.confidence * 0.52
+                + semantic_similarity * 0.40
+                + jurisdiction_bonus
+            )
             scored.append((score, record))
         scored.sort(key=lambda item: (-item[0], item[1].record_id))
         return tuple(record for _, record in scored[:limit])

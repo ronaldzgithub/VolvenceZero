@@ -43,7 +43,9 @@ from volvence_zero.runtime import (
 from volvence_zero.semantic_embedding import (
     semantic_cosine,
     semantic_embedding,
+    semantic_embedding_async,
     semantic_topic_similarity,
+    semantic_topic_similarity_async,
     stub_semantic_tokens as _semantic_tokens,
 )
 from volvence_zero.semantic_state import (
@@ -66,7 +68,6 @@ from volvence_zero.apprenticeship.contracts import (
     MismatchType,
     ReliabilityState,
     VersionSpaceStatus,
-    clamp_signed,
     clamp_unit,
 )
 
@@ -99,6 +100,22 @@ class GuidanceConstraintExtractor(ABC):
         self, *, guidance_text: str, turn_index: int
     ) -> tuple[IntentConstraint, ...]:
         """Return typed operator-intent constraints for one teaching turn."""
+
+    async def extract_async(
+        self, *, guidance_text: str, turn_index: int
+    ) -> tuple[IntentConstraint, ...]:
+        """Live extraction entry point.
+
+        Deterministic extractors do no external work, so their synchronous
+        implementation is already event-loop safe. Runtime-backed extractors
+        override this method and dispatch through their owner's canonical
+        async execution boundary.
+        """
+
+        return self.extract(
+            guidance_text=guidance_text,
+            turn_index=turn_index,
+        )
 
 
 class _GenerateProtocol(Protocol):
@@ -211,7 +228,47 @@ class LLMGuidanceConstraintExtractor(GuidanceConstraintExtractor):
         text = (guidance_text or "").strip()
         if not text:
             return ()
-        prompt = (
+        raw = self._provider.generate(
+            prompt=self._build_prompt(text),
+            max_new_tokens=512,
+            temperature=0.0,
+        )
+        return self._parse_response(
+            raw=raw,
+            guidance_text=text,
+            turn_index=turn_index,
+        )
+
+    async def extract_async(
+        self, *, guidance_text: str, turn_index: int
+    ) -> tuple[IntentConstraint, ...]:
+        """Extract on the provider's canonical owner executor."""
+
+        text = (guidance_text or "").strip()
+        if not text:
+            return ()
+        # Keep the substrate import lazy so deterministic/offline cognition
+        # users do not import optional model dependencies. Live generation
+        # must share the model/tokenizer owner boundary with every other
+        # runtime consumer; a naked ``asyncio.to_thread`` would bypass it.
+        from volvence_zero.substrate.text_generation import generate_text_async
+
+        raw = await generate_text_async(
+            self._provider,
+            prompt=self._build_prompt(text),
+            max_new_tokens=512,
+            temperature=0.0,
+            operation_kind="apprenticeship_constraint_extraction",
+        )
+        return self._parse_response(
+            raw=raw,
+            guidance_text=text,
+            turn_index=turn_index,
+        )
+
+    @staticmethod
+    def _build_prompt(text: str) -> str:
+        return (
             f"{load_apprenticeship_prompt_template()}\n\n"
             "Current teaching turn:\n"
             '"""\n'
@@ -220,22 +277,25 @@ class LLMGuidanceConstraintExtractor(GuidanceConstraintExtractor):
             "Return JSON only, as either a list of constraint objects or an object "
             'with a "constraints" list.'
         )
-        raw = self._provider.generate(
-            prompt=prompt,
-            max_new_tokens=512,
-            temperature=0.0,
-        )
+
+    def _parse_response(
+        self,
+        *,
+        raw: str,
+        guidance_text: str,
+        turn_index: int,
+    ) -> tuple[IntentConstraint, ...]:
         try:
             payload = json.loads(_strip_json_fence(raw))
         except (JSONDecodeError, TypeError):
             return self._fallback.extract(
-                guidance_text=text,
+                guidance_text=guidance_text,
                 turn_index=turn_index,
             )
         rows = payload.get("constraints") if isinstance(payload, dict) else payload
         if not isinstance(rows, list):
             return self._fallback.extract(
-                guidance_text=text,
+                guidance_text=guidance_text,
                 turn_index=turn_index,
             )
         constraints: list[IntentConstraint] = []
@@ -271,7 +331,7 @@ class LLMGuidanceConstraintExtractor(GuidanceConstraintExtractor):
             )
         if not constraints:
             return self._fallback.extract(
-                guidance_text=text,
+                guidance_text=guidance_text,
                 turn_index=turn_index,
             )
         return tuple(constraints)
@@ -306,14 +366,51 @@ def _constraint_embedding(constraint: IntentConstraint) -> tuple[float, ...]:
     return semantic_embedding(constraint.target_key or constraint.statement, dim=16)
 
 
+async def _constraint_embedding_async(
+    constraint: IntentConstraint,
+) -> tuple[float, ...]:
+    if constraint.embedding:
+        return tuple(constraint.embedding)
+    return await semantic_embedding_async(
+        constraint.target_key or constraint.statement,
+        dim=16,
+    )
+
+
 class _CognitionRecord:
     __slots__ = ("embedding", "record_id", "tokens", "level")
 
-    def __init__(self, *, record_id: str, text: str, level: str) -> None:
+    def __init__(
+        self,
+        *,
+        record_id: str,
+        text: str,
+        level: str,
+        embedding: tuple[float, ...] | None = None,
+    ) -> None:
         self.record_id = record_id
         self.tokens = _tokens(text)
-        self.embedding = semantic_embedding(text, dim=16)
+        self.embedding = (
+            semantic_embedding(text, dim=16)
+            if embedding is None
+            else embedding
+        )
         self.level = level
+
+    @classmethod
+    async def create_async(
+        cls,
+        *,
+        record_id: str,
+        text: str,
+        level: str,
+    ) -> "_CognitionRecord":
+        return cls(
+            record_id=record_id,
+            text=text,
+            level=level,
+            embedding=await semantic_embedding_async(text, dim=16),
+        )
 
 
 def _records_from_belief(value: BeliefAssumptionSnapshot) -> list[_CognitionRecord]:
@@ -374,6 +471,23 @@ def _nearest(
     constraint: IntentConstraint, cognition: list[_CognitionRecord]
 ) -> tuple[float, str]:
     embedding = _constraint_embedding(constraint)
+    if not embedding:
+        return (0.0, "")
+    best_score = 0.0
+    best_id = ""
+    for record in cognition:
+        score = max(0.0, semantic_cosine(embedding, record.embedding))
+        if score > best_score:
+            best_score = score
+            best_id = record.record_id
+    return (clamp_unit(best_score), best_id)
+
+
+async def _nearest_async(
+    constraint: IntentConstraint,
+    cognition: list[_CognitionRecord],
+) -> tuple[float, str]:
+    embedding = await _constraint_embedding_async(constraint)
     if not embedding:
         return (0.0, "")
     best_score = 0.0
@@ -516,6 +630,80 @@ def reconcile_guidance(
     )
 
 
+async def reconcile_guidance_async(
+    *,
+    new_constraints: tuple[IntentConstraint, ...],
+    prior_constraints: tuple[IntentConstraint, ...],
+    cognition: list[_CognitionRecord],
+    recurrence: dict[str, int],
+    thresholds: ApprenticeshipThresholds,
+) -> tuple[
+    tuple[MismatchRef, ...],
+    tuple[ContradictionFinding, ...],
+    float,
+    bool,
+    str,
+    float,
+]:
+    """Live reconciliation using only the async semantic seam."""
+
+    mismatches: list[MismatchRef] = []
+    surprises: list[float] = []
+    agreement_flags: list[bool] = []
+    for constraint in new_constraints:
+        coverage, nearest_id = await _nearest_async(constraint, cognition)
+        surprise = clamp_unit(1.0 - coverage)
+        surprises.append(surprise)
+        agreement_flags.append(surprise < thresholds.agreement)
+        if surprise >= thresholds.mismatch:
+            mismatches.append(
+                MismatchRef(
+                    guidance_constraint_id=constraint.constraint_id,
+                    level=constraint.level,
+                    mismatch_type=_novelty_mismatch_type(constraint.level),
+                    belief_ref=nearest_id,
+                    severity=round(surprise, 4),
+                    description=(
+                        f"guidance '{constraint.statement[:60]}' uncovered by "
+                        f"current cognition (coverage={coverage:.2f}, "
+                        f"nearest={nearest_id or 'none'})"
+                    ),
+                )
+            )
+    contradictions = await _detect_contradictions_async(
+        new_constraints=new_constraints,
+        prior_constraints=prior_constraints,
+        recurrence=recurrence,
+        thresholds=thresholds,
+    )
+    guidance_surprise = (
+        round(sum(surprises) / len(surprises), 4) if surprises else 0.0
+    )
+    has_new = bool(new_constraints)
+    in_agreement = has_new and all(agreement_flags) and not contradictions
+    if contradictions:
+        status = VersionSpaceStatus.INCONSISTENT.value
+    elif not has_new:
+        status = VersionSpaceStatus.IDLE.value
+    elif guidance_surprise >= thresholds.shrink:
+        status = VersionSpaceStatus.SHRINKING.value
+    else:
+        status = VersionSpaceStatus.CONSISTENT.value
+    max_contradiction = max(
+        (finding.severity for finding in contradictions),
+        default=0.0,
+    )
+    consistency_margin = round(clamp_unit(1.0 - max_contradiction), 4)
+    return (
+        tuple(mismatches),
+        contradictions,
+        guidance_surprise,
+        in_agreement,
+        status,
+        consistency_margin,
+    )
+
+
 def _shared_topic_bucket(shared: frozenset[str], fallback: str) -> str:
     """Stable recurrence key from the topic two constraints share.
 
@@ -596,6 +784,85 @@ def _detect_contradictions(
                         f"(sim={topic_sim:.2f}, margin_ok={margin_ok}, "
                         f"recurred={recurred}): "
                         f"'{other.statement[:40]}' vs '{candidate.statement[:40]}'"
+                    ),
+                )
+            )
+    return tuple(findings)
+
+
+async def _detect_contradictions_async(
+    *,
+    new_constraints: tuple[IntentConstraint, ...],
+    prior_constraints: tuple[IntentConstraint, ...],
+    recurrence: dict[str, int],
+    thresholds: ApprenticeshipThresholds,
+) -> tuple[ContradictionFinding, ...]:
+    findings: list[ContradictionFinding] = []
+    seen_pairs: set[frozenset[str]] = set()
+    pool = list(prior_constraints) + list(new_constraints)
+    pool_tokens = [_constraint_tokens(item) for item in pool]
+    base = len(prior_constraints)
+    for index, candidate in enumerate(new_constraints):
+        cand_tokens = pool_tokens[base + index]
+        if not cand_tokens or candidate.polarity == 0:
+            continue
+        ceiling = base + index
+        for position in range(ceiling):
+            other = pool[position]
+            other_tokens = pool_tokens[position]
+            if not other_tokens or other.polarity == 0:
+                continue
+            if candidate.polarity * other.polarity >= 0:
+                continue
+            topic_sim = await semantic_topic_similarity_async(
+                candidate.target_key or candidate.statement,
+                other.target_key or other.statement,
+            )
+            if topic_sim < thresholds.contradiction_topic:
+                continue
+            pair_key = frozenset(
+                {candidate.constraint_id, other.constraint_id}
+            )
+            if pair_key in seen_pairs:
+                continue
+            bucket = _shared_topic_bucket(
+                cand_tokens & other_tokens,
+                candidate.target_key,
+            )
+            recurrence[bucket] = recurrence.get(bucket, 0) + 1
+            margin_ok = (
+                min(candidate.confidence, other.confidence)
+                >= thresholds.reliability
+            )
+            recurred = recurrence[bucket] >= thresholds.recurrence_floor
+            if not (margin_ok or recurred):
+                continue
+            seen_pairs.add(pair_key)
+            severity = round(
+                clamp_unit(
+                    topic_sim
+                    * min(candidate.confidence, other.confidence)
+                ),
+                4,
+            )
+            findings.append(
+                ContradictionFinding(
+                    finding_id=(
+                        f"contradiction:{other.constraint_id}->"
+                        f"{candidate.constraint_id}"
+                    ),
+                    constraint_ids=(
+                        other.constraint_id,
+                        candidate.constraint_id,
+                    ),
+                    level=candidate.level,
+                    severity=severity,
+                    description=(
+                        "opposing guidance on the same topic "
+                        f"(sim={topic_sim:.2f}, margin_ok={margin_ok}, "
+                        f"recurred={recurred}): "
+                        f"'{other.statement[:40]}' vs "
+                        f"'{candidate.statement[:40]}'"
                     ),
                 )
             )
@@ -703,8 +970,11 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[ApprenticeshipAlignmentSnapshot]:
-        cognition = self._collect_cognition(upstream)
-        snapshot = self._run(
+        if not self._apprenticeship:
+            self._pending_revision_proposals = ()
+            return self.publish(_idle_snapshot("not an apprenticeship turn"))
+        cognition = await self._collect_cognition_async(upstream)
+        snapshot = await self._run_async(
             cognition=cognition,
             guidance_text=self._user_input,
             turn_index=self._turn_index,
@@ -718,13 +988,16 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
         turn_index = int(kwargs.get("turn_index", self._turn_index))
         if "apprenticeship" in kwargs:
             self._apprenticeship = bool(kwargs["apprenticeship"])
-        cognition = self._collect_cognition_from_values(
+        if not self._apprenticeship:
+            self._pending_revision_proposals = ()
+            return self.publish(_idle_snapshot("not an apprenticeship turn"))
+        cognition = await self._collect_cognition_from_values_async(
             belief=kwargs.get("belief_assumption"),
             goal=kwargs.get("goal_value"),
             user_model=kwargs.get("user_model"),
             boundary=kwargs.get("boundary_consent"),
         )
-        snapshot = self._run(
+        snapshot = await self._run_async(
             cognition=cognition,
             guidance_text=guidance_text,
             turn_index=turn_index,
@@ -737,6 +1010,17 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> list[_CognitionRecord]:
         return self._collect_cognition_from_values(
+            belief=self._value(upstream.get("belief_assumption")),
+            goal=self._value(upstream.get("goal_value")),
+            user_model=self._value(upstream.get("user_model")),
+            boundary=self._value(upstream.get("boundary_consent")),
+        )
+
+    async def _collect_cognition_async(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> list[_CognitionRecord]:
+        return await self._collect_cognition_from_values_async(
             belief=self._value(upstream.get("belief_assumption")),
             goal=self._value(upstream.get("goal_value")),
             user_model=self._value(upstream.get("user_model")),
@@ -769,6 +1053,73 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
             records.extend(_records_from_user_model(user_model))
         if isinstance(boundary, BoundaryConsentSnapshot):
             records.extend(_records_from_boundary(boundary))
+        return records
+
+    @staticmethod
+    async def _collect_cognition_from_values_async(
+        *,
+        belief: Any,
+        goal: Any,
+        user_model: Any,
+        boundary: Any,
+    ) -> list[_CognitionRecord]:
+        record_specs: list[tuple[str, str, str]] = []
+        if isinstance(belief, BeliefAssumptionSnapshot):
+            seen: set[str] = set()
+            for record in belief.beliefs + belief.assumptions:
+                if record.record_id in seen:
+                    continue
+                seen.add(record.record_id)
+                record_specs.append(
+                    (
+                        record.record_id,
+                        f"{record.summary} {record.detail}",
+                        ConstraintLevel.FACTUAL.value,
+                    )
+                )
+        if isinstance(goal, GoalValueSnapshot):
+            record_specs.extend(
+                (
+                    record.record_id,
+                    f"{record.summary} {record.detail}",
+                    ConstraintLevel.ABSTRACT.value,
+                )
+                for record in goal.explicit_goals
+            )
+        if isinstance(user_model, UserModelSnapshot):
+            user_records = (
+                user_model.stable_preferences
+                + user_model.durable_goals
+                + user_model.sensitive_boundaries
+            )
+            record_specs.extend(
+                (
+                    record.record_id,
+                    f"{record.summary} {record.detail}",
+                    ConstraintLevel.ABSTRACT.value,
+                )
+                for record in user_records
+            )
+        if isinstance(boundary, BoundaryConsentSnapshot):
+            record_specs.extend(
+                (
+                    record.record_id,
+                    f"{record.summary} {record.detail}",
+                    ConstraintLevel.ABSTRACT.value,
+                )
+                for record in (
+                    boundary.granted_consents + boundary.denied_boundaries
+                )
+            )
+        records: list[_CognitionRecord] = []
+        for record_id, text, level in record_specs:
+            records.append(
+                await _CognitionRecord.create_async(
+                    record_id=record_id,
+                    text=text,
+                    level=level,
+                )
+            )
         return records
 
     def _run(
@@ -808,6 +1159,77 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
             thresholds=self._thresholds,
         )
 
+        return self._complete_reconciliation(
+            new_constraints=new_constraints,
+            mismatches=mismatches,
+            contradictions=contradictions,
+            guidance_surprise=guidance_surprise,
+            in_agreement=in_agreement,
+            status=status,
+            consistency_margin=consistency_margin,
+            guidance_text=guidance_text,
+            turn_index=turn_index,
+        )
+
+    async def _run_async(
+        self,
+        *,
+        cognition: list[_CognitionRecord],
+        guidance_text: str | None,
+        turn_index: int,
+        explicit_constraints: tuple[IntentConstraint, ...] | None = None,
+    ) -> ApprenticeshipAlignmentSnapshot:
+        self._pending_revision_proposals = ()
+        if not self._apprenticeship:
+            return _idle_snapshot("not an apprenticeship turn")
+        if explicit_constraints is not None:
+            new_constraints = tuple(explicit_constraints)
+        else:
+            new_constraints = await self._extractor.extract_async(
+                guidance_text=guidance_text or "",
+                turn_index=turn_index,
+            )
+        if not new_constraints:
+            return _idle_snapshot("no guidance constraints extracted")
+        (
+            mismatches,
+            contradictions,
+            guidance_surprise,
+            in_agreement,
+            status,
+            consistency_margin,
+        ) = await reconcile_guidance_async(
+            new_constraints=new_constraints,
+            prior_constraints=tuple(self._constraints),
+            cognition=cognition,
+            recurrence=self._recurrence,
+            thresholds=self._thresholds,
+        )
+        return self._complete_reconciliation(
+            new_constraints=new_constraints,
+            mismatches=mismatches,
+            contradictions=contradictions,
+            guidance_surprise=guidance_surprise,
+            in_agreement=in_agreement,
+            status=status,
+            consistency_margin=consistency_margin,
+            guidance_text=guidance_text,
+            turn_index=turn_index,
+        )
+
+    def _complete_reconciliation(
+        self,
+        *,
+        new_constraints: tuple[IntentConstraint, ...],
+        mismatches: tuple[MismatchRef, ...],
+        contradictions: tuple[ContradictionFinding, ...],
+        guidance_surprise: float,
+        in_agreement: bool,
+        status: str,
+        consistency_margin: float,
+        guidance_text: str | None,
+        turn_index: int,
+    ) -> ApprenticeshipAlignmentSnapshot:
         # Append to the bounded version-space window.
         self._constraints.extend(new_constraints)
         if len(self._constraints) > self._thresholds.max_constraints:

@@ -436,7 +436,7 @@ class SessionTrainingPhaseMixin:
         judgement_label = "not-run"
         reasons: list[str] = []
         if session_report is not None:
-            replay_suite = candidate_runner.evaluation_backbone.run_default_evolution_benchmark(
+            replay_suite = await candidate_runner.evaluation_backbone.run_default_evolution_benchmark_async(
                 timestamp_ms=max(candidate_runner.turn_index, 1) + 1,
             )
             judgement = candidate_runner.evaluation_backbone.judge_evolution_candidate(

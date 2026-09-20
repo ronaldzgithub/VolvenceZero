@@ -471,3 +471,99 @@ def test_direct_hf_providers_guard_full_tokenizer_generation_interval() -> None:
     with pytest.raises(RuntimeError, match="direct-provider-secret"):
         providers[0].generate(prompt="fail once")
     assert providers[1].generate(prompt="recover") == "generated"
+
+
+def test_live_llm_apprenticeship_extraction_uses_owner_thread_and_heartbeat() -> None:
+    from volvence_zero.apprenticeship import (
+        ApprenticeshipAlignmentModule,
+        LLMGuidanceConstraintExtractor,
+    )
+
+    class _ApprenticeshipProvider:
+        def __init__(self, *, owner: object) -> None:
+            self._owner = owner
+            self._state_lock = threading.Lock()
+            self.active_calls = 0
+            self.max_active_calls = 0
+            self.thread_ids: set[int] = set()
+
+        @property
+        def runtime_execution_owner(self) -> object:
+            return self._owner
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 512,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            with self._state_lock:
+                self.active_calls += 1
+                self.max_active_calls = max(
+                    self.max_active_calls,
+                    self.active_calls,
+                )
+                self.thread_ids.add(threading.get_ident())
+            try:
+                time.sleep(0.04)
+                return (
+                    '[{"statement":"acknowledge before solving",'
+                    '"level":"abstract","polarity":1,'
+                    '"target_key":"acknowledge first",'
+                    '"confidence":0.9}]'
+                )
+            finally:
+                with self._state_lock:
+                    self.active_calls -= 1
+
+    provider = _ApprenticeshipProvider(owner=_SharedRuntimeOwner())
+    extractor = LLMGuidanceConstraintExtractor(provider)
+    event_loop_thread_id = threading.get_ident()
+
+    async def exercise() -> tuple[object, object, int]:
+        heartbeat_ticks = 0
+        stop_heartbeat = asyncio.Event()
+
+        async def heartbeat() -> None:
+            nonlocal heartbeat_ticks
+            while not stop_heartbeat.is_set():
+                heartbeat_ticks += 1
+                await asyncio.sleep(0)
+
+        heartbeat_task = asyncio.create_task(heartbeat())
+        try:
+            first, second = await asyncio.gather(
+                ApprenticeshipAlignmentModule(
+                    apprenticeship=True,
+                    extractor=extractor,
+                ).process_standalone(
+                    apprenticeship=True,
+                    guidance_text="First teaching turn.",
+                    turn_index=1,
+                ),
+                ApprenticeshipAlignmentModule(
+                    apprenticeship=True,
+                    extractor=extractor,
+                ).process_standalone(
+                    apprenticeship=True,
+                    guidance_text="Second teaching turn.",
+                    turn_index=2,
+                ),
+            )
+        finally:
+            stop_heartbeat.set()
+            await heartbeat_task
+        return first, second, heartbeat_ticks
+
+    first, second, heartbeat_ticks = asyncio.run(exercise())
+
+    assert first.value.guidance_constraints[0].statement == (
+        "acknowledge before solving"
+    )
+    assert second.value.guidance_constraints[0].source_turn == 2
+    assert heartbeat_ticks > 1
+    assert provider.max_active_calls == 1
+    assert len(provider.thread_ids) == 1
+    assert event_loop_thread_id not in provider.thread_ids

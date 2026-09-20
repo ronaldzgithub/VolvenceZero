@@ -31,6 +31,7 @@ from typing import Any, Mapping
 from volvence_zero.semantic_embedding import (
     semantic_cosine as cosine_similarity,
     semantic_embedding,
+    semantic_embedding_async,
     stub_semantic_tokens as semantic_tokens,
 )
 
@@ -80,6 +81,17 @@ def semantic_similarity(text: str, prototype_text: str) -> float:
     return clamp01((cosine_similarity(embedding, prototype) + 1.0) / 2.0)
 
 
+async def semantic_similarity_async(text: str, prototype_text: str) -> float:
+    """Async equivalent used by live runtime modules.
+
+    The synchronous helper remains the offline/backwards-compatible API.
+    """
+
+    embedding = await semantic_embedding_async(text)
+    prototype = await semantic_embedding_async(prototype_text)
+    return clamp01((cosine_similarity(embedding, prototype) + 1.0) / 2.0)
+
+
 __all__ = [
     "clamp01",
     "clamp_signed",
@@ -88,7 +100,9 @@ __all__ = [
     "nearest_anchor_value",
     "ranked_labels",
     "semantic_embedding",
+    "semantic_embedding_async",
     "semantic_similarity",
+    "semantic_similarity_async",
     "semantic_tokens",
     "signed_centered",
     "truncate_text",

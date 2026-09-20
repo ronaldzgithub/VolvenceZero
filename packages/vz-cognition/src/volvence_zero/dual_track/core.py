@@ -11,6 +11,7 @@ from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.semantic_embedding import (
     semantic_embedding as _semantic_embedding,
+    semantic_embedding_async as _semantic_embedding_async,
     stub_cosine_similarity as _cosine_similarity,
     stub_semantic_tokens as _semantic_tokens,
 )
@@ -127,6 +128,21 @@ def _shared_track_affinity(entry: MemoryEntry, *, track: Track) -> float:
     return _clamp(target_score - other_score * 0.55)
 
 
+async def _shared_track_affinity_async(
+    entry: MemoryEntry,
+    *,
+    track: Track,
+) -> float:
+    embedding = await _semantic_embedding_async(entry.content)
+    world = await _semantic_embedding_async(_WORLD_TRACK_PROTOTYPE_TEXT)
+    self_proto = await _semantic_embedding_async(_SELF_TRACK_PROTOTYPE_TEXT)
+    target = world if track is Track.WORLD else self_proto
+    other = self_proto if track is Track.WORLD else world
+    target_score = (_cosine_similarity(embedding, target) + 1.0) / 2.0
+    other_score = (_cosine_similarity(embedding, other) + 1.0) / 2.0
+    return _clamp(target_score - other_score * 0.55)
+
+
 def _project_shared_entries(
     shared_entries: tuple[MemoryEntry, ...],
     *,
@@ -137,6 +153,26 @@ def _project_shared_entries(
             (_shared_track_affinity(entry, track=track), entry)
             for entry in shared_entries
         ),
+        key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms),
+    )
+    return tuple(entry for affinity, entry in ranked if affinity > 0.12)
+
+
+async def _project_shared_entries_async(
+    shared_entries: tuple[MemoryEntry, ...],
+    *,
+    track: Track,
+) -> tuple[MemoryEntry, ...]:
+    scored: list[tuple[float, MemoryEntry]] = []
+    for entry in shared_entries:
+        scored.append(
+            (
+                await _shared_track_affinity_async(entry, track=track),
+                entry,
+            )
+        )
+    ranked = sorted(
+        scored,
         key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms),
     )
     return tuple(entry for affinity, entry in ranked if affinity > 0.12)
@@ -155,6 +191,30 @@ def _shared_track_controller_code(
     if total_affinity <= 1e-6:
         return (0.0, 0.0)
     weighted_strength = sum(entry.strength * max(affinity, 0.0) for affinity, entry in scored) / total_affinity
+    weighted_presence = min(total_affinity / max(len(scored), 1), 1.0)
+    return (_clamp(weighted_strength), _clamp(weighted_presence))
+
+
+async def _shared_track_controller_code_async(
+    shared_entries: tuple[MemoryEntry, ...],
+    *,
+    track: Track,
+) -> tuple[float, float]:
+    scored: list[tuple[float, MemoryEntry]] = []
+    for entry in shared_entries:
+        scored.append(
+            (
+                await _shared_track_affinity_async(entry, track=track),
+                entry,
+            )
+        )
+    total_affinity = sum(max(affinity, 0.0) for affinity, _ in scored)
+    if total_affinity <= 1e-6:
+        return (0.0, 0.0)
+    weighted_strength = sum(
+        entry.strength * max(affinity, 0.0)
+        for affinity, entry in scored
+    ) / total_affinity
     weighted_presence = min(total_affinity / max(len(scored), 1), 1.0)
     return (_clamp(weighted_strength), _clamp(weighted_presence))
 
@@ -256,8 +316,14 @@ def derive_track_state(
     semantic_owner_goals: tuple[str, ...] = (),
     semantic_owner_presence: float = 0.0,
     identity_seed: IdentitySeed | None = None,
+    _projected_shared_entries: tuple[MemoryEntry, ...] | None = None,
+    _shared_controller_code: tuple[float, float] | None = None,
 ) -> TrackState:
-    projected_shared_entries = _project_shared_entries(shared_entries, track=track)
+    projected_shared_entries = (
+        _project_shared_entries(shared_entries, track=track)
+        if _projected_shared_entries is None
+        else _projected_shared_entries
+    )
     base_entries = memory_entries if memory_entries else projected_shared_entries[:3]
     goals = list(semantic_owner_goals[:SEMANTIC_OWNER_GOAL_LIMIT])
     goals.extend(
@@ -284,7 +350,11 @@ def derive_track_state(
     )
     memory_controller_code = _memory_controller_code(base_entries)
     if not memory_entries and projected_shared_entries:
-        memory_controller_code = _shared_track_controller_code(projected_shared_entries, track=track)
+        memory_controller_code = (
+            _shared_track_controller_code(projected_shared_entries, track=track)
+            if _shared_controller_code is None
+            else _shared_controller_code
+        )
     controller_code = (
         _clamp(
             memory_controller_code[0] * 0.25
@@ -329,6 +399,47 @@ def derive_track_state(
         action_family_version_hint=action_family_version_hint,
         controller_source=controller_source,
         traits=track_traits,
+    )
+
+
+async def derive_track_state_async(
+    *,
+    track: Track,
+    memory_entries: tuple[MemoryEntry, ...],
+    shared_entries: tuple[MemoryEntry, ...] = (),
+    temporal_snapshot: Any = None,
+    track_temporal_snapshot: Any = None,
+    substrate_snapshot: SubstrateSnapshot | None = None,
+    semantic_owner_goals: tuple[str, ...] = (),
+    semantic_owner_presence: float = 0.0,
+    identity_seed: IdentitySeed | None = None,
+) -> TrackState:
+    """Build one track without blocking the caller's event loop."""
+
+    projected_shared_entries = await _project_shared_entries_async(
+        shared_entries,
+        track=track,
+    )
+    shared_controller_code = (
+        await _shared_track_controller_code_async(
+            projected_shared_entries,
+            track=track,
+        )
+        if not memory_entries and projected_shared_entries
+        else None
+    )
+    return derive_track_state(
+        track=track,
+        memory_entries=memory_entries,
+        shared_entries=shared_entries,
+        temporal_snapshot=temporal_snapshot,
+        track_temporal_snapshot=track_temporal_snapshot,
+        substrate_snapshot=substrate_snapshot,
+        semantic_owner_goals=semantic_owner_goals,
+        semantic_owner_presence=semantic_owner_presence,
+        identity_seed=identity_seed,
+        _projected_shared_entries=projected_shared_entries,
+        _shared_controller_code=shared_controller_code,
     )
 
 
@@ -518,7 +629,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         self_temporal_value = self_temporal_snapshot.value if self_temporal_snapshot is not None else None
         substrate_value = substrate_snapshot.value if substrate_snapshot is not None and isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         if not isinstance(memory_value, MemorySnapshot):
-            world_track = derive_track_state(
+            world_track = await derive_track_state_async(
                 track=Track.WORLD,
                 memory_entries=(),
                 temporal_snapshot=temporal_value,
@@ -528,7 +639,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 semantic_owner_presence=world_semantic_presence,
                 identity_seed=self._identity_seed,
             )
-            self_track = derive_track_state(
+            self_track = await derive_track_state_async(
                 track=Track.SELF,
                 memory_entries=(),
                 temporal_snapshot=temporal_value,
@@ -542,7 +653,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             world_entries = entries_by_track(memory_value, Track.WORLD)
             self_entries = entries_by_track(memory_value, Track.SELF)
             shared_entries = entries_by_track(memory_value, Track.SHARED)
-            world_track = derive_track_state(
+            world_track = await derive_track_state_async(
                 track=Track.WORLD,
                 memory_entries=world_entries,
                 shared_entries=shared_entries,
@@ -553,7 +664,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 semantic_owner_presence=world_semantic_presence,
                 identity_seed=self._identity_seed,
             )
-            self_track = derive_track_state(
+            self_track = await derive_track_state_async(
                 track=Track.SELF,
                 memory_entries=self_entries,
                 shared_entries=shared_entries,
@@ -626,7 +737,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             track=Track.SELF,
         )
 
-        world_track = derive_track_state(
+        world_track = await derive_track_state_async(
             track=Track.WORLD,
             memory_entries=world_entries,
             shared_entries=shared_entries,
@@ -637,7 +748,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             semantic_owner_presence=world_semantic_presence,
             identity_seed=self._identity_seed,
         )
-        self_track = derive_track_state(
+        self_track = await derive_track_state_async(
             track=Track.SELF,
             memory_entries=self_entries,
             shared_entries=shared_entries,

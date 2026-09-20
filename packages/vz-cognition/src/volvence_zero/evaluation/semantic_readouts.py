@@ -18,6 +18,7 @@ from volvence_zero.evaluation.statistics import _clamp
 from volvence_zero.evaluation.types import EvaluationAlert
 from volvence_zero.semantic_embedding import (
     semantic_embedding as _semantic_embedding,
+    semantic_embedding_async as _semantic_embedding_async,
     stub_cosine_similarity as _cosine_similarity,
     stub_semantic_tokens as _semantic_tokens,
 )
@@ -45,6 +46,14 @@ def support_presence_prototype() -> tuple[float, ...]:
     return _semantic_embedding(_SUPPORT_PRESENCE_PROTOTYPE_TEXT)
 
 
+async def task_pressure_prototype_async() -> tuple[float, ...]:
+    return await _semantic_embedding_async(_TASK_PRESSURE_PROTOTYPE_TEXT)
+
+
+async def support_presence_prototype_async() -> tuple[float, ...]:
+    return await _semantic_embedding_async(_SUPPORT_PRESENCE_PROTOTYPE_TEXT)
+
+
 def _goal_semantic_pressure(goals: tuple[str, ...], *, prototype: tuple[float, ...]) -> float:
     if not goals:
         return 0.0
@@ -52,6 +61,22 @@ def _goal_semantic_pressure(goals: tuple[str, ...], *, prototype: tuple[float, .
         _clamp((_cosine_similarity(_semantic_embedding(goal), prototype) + 1.0) / 2.0)
         for goal in goals
     ]
+    return sum(values) / len(values)
+
+
+async def _goal_semantic_pressure_async(
+    goals: tuple[str, ...],
+    *,
+    prototype: tuple[float, ...],
+) -> float:
+    if not goals:
+        return 0.0
+    values: list[float] = []
+    for goal in goals:
+        embedding = await _semantic_embedding_async(goal)
+        values.append(
+            _clamp((_cosine_similarity(embedding, prototype) + 1.0) / 2.0)
+        )
     return sum(values) / len(values)
 
 

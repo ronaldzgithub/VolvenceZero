@@ -3086,7 +3086,7 @@ async def run_final_wiring_turn(
             if cycle_report is not None
             else None
         )
-        replay_result = evaluation_module.backbone.run_default_evolution_benchmark(
+        replay_result = await evaluation_module.backbone.run_default_evolution_benchmark_async(
             timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
         )
         current_evolution_judgement = (

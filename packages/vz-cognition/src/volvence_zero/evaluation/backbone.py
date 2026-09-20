@@ -68,10 +68,13 @@ from volvence_zero.evaluation.statistics import (
 from volvence_zero.evaluation.semantic_readouts import (
     _cosine_similarity,
     _goal_semantic_pressure,
+    _goal_semantic_pressure_async,
     _semantic_embedding,
     _semantic_tokens,
     support_presence_prototype,
+    support_presence_prototype_async,
     task_pressure_prototype,
+    task_pressure_prototype_async,
 )
 from volvence_zero.evaluation.replay_scenarios import (
     _default_evolution_benchmark_cases,
@@ -199,6 +202,68 @@ class EvaluationBackbone:
                 substrate_snapshot=substrate_snapshot,
                 memory_snapshot=memory_snapshot,
                 dual_track_snapshot=dual_track_snapshot,
+            ),
+            self._temporal_public_scores(temporal_snapshot=temporal_snapshot),
+        )
+        structured_alerts = self._build_structured_alerts(turn_scores=turn_scores)
+        alerts = tuple(alert.legacy_text for alert in structured_alerts)
+        self._append_records(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            timescale="turn",
+            scores=turn_scores,
+        )
+        session_scores = self._session_scores_for(session_id=session_id)
+        return EvaluationSnapshot(
+            turn_scores=turn_scores,
+            session_scores=session_scores,
+            alerts=alerts,
+            description=(
+                f"Evaluation backbone produced {len(turn_scores)} turn scores and "
+                f"{len(alerts)} alerts."
+            ),
+            structured_alerts=structured_alerts,
+        )
+
+    async def evaluate_turn_async(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        dual_track_snapshot: DualTrackSnapshot | None,
+        temporal_snapshot: "TemporalAbstractionSnapshot | None" = None,
+    ) -> EvaluationSnapshot:
+        """Evaluate a live turn without running real embeddings on the loop."""
+
+        world_goals = (
+            dual_track_snapshot.world_track.active_goals
+            if dual_track_snapshot is not None
+            else ()
+        )
+        self_goals = (
+            dual_track_snapshot.self_track.active_goals
+            if dual_track_snapshot is not None
+            else ()
+        )
+        world_goal_semantics = await _goal_semantic_pressure_async(
+            world_goals,
+            prototype=await task_pressure_prototype_async(),
+        )
+        self_goal_semantics = await _goal_semantic_pressure_async(
+            self_goals,
+            prototype=await support_presence_prototype_async(),
+        )
+        turn_scores = self._merge_turn_scores(
+            self._build_turn_scores(
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                dual_track_snapshot=dual_track_snapshot,
+                world_goal_semantics=world_goal_semantics,
+                self_goal_semantics=self_goal_semantics,
             ),
             self._temporal_public_scores(temporal_snapshot=temporal_snapshot),
         )
@@ -365,12 +430,75 @@ class EvaluationBackbone:
             description=f"Replay suite {suite_name} {'passed' if passed else 'failed'} with {len(case_results)} cases.",
         )
 
+    async def run_replay_suite_async(
+        self,
+        *,
+        suite_name: str,
+        cases: tuple[EvaluationReplayCase, ...],
+        timestamp_ms: int,
+    ) -> EvaluationReplaySuiteResult:
+        """Run live replay scoring through the non-blocking embedding seam."""
+
+        case_results: list[EvaluationReplayCaseResult] = []
+        for index, case in enumerate(cases):
+            snapshot = await self.evaluate_turn_async(
+                session_id=case.session_id,
+                wave_id=case.wave_id,
+                timestamp_ms=timestamp_ms + index,
+                substrate_snapshot=case.substrate_snapshot,
+                memory_snapshot=case.memory_snapshot,
+                dual_track_snapshot=case.dual_track_snapshot,
+            )
+            metrics = {score.metric_name: score.value for score in snapshot.turn_scores}
+            issues: list[str] = []
+            for metric_name, floor in case.metric_floors:
+                if metrics.get(metric_name, 0.0) < floor:
+                    issues.append(f"{metric_name}<{floor:.2f}")
+            if len(snapshot.alerts) > case.max_alert_count:
+                issues.append(f"alerts>{case.max_alert_count}")
+            case_results.append(
+                EvaluationReplayCaseResult(
+                    case_id=case.case_id,
+                    passed=not issues,
+                    observed_metrics=tuple(sorted(metrics.items())),
+                    alerts=snapshot.alerts,
+                    issues=tuple(issues),
+                    description=(
+                        f"Replay case {case.case_id} produced "
+                        f"{len(snapshot.turn_scores)} scores and "
+                        f"{len(snapshot.alerts)} alerts."
+                    ),
+                )
+            )
+        passed = all(result.passed for result in case_results)
+        return EvaluationReplaySuiteResult(
+            suite_name=suite_name,
+            passed=passed,
+            case_results=tuple(case_results),
+            description=(
+                f"Replay suite {suite_name} "
+                f"{'passed' if passed else 'failed'} with "
+                f"{len(case_results)} cases."
+            ),
+        )
+
     def run_default_evolution_benchmark(
         self,
         *,
         timestamp_ms: int,
     ) -> EvaluationReplaySuiteResult:
         return self.run_replay_suite(
+            suite_name="default-evolution-benchmark",
+            cases=_default_evolution_benchmark_cases(),
+            timestamp_ms=timestamp_ms,
+        )
+
+    async def run_default_evolution_benchmark_async(
+        self,
+        *,
+        timestamp_ms: int,
+    ) -> EvaluationReplaySuiteResult:
+        return await self.run_replay_suite_async(
             suite_name="default-evolution-benchmark",
             cases=_default_evolution_benchmark_cases(),
             timestamp_ms=timestamp_ms,
@@ -1469,6 +1597,8 @@ class EvaluationBackbone:
         substrate_snapshot: SubstrateSnapshot | None,
         memory_snapshot: MemorySnapshot | None,
         dual_track_snapshot: DualTrackSnapshot | None,
+        world_goal_semantics: float | None = None,
+        self_goal_semantics: float | None = None,
     ) -> tuple[EvaluationScore, ...]:
         """Build per-turn observability readout scores.
 
@@ -1567,14 +1697,16 @@ class EvaluationBackbone:
         )
         world_goal_count = len(dual_track_snapshot.world_track.active_goals) if dual_track_snapshot else 0
         self_goal_count = len(dual_track_snapshot.self_track.active_goals) if dual_track_snapshot else 0
-        world_goal_semantics = _goal_semantic_pressure(
-            dual_track_snapshot.world_track.active_goals if dual_track_snapshot else (),
-            prototype=task_pressure_prototype(),
-        )
-        self_goal_semantics = _goal_semantic_pressure(
-            dual_track_snapshot.self_track.active_goals if dual_track_snapshot else (),
-            prototype=support_presence_prototype(),
-        )
+        if world_goal_semantics is None:
+            world_goal_semantics = _goal_semantic_pressure(
+                dual_track_snapshot.world_track.active_goals if dual_track_snapshot else (),
+                prototype=task_pressure_prototype(),
+            )
+        if self_goal_semantics is None:
+            self_goal_semantics = _goal_semantic_pressure(
+                dual_track_snapshot.self_track.active_goals if dual_track_snapshot else (),
+                prototype=support_presence_prototype(),
+            )
         task_pressure = _clamp(
             semantic_task_pull * 0.34
             + semantic_directive_pull * 0.20
@@ -3435,7 +3567,7 @@ class EvaluationModule(RuntimeModule[EvaluationSnapshot]):
             dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
         )
         return self.publish(
-            self._backbone.evaluate_turn(
+            await self._backbone.evaluate_turn_async(
                 session_id=self._session_id,
                 wave_id=self._wave_id,
                 timestamp_ms=max(substrate_snapshot.timestamp_ms, memory_snapshot.timestamp_ms, dual_track_snapshot.timestamp_ms),
@@ -3456,7 +3588,7 @@ class EvaluationModule(RuntimeModule[EvaluationSnapshot]):
         from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
 
         return self.publish(
-            self._backbone.evaluate_turn(
+            await self._backbone.evaluate_turn_async(
                 session_id=session_id,
                 wave_id=wave_id,
                 timestamp_ms=timestamp_ms,

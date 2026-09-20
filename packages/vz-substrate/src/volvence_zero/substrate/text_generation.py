@@ -30,7 +30,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from volvence_zero.substrate.runtime_execution import runtime_resource_guard
+from volvence_zero.substrate.runtime_execution import (
+    run_runtime_call,
+    runtime_resource_guard,
+)
 
 
 class TextGenerationProvider(Protocol):
@@ -187,7 +190,35 @@ class HFTextGenerationProvider:
         return text.strip()
 
 
+async def generate_text_async(
+    provider: TextGenerationProvider,
+    *,
+    prompt: str,
+    max_new_tokens: int = 16,
+    temperature: float = 0.0,
+    operation_kind: str = "text_generation",
+) -> str:
+    """Run a sync text provider on its canonical per-owner executor.
+
+    This is the shared async adapter for live consumers whose public provider
+    contract must remain sync-compatible. ``run_runtime_call`` resolves the
+    provider's runtime/model/tokenizer owner identities; it is therefore not
+    equivalent to a naked ``asyncio.to_thread`` call.
+    """
+
+    return await run_runtime_call(
+        runtime=provider,
+        operation=lambda: provider.generate(
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+        ),
+        operation_kind=operation_kind,
+    )
+
+
 __all__ = [
     "HFTextGenerationProvider",
     "TextGenerationProvider",
+    "generate_text_async",
 ]

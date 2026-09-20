@@ -224,6 +224,7 @@ from volvence_zero.application.scoring_helpers import (
     cosine_similarity as _cosine_similarity,
     semantic_embedding as _semantic_embedding,
     semantic_similarity as _semantic_similarity,
+    semantic_similarity_async as _semantic_similarity_async,
     semantic_tokens as _semantic_tokens,
     signed_centered as _signed_centered,
 )
@@ -395,6 +396,106 @@ def _knowledge_domains(
     professional_process_pull = _semantic_similarity(combined_text, PROFESSIONAL_PROCESS_PROTOTYPE)
     career_pull = _semantic_similarity(combined_text, CAREER_DECISION_PROTOTYPE)
     cross_track_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot is not None else abs(world_weight - self_weight)
+    return _rank_knowledge_domains(
+        brief=brief,
+        task_pull=task_pull,
+        support_pull=support_pull,
+        repair_pull=repair_pull,
+        family_transition_pull=family_transition_pull,
+        professional_process_pull=professional_process_pull,
+        career_pull=career_pull,
+        world_weight=world_weight,
+        self_weight=self_weight,
+        cross_track_tension=cross_track_tension,
+    )
+
+
+async def _knowledge_domains_async(
+    *,
+    dual_track_snapshot: DualTrackSnapshot | None,
+    regime_id: str | None,
+    world_weight: float,
+    self_weight: float,
+    abstract_action: str | None,
+) -> tuple[str, ...]:
+    """Live-path equivalent of :func:`_knowledge_domains`.
+
+    Each real embedding is awaited through the canonical async seam so a
+    substrate capture cannot block the orchestration event loop.
+    """
+
+    brief = _application_brief(regime_id)
+    world_goals = (
+        " ".join(dual_track_snapshot.world_track.active_goals)
+        if dual_track_snapshot is not None
+        else ""
+    )
+    self_goals = (
+        " ".join(dual_track_snapshot.self_track.active_goals)
+        if dual_track_snapshot is not None
+        else ""
+    )
+    combined_text = " ".join(
+        part
+        for part in (world_goals, self_goals, abstract_action or "")
+        if part
+    )
+    task_pull = await _semantic_similarity_async(
+        world_goals or combined_text,
+        TASK_PRESSURE_PROTOTYPE,
+    )
+    support_pull = await _semantic_similarity_async(
+        self_goals or combined_text,
+        SUPPORT_PRESENCE_PROTOTYPE,
+    )
+    repair_pull = await _semantic_similarity_async(
+        combined_text,
+        REPAIR_PRESSURE_PROTOTYPE,
+    )
+    family_transition_pull = await _semantic_similarity_async(
+        combined_text,
+        FAMILY_TRANSITION_PROTOTYPE,
+    )
+    professional_process_pull = await _semantic_similarity_async(
+        combined_text,
+        PROFESSIONAL_PROCESS_PROTOTYPE,
+    )
+    career_pull = await _semantic_similarity_async(
+        combined_text,
+        CAREER_DECISION_PROTOTYPE,
+    )
+    cross_track_tension = (
+        dual_track_snapshot.cross_track_tension
+        if dual_track_snapshot is not None
+        else abs(world_weight - self_weight)
+    )
+    return _rank_knowledge_domains(
+        brief=brief,
+        task_pull=task_pull,
+        support_pull=support_pull,
+        repair_pull=repair_pull,
+        family_transition_pull=family_transition_pull,
+        professional_process_pull=professional_process_pull,
+        career_pull=career_pull,
+        world_weight=world_weight,
+        self_weight=self_weight,
+        cross_track_tension=cross_track_tension,
+    )
+
+
+def _rank_knowledge_domains(
+    *,
+    brief: Any,
+    task_pull: float,
+    support_pull: float,
+    repair_pull: float,
+    family_transition_pull: float,
+    professional_process_pull: float,
+    career_pull: float,
+    world_weight: float,
+    self_weight: float,
+    cross_track_tension: float,
+) -> tuple[str, ...]:
     score_map = {
         "family_transition": _clamp(
             family_transition_pull * 0.60
@@ -719,6 +820,13 @@ def _has_jurisdiction_context(text: str) -> bool:
     return _semantic_similarity(text, JURISDICTION_CONTEXT_PROTOTYPE) >= 0.52
 
 
+async def _has_jurisdiction_context_async(text: str) -> bool:
+    return (
+        await _semantic_similarity_async(text, JURISDICTION_CONTEXT_PROTOTYPE)
+        >= 0.52
+    )
+
+
 # #81: hint summary / topic tags are owner-published typed data
 # (``DomainHintCatalog`` next to ``ApplicationBrief`` in
 # ``vz-cognition.regime.contracts``), not if/elif branches here. The
@@ -764,11 +872,33 @@ def _entry_problem_pattern(entry: MemoryEntry) -> str:
     return best_label
 
 
+async def _entry_problem_pattern_async(entry: MemoryEntry) -> str:
+    best_label = "general-guidance"
+    best_score = -1.0
+    for label, prototype in PROBLEM_PATTERN_PROTOTYPES:
+        score = await _semantic_similarity_async(entry.content, prototype)
+        if score > best_score:
+            best_label = label
+            best_score = score
+    return best_label
+
+
 def _entry_user_state_pattern(entry: MemoryEntry) -> str:
     best_label = "mixed-signal"
     best_score = -1.0
     for label, prototype in USER_STATE_PROTOTYPES:
         score = _semantic_similarity(entry.content, prototype)
+        if score > best_score:
+            best_label = label
+            best_score = score
+    return best_label
+
+
+async def _entry_user_state_pattern_async(entry: MemoryEntry) -> str:
+    best_label = "mixed-signal"
+    best_score = -1.0
+    for label, prototype in USER_STATE_PROTOTYPES:
+        score = await _semantic_similarity_async(entry.content, prototype)
         if score > best_score:
             best_label = label
             best_score = score
@@ -791,6 +921,35 @@ def _entry_risk_markers(
     if domain_sensitive_score >= 0.52:
         markers.append("domain-sensitive")
     if prediction_error is not None and prediction_error.error.relationship_error <= -0.4:
+        markers.append("relationship-instability")
+    return _dedupe(tuple(markers))
+
+
+async def _entry_risk_markers_async(
+    *,
+    entry: MemoryEntry,
+    prediction_error: "PredictionErrorSnapshot | None",
+    retrieval_policy: RetrievalPolicySnapshot,
+) -> tuple[str, ...]:
+    markers: list[str] = []
+    if retrieval_policy.risk_band in {RiskBand.HIGH, RiskBand.CRITICAL}:
+        markers.append(f"risk-{retrieval_policy.risk_band.value}")
+    child_impact_score = await _semantic_similarity_async(
+        entry.content,
+        CHILD_IMPACT_PROTOTYPE,
+    )
+    domain_sensitive_score = await _semantic_similarity_async(
+        entry.content,
+        DOMAIN_SENSITIVE_PROTOTYPE,
+    )
+    if child_impact_score >= 0.52:
+        markers.append("child-impact")
+    if domain_sensitive_score >= 0.52:
+        markers.append("domain-sensitive")
+    if (
+        prediction_error is not None
+        and prediction_error.error.relationship_error <= -0.4
+    ):
         markers.append("relationship-instability")
     return _dedupe(tuple(markers))
 

@@ -29,7 +29,10 @@ from collections import OrderedDict
 from volvence_zero.semantic_embedding import stub_semantic_embedding
 from volvence_zero.substrate.adapter import FeatureSignal
 from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
-from volvence_zero.substrate.runtime_execution import runtime_resource_guard
+from volvence_zero.substrate.runtime_execution import (
+    run_runtime_call,
+    runtime_resource_guard,
+)
 
 
 def _project_feature_surface(
@@ -105,24 +108,62 @@ class SubstrateTextEncoderBackend:
         # thread-safe.  A failed capture exits without populating the cache;
         # the guard releases normally so a later call can recover.
         with runtime_resource_guard(self._runtime):
-            cached = self._cache.get(key)
-            if cached is not None:
-                self._cache.move_to_end(key)
-                return cached
-            capture = self._runtime.capture(source_text=text)
-            vector = _project_feature_surface(capture.feature_surface, dim=dim)
-            norm = math.sqrt(sum(value * value for value in vector))
-            # No usable substrate signal (e.g. degenerate capture) -> stub so
-            # the consumer still gets a discriminative vector rather than
-            # zeros.
-            if norm <= 1e-9:
-                vector = stub_semantic_embedding(text, dim=dim)
-            if self._cache_size > 0:
-                self._cache[key] = vector
-                self._cache.move_to_end(key)
-                while len(self._cache) > self._cache_size:
-                    self._cache.popitem(last=False)
-            return vector
+            return self._embed_operation(text=text, dim=dim, key=key)
+
+    async def embed_async(self, text: str, *, dim: int) -> tuple[float, ...]:
+        """Embed without blocking the caller's asyncio event loop.
+
+        The complete cache transaction runs as one canonical runtime operation
+        on the per-owner ``vz-runtime-owner`` worker. Besides keeping
+        synchronous model/tokenizer work off the event loop, serializing the
+        lookup with capture and write collapses concurrent misses for the same
+        key to one capture.
+        """
+
+        if not text.strip():
+            return stub_semantic_embedding(text, dim=dim)
+        key = (text, dim)
+        return await run_runtime_call(
+            runtime=self._runtime,
+            operation=lambda: self._embed_operation(
+                text=text,
+                dim=dim,
+                key=key,
+            ),
+            operation_kind="semantic_embedding",
+        )
+
+    def _embed_operation(
+        self,
+        *,
+        text: str,
+        dim: int,
+        key: tuple[str, int],
+    ) -> tuple[float, ...]:
+        """Run lookup -> capture -> projection -> cache write atomically.
+
+        Callers must enter through either :meth:`embed`, which holds the
+        canonical resource guard, or :meth:`embed_async`, whose
+        :func:`run_runtime_call` operation holds the same guard.
+        """
+
+        cached = self._cache.get(key)
+        if cached is not None:
+            self._cache.move_to_end(key)
+            return cached
+        capture = self._runtime.capture(source_text=text)
+        vector = _project_feature_surface(capture.feature_surface, dim=dim)
+        norm = math.sqrt(sum(value * value for value in vector))
+        # No usable substrate signal (e.g. degenerate capture) -> stub so the
+        # consumer still gets a discriminative vector rather than zeros.
+        if norm <= 1e-9:
+            vector = stub_semantic_embedding(text, dim=dim)
+        if self._cache_size > 0:
+            self._cache[key] = vector
+            self._cache.move_to_end(key)
+            while len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
+        return vector
 
 
 __all__ = ["SubstrateTextEncoderBackend"]

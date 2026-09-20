@@ -62,7 +62,10 @@ from volvence_zero.runtime import (
     Snapshot,
     WiringLevel,
 )
-from volvence_zero.semantic_embedding import semantic_topic_similarity
+from volvence_zero.semantic_embedding import (
+    semantic_topic_similarity,
+    semantic_topic_similarity_async,
+)
 
 from volvence_zero.application.types import (
     ApprenticeshipProtocolAlignmentSnapshot,
@@ -83,6 +86,14 @@ def _topic_similarity(left_text: str, right_text: str) -> float:
     if not left_text or not right_text:
         return 0.0
     return semantic_topic_similarity(left_text, right_text)
+
+
+async def _topic_similarity_async(left_text: str, right_text: str) -> float:
+    """Live-path topic similarity that never calls the sync seam."""
+
+    if not left_text or not right_text:
+        return 0.0
+    return await semantic_topic_similarity_async(left_text, right_text)
 
 
 class _ProtocolThresholds:
@@ -203,14 +214,18 @@ class ApprenticeshipProtocolAlignmentModule(
         strategy = self._value(upstream.get("strategy_playbook"))
         knowledge = self._value(upstream.get("domain_knowledge"))
         return self.publish(
-            self._run(alignment=alignment, strategy=strategy, knowledge=knowledge)
+            await self._run_async(
+                alignment=alignment,
+                strategy=strategy,
+                knowledge=knowledge,
+            )
         )
 
     async def process_standalone(
         self, **kwargs: Any
     ) -> Snapshot[ApprenticeshipProtocolAlignmentSnapshot]:
         return self.publish(
-            self._run(
+            await self._run_async(
                 alignment=kwargs.get("apprenticeship_alignment"),
                 strategy=kwargs.get("strategy_playbook"),
                 knowledge=kwargs.get("domain_knowledge"),
@@ -255,10 +270,6 @@ class ApprenticeshipProtocolAlignmentModule(
         matched_protocol_count = len(strategy_targets) + len(knowledge_targets)
 
         alignment_refs: list[ProtocolAlignmentRef] = []
-        contradiction_refs: list[ProtocolAlignmentRef] = []
-        novel_count = 0
-        covered_count = 0
-
         for constraint in constraints:
             ref = self._classify_constraint(
                 constraint=constraint,
@@ -266,12 +277,72 @@ class ApprenticeshipProtocolAlignmentModule(
                 knowledge_targets=knowledge_targets,
             )
             alignment_refs.append(ref)
-            if ref.relation == _RELATION_CONFLICT:
-                contradiction_refs.append(ref)
-            elif ref.relation == _RELATION_NOVEL:
-                novel_count += 1
-            else:
-                covered_count += 1
+        return self._finalize_snapshot(
+            constraints=constraints,
+            matched_protocol_count=matched_protocol_count,
+            alignment_refs=alignment_refs,
+        )
+
+    async def _run_async(
+        self,
+        *,
+        alignment: Any,
+        strategy: Any,
+        knowledge: Any,
+    ) -> ApprenticeshipProtocolAlignmentSnapshot:
+        """Live equivalent of :meth:`_run` using only async semantic calls."""
+
+        if not isinstance(alignment, ApprenticeshipAlignmentSnapshot):
+            return _idle_snapshot("no upstream apprenticeship_alignment snapshot")
+        constraints = alignment.guidance_constraints
+        if not constraints:
+            return _idle_snapshot("no guidance constraints this turn")
+
+        strategy_targets: list[_StrategyTarget] = []
+        if isinstance(strategy, StrategyPlaybookSnapshot):
+            strategy_targets = [_StrategyTarget(rule) for rule in strategy.matched_rules]
+        knowledge_targets: list[_KnowledgeTarget] = []
+        if isinstance(knowledge, DomainKnowledgeSnapshot):
+            knowledge_targets = [
+                _KnowledgeTarget(
+                    hit_id=hit.hit_id,
+                    text=f"{hit.summary} {' '.join(hit.topic_tags)}",
+                    has_conflict=bool(hit.conflict_markers),
+                )
+                for hit in knowledge.hits
+            ]
+        matched_protocol_count = len(strategy_targets) + len(knowledge_targets)
+        alignment_refs: list[ProtocolAlignmentRef] = []
+        for constraint in constraints:
+            alignment_refs.append(
+                await self._classify_constraint_async(
+                    constraint=constraint,
+                    strategy_targets=strategy_targets,
+                    knowledge_targets=knowledge_targets,
+                )
+            )
+        return self._finalize_snapshot(
+            constraints=constraints,
+            matched_protocol_count=matched_protocol_count,
+            alignment_refs=alignment_refs,
+        )
+
+    def _finalize_snapshot(
+        self,
+        *,
+        constraints: tuple[IntentConstraint, ...],
+        matched_protocol_count: int,
+        alignment_refs: list[ProtocolAlignmentRef],
+    ) -> ApprenticeshipProtocolAlignmentSnapshot:
+        contradiction_refs = [
+            ref for ref in alignment_refs if ref.relation == _RELATION_CONFLICT
+        ]
+        novel_count = sum(
+            1 for ref in alignment_refs if ref.relation == _RELATION_NOVEL
+        )
+        covered_count = sum(
+            1 for ref in alignment_refs if ref.relation == _RELATION_COVERED
+        )
 
         total = len(constraints)
         guidance_surprise = round(novel_count / total, 4) if total else 0.0
@@ -478,6 +549,139 @@ class ApprenticeshipProtocolAlignmentModule(
             )
 
         # --- novel (disagreement region) ------------------------------
+        level = (
+            _LAYER_STRATEGY
+            if constraint.level == ConstraintLevel.ABSTRACT.value
+            else _LAYER_KNOWLEDGE
+        )
+        return ProtocolAlignmentRef(
+            guidance_constraint_id=constraint.constraint_id,
+            layer=level,
+            relation=_RELATION_NOVEL,
+            target_ref="",
+            severity=1.0,
+            description="guidance not covered by any active protocol element",
+        )
+
+    async def _classify_constraint_async(
+        self,
+        *,
+        constraint: IntentConstraint,
+        strategy_targets: list[_StrategyTarget],
+        knowledge_targets: list[_KnowledgeTarget],
+    ) -> ProtocolAlignmentRef:
+        """Live constraint classification through the async semantic seam."""
+
+        constraint_text = constraint.target_key or constraint.statement
+        best_rule_overlap = 0.0
+        best_rule_id = ""
+        best_avoid_overlap = 0.0
+        best_avoid_id = ""
+        for target in strategy_targets:
+            overlap = await _topic_similarity_async(
+                constraint_text,
+                target.pattern_text,
+            )
+            if overlap > best_rule_overlap:
+                best_rule_overlap = overlap
+                best_rule_id = target.rule_id
+            avoid_overlap = await _topic_similarity_async(
+                constraint_text,
+                target.avoid_text,
+            )
+            if avoid_overlap > best_avoid_overlap:
+                best_avoid_overlap = avoid_overlap
+                best_avoid_id = target.rule_id
+
+        if (
+            best_avoid_overlap >= self._thresholds.avoid_conflict
+            and constraint.polarity >= 0
+        ):
+            return ProtocolAlignmentRef(
+                guidance_constraint_id=constraint.constraint_id,
+                layer=_LAYER_STRATEGY,
+                relation=_RELATION_CONFLICT,
+                target_ref=best_avoid_id,
+                severity=round(
+                    _clamp(best_avoid_overlap * constraint.confidence),
+                    4,
+                ),
+                description=(
+                    "guidance endorses an avoid_pattern of active rule "
+                    f"{best_avoid_id} (overlap={best_avoid_overlap:.2f})"
+                ),
+            )
+        if (
+            constraint.polarity < 0
+            and best_rule_overlap >= self._thresholds.cover
+        ):
+            return ProtocolAlignmentRef(
+                guidance_constraint_id=constraint.constraint_id,
+                layer=_LAYER_STRATEGY,
+                relation=_RELATION_CONFLICT,
+                target_ref=best_rule_id,
+                severity=round(
+                    _clamp(best_rule_overlap * constraint.confidence),
+                    4,
+                ),
+                description=(
+                    f"guidance negates active rule {best_rule_id} "
+                    f"(overlap={best_rule_overlap:.2f})"
+                ),
+            )
+        if best_rule_overlap >= self._thresholds.cover:
+            return ProtocolAlignmentRef(
+                guidance_constraint_id=constraint.constraint_id,
+                layer=_LAYER_STRATEGY,
+                relation=_RELATION_COVERED,
+                target_ref=best_rule_id,
+                severity=round(_clamp(best_rule_overlap), 4),
+                description=(
+                    f"guidance reinforces active rule {best_rule_id} "
+                    f"(overlap={best_rule_overlap:.2f})"
+                ),
+            )
+
+        best_hit_overlap = 0.0
+        best_hit_id = ""
+        best_hit_conflict = False
+        for target in knowledge_targets:
+            overlap = await _topic_similarity_async(
+                constraint_text,
+                target.text,
+            )
+            if overlap > best_hit_overlap:
+                best_hit_overlap = overlap
+                best_hit_id = target.hit_id
+                best_hit_conflict = target.has_conflict
+        if best_hit_overlap >= self._thresholds.cover:
+            if best_hit_conflict:
+                return ProtocolAlignmentRef(
+                    guidance_constraint_id=constraint.constraint_id,
+                    layer=_LAYER_KNOWLEDGE,
+                    relation=_RELATION_CONFLICT,
+                    target_ref=best_hit_id,
+                    severity=round(
+                        _clamp(best_hit_overlap * constraint.confidence),
+                        4,
+                    ),
+                    description=(
+                        "guidance touches conflict-marked knowledge "
+                        f"{best_hit_id} (overlap={best_hit_overlap:.2f})"
+                    ),
+                )
+            return ProtocolAlignmentRef(
+                guidance_constraint_id=constraint.constraint_id,
+                layer=_LAYER_KNOWLEDGE,
+                relation=_RELATION_COVERED,
+                target_ref=best_hit_id,
+                severity=round(_clamp(best_hit_overlap), 4),
+                description=(
+                    f"guidance covered by knowledge {best_hit_id} "
+                    f"(overlap={best_hit_overlap:.2f})"
+                ),
+            )
+
         level = (
             _LAYER_STRATEGY
             if constraint.level == ConstraintLevel.ABSTRACT.value

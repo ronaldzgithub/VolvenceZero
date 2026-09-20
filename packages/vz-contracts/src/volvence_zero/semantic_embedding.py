@@ -23,6 +23,9 @@ seam supplied by a higher tier and injected at wiring time.
 
 from __future__ import annotations
 
+import asyncio
+from typing import cast
+
 from companion_standard.embedding import (  # noqa: F401
     CANONICAL_MODULUS,
     SemanticEmbeddingBackend,
@@ -125,6 +128,50 @@ def semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
     return backend.embed(text, dim=dim)
 
 
+async def _semantic_embedding_async_with_backend(
+    backend: SemanticEmbeddingBackend | None,
+    text: str,
+    *,
+    dim: int,
+) -> tuple[float, ...]:
+    """Embed through one already-selected backend instance.
+
+    ``SemanticEmbeddingBackend`` deliberately keeps its historical sync
+    protocol.  Runtime backends may additionally expose ``embed_async``;
+    live callers use it directly, while older/offline sync implementations
+    run in a worker thread instead of blocking the asyncio event loop.
+    """
+
+    if backend is None:
+        return stub_semantic_embedding(text, dim=dim)
+    embed_async = getattr(backend, "embed_async", None)
+    if embed_async is not None:
+        result = await embed_async(text, dim=dim)
+        return cast(tuple[float, ...], result)
+    return await asyncio.to_thread(backend.embed, text, dim=dim)
+
+
+async def semantic_embedding_async(
+    text: str,
+    *,
+    dim: int = 8,
+) -> tuple[float, ...]:
+    """Async embedding seam for live application/runtime paths.
+
+    The active backend is captured once before awaiting so a single request
+    cannot switch embedding owners midway through dispatch.  Backend errors
+    propagate unchanged; this seam never demotes a failed real call to the
+    deterministic stub.
+    """
+
+    backend = _ACTIVE_BACKEND
+    return await _semantic_embedding_async_with_backend(
+        backend,
+        text,
+        dim=dim,
+    )
+
+
 def semantic_cosine(
     left: tuple[float, ...], right: tuple[float, ...]
 ) -> float:
@@ -166,6 +213,43 @@ def semantic_topic_similarity(left_text: str, right_text: str) -> float:
     return intersection / len(left | right)
 
 
+async def semantic_topic_similarity_async(
+    left_text: str,
+    right_text: str,
+) -> float:
+    """Async, backend-aware topic similarity for live runtime paths.
+
+    Both texts are embedded through the exact same captured backend instance.
+    This avoids mixing vector spaces if process wiring changes while either
+    embedding is awaiting completion.
+    """
+
+    if not left_text or not right_text:
+        return 0.0
+    backend = _ACTIVE_BACKEND
+    if backend is not None:
+        left = await _semantic_embedding_async_with_backend(
+            backend,
+            left_text,
+            dim=16,
+        )
+        right = await _semantic_embedding_async_with_backend(
+            backend,
+            right_text,
+            dim=16,
+        )
+        cosine = semantic_cosine(left, right)
+        return max(0.0, min(1.0, cosine))
+    left_tokens = frozenset(stub_semantic_tokens(left_text))
+    right_tokens = frozenset(stub_semantic_tokens(right_text))
+    if not left_tokens or not right_tokens:
+        return 0.0
+    intersection = len(left_tokens & right_tokens)
+    if intersection == 0:
+        return 0.0
+    return intersection / len(left_tokens | right_tokens)
+
+
 __all__ = [
     "CANONICAL_MODULUS",
     "SemanticEmbeddingBackend",
@@ -173,8 +257,10 @@ __all__ = [
     "reset_semantic_embedding_backend",
     "semantic_cosine",
     "semantic_embedding",
+    "semantic_embedding_async",
     "semantic_embedding_backend_status",
     "semantic_topic_similarity",
+    "semantic_topic_similarity_async",
     "set_semantic_embedding_backend",
     "stub_cosine_similarity",
     "stub_semantic_embedding",

@@ -24,7 +24,9 @@ Two invariants:
 from __future__ import annotations
 
 import ast
+import asyncio
 import pathlib
+import threading
 
 import pytest
 
@@ -258,6 +260,153 @@ def test_topic_similarity_uses_backend_cosine_when_installed() -> None:
     # _UnitBackend maps every text to the same unit vector -> cosine 1.0,
     # even for texts with zero token overlap (proving the backend is used).
     assert semantic_topic_similarity("完全不相关的句子", "totally unrelated") == 1.0
+
+
+async def test_async_seam_prefers_embed_async_and_never_calls_sync() -> None:
+    from volvence_zero.semantic_embedding import (
+        semantic_embedding_async,
+        semantic_topic_similarity_async,
+        set_semantic_embedding_backend,
+    )
+
+    class _AsyncOnlyBackend:
+        def __init__(self) -> None:
+            self.async_calls = 0
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("live async seam called sync embed")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            self.async_calls += 1
+            await asyncio.sleep(0)
+            return tuple(1.0 if index == 0 else 0.0 for index in range(dim))
+
+    backend = _AsyncOnlyBackend()
+    set_semantic_embedding_backend(backend, owner="async-only")
+
+    assert await semantic_embedding_async("one") == (
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+    assert await semantic_topic_similarity_async("one", "two") == 1.0
+    assert backend.async_calls == 3
+
+
+async def test_async_topic_similarity_pins_one_backend_instance() -> None:
+    from volvence_zero.semantic_embedding import (
+        semantic_topic_similarity_async,
+        set_semantic_embedding_backend,
+    )
+
+    class _ReplacementBackend:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("replacement sync embed must not run")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            self.calls += 1
+            return tuple(1.0 if index == 1 else 0.0 for index in range(dim))
+
+    replacement = _ReplacementBackend()
+
+    class _SwitchingBackend:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("switching sync embed must not run")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            self.calls += 1
+            if self.calls == 1:
+                set_semantic_embedding_backend(replacement, owner="same-owner")
+                await asyncio.sleep(0)
+            return tuple(1.0 if index == 0 else 0.0 for index in range(dim))
+
+    original = _SwitchingBackend()
+    set_semantic_embedding_backend(original, owner="same-owner")
+
+    assert await semantic_topic_similarity_async("left", "right") == 1.0
+    assert original.calls == 2
+    assert replacement.calls == 0
+
+
+async def test_async_seam_offloads_legacy_sync_backend_from_event_loop() -> None:
+    from volvence_zero.semantic_embedding import (
+        semantic_embedding_async,
+        set_semantic_embedding_backend,
+    )
+
+    loop = asyncio.get_running_loop()
+    started = asyncio.Event()
+    release = threading.Event()
+    event_loop_thread_id = threading.get_ident()
+
+    class _BlockingSyncBackend:
+        worker_thread_id: int | None = None
+
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            self.worker_thread_id = threading.get_ident()
+            loop.call_soon_threadsafe(started.set)
+            if not release.wait(timeout=1.0):
+                raise TimeoutError("event loop did not release sync backend")
+            return tuple(1.0 if index == 0 else 0.0 for index in range(dim))
+
+    backend = _BlockingSyncBackend()
+    set_semantic_embedding_backend(backend, owner="legacy-sync")
+    embedding_task = asyncio.create_task(semantic_embedding_async("blocking"))
+
+    await asyncio.wait_for(started.wait(), timeout=0.5)
+    assert not embedding_task.done()
+    assert backend.worker_thread_id != event_loop_thread_id
+    release.set()
+    assert (await embedding_task)[0] == 1.0
+
+
+async def test_async_backend_errors_propagate_without_stub_fallback() -> None:
+    from volvence_zero.semantic_embedding import (
+        semantic_embedding_async,
+        set_semantic_embedding_backend,
+    )
+
+    class _FailingAsyncBackend:
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            raise AssertionError("sync seam must not run")
+
+        async def embed_async(
+            self,
+            text: str,
+            *,
+            dim: int,
+        ) -> tuple[float, ...]:
+            raise RuntimeError("sentinel async embedding failure")
+
+    set_semantic_embedding_backend(_FailingAsyncBackend(), owner="failing")
+    with pytest.raises(RuntimeError, match="sentinel async embedding failure"):
+        await semantic_embedding_async("must-fail")
 
 
 def test_canonical_modulus_is_coprime_with_common_dims() -> None:
