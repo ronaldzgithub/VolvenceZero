@@ -16,7 +16,7 @@ DLaaS v1 exposes Volvence lives as externally addressable `ai_id` instances whil
 The API has four planes:
 
 1. **OpenAI-compatible chat** for broad SDK compatibility.
-2. **Native runtime envelope** for typed chat / observe / feedback / teach / task / report / command.
+2. **Native runtime envelope** for typed chat / cognitive-turn / observe / feedback / teach / task / report / command.
 3. **Adoption contract** for choosing vertical, substrate profile, protocol set, memory scope, tools, ops, and training policy.
 4. **Protocol/training intake** for reviewed protocols, reviewed corpus ingestion, and gated rare-heavy artifact jobs.
 
@@ -125,12 +125,77 @@ Supported `interaction_type` values:
 | Type | Runtime sink |
 |---|---|
 | `chat` | `LifeformSession.run_turn(USER_INPUT)` |
+| `cognitive_turn` | one Lifeform-owned `SCENE_EVENT` turn with separate perception, cognition-task and expression contracts |
 | `observe` | typed observation to reviewed event / ingestion / tool-result sinks |
 | `feedback` | `LifeformSession.submit_dialogue_outcome(...)` |
 | `teach` | apprentice-triggered `run_turn` |
 | `task` | apprentice/task event path |
 | `report` | scene closure + readout |
 | `command` | typed allowlist only |
+
+### Native cognitive turn
+
+`interaction_type="cognitive_turn"` is the first-class world-to-lifeform
+transport. It does not reuse `task`, `human_brief`, or `structured_context`.
+All three top-level contracts are required:
+
+```json
+{
+  "interaction_type": "cognitive_turn",
+  "human_brief": "",
+  "structured_context": {},
+  "perceived_event": {
+    "action_id": "action-17",
+    "perception": "I saw the traveller cut the mooring line.",
+    "frame": {
+      "actor": {
+        "actor_id": "player-1",
+        "actor_kind": "player_character",
+        "display_name": "Traveller"
+      },
+      "active_speaker_id": "player-1",
+      "addressee_ids": ["qiao"],
+      "subject_ids": ["player-1"],
+      "audience_ids": ["qiao"]
+    },
+    "provenance": "novel-worlds:observer:qiao:action-17"
+  },
+  "cognition_task": {
+    "kind": "choose_observable_action",
+    "required_readouts": ["response_action_realization"]
+  },
+  "expression_contract": {
+    "schema_name": "lifeform_intent",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"intended_action": {"type": "string"}},
+      "required": ["intended_action"]
+    },
+    "strict": true,
+    "exact_bindings": [{
+      "json_pointer": "/intended_action",
+      "source": "response_action_realization.action_statement"
+    }]
+  }
+}
+```
+
+The platform forwards only `perception` as the turn's lived input. It maps the
+frame and provenance to the public Lifeform call, while the Lifeform owner
+generates canonical `event_id`, `scene_id`, and `timestamp_ms`. Those three
+fields are not legal client fields. Unknown cognition kinds, binding sources,
+or interaction modes, incomplete objects, owner-field injection, and any
+`human_brief` / `structured_context` content fail with HTTP 400.
+
+An optional top-level `template_binding` may carry exactly
+`template_id / template_uri / template_bundle_sha256 /
+template_source_sha256`. On first session creation it is converted through
+`lifeform-service.ContentAddressedTemplateBinding`, which owns URI and digest
+validation and loads the exact baked blob. A later request may omit the
+binding (legacy sticky reuse) or repeat the exact same binding; a different
+binding for the same session fails `409 session_template_binding_mismatch`.
+The complete envelope survives multi-pod `to_json()` forwarding unchanged.
 
 ### Keyed `report` scene closure
 

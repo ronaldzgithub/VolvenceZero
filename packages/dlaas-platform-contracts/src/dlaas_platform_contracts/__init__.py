@@ -232,6 +232,10 @@ from dlaas_platform_contracts.resources import (
     TemplateVersionSpec,
     TenantSpec,
 )
+from dlaas_platform_contracts.cognitive_turn import (
+    CognitiveTurnPerceivedEvent,
+    CognitiveTurnTemplateBinding,
+)
 from dlaas_platform_contracts.report_scene_end import (
     REPORT_SCENE_END_LEDGER_SCHEMA,
     REPORT_SCENE_END_LEDGER_SCHEMA_VERSION,
@@ -329,6 +333,8 @@ __all__ = (
     "BillingEvent",
     "CitationPolicy",
     "CommandName",
+    "CognitiveTurnPerceivedEvent",
+    "CognitiveTurnTemplateBinding",
     "ConsentRecord",
     "ContractSpec",
     "ContractStatus",

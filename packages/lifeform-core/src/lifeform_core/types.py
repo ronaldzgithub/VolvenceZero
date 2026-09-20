@@ -127,6 +127,7 @@ class TurnTriggerKind(str, Enum):
     TOOL_RESULT = "tool_result"
     APPRENTICE = "apprentice"
     INGESTION = "ingestion"
+    SCENE_EVENT = "scene_event"
 
 
 _APPRENTICESHIP_TRIGGER_KINDS: frozenset[TurnTriggerKind] = frozenset(
@@ -152,6 +153,7 @@ _ENVIRONMENT_EVENT_KIND_BY_TRIGGER: dict[TurnTriggerKind, EnvironmentEventKind] 
     TurnTriggerKind.TOOL_RESULT: EnvironmentEventKind.TOOL_RESULT,
     TurnTriggerKind.APPRENTICE: EnvironmentEventKind.APPRENTICE,
     TurnTriggerKind.INGESTION: EnvironmentEventKind.INGESTION,
+    TurnTriggerKind.SCENE_EVENT: EnvironmentEventKind.SCENE_EVENT,
 }
 
 

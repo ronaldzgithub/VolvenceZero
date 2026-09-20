@@ -21,9 +21,10 @@ Design rules:
    results returned by the kernel facade and package them into the
    wire-format response.
 
-Slice 1 wired ``chat`` only. Slice 2 fills in the remaining six types
-(``feedback`` / ``observe`` / ``teach`` / ``task`` / ``report`` /
-``command``) per ``docs/moving forward/dlaas-platform-rollout.md``.
+Slice 1 wired ``chat`` only. Slice 2 filled in the remaining original six
+types. The native ``cognitive_turn`` extension keeps perceived world evidence,
+the bounded cognition task, and expression delivery as three separate typed
+contracts.
 """
 
 from __future__ import annotations
@@ -103,6 +104,12 @@ async def dispatch_envelope(
     kind = envelope.interaction_type
     if kind is InteractionType.CHAT:
         return await _handle_chat(envelope=envelope, session=session, ai_id=ai_id)
+    if kind is InteractionType.COGNITIVE_TURN:
+        return await _handle_cognitive_turn(
+            envelope=envelope,
+            session=session,
+            ai_id=ai_id,
+        )
     if kind is InteractionType.FEEDBACK:
         return await _handle_feedback(envelope=envelope, session=session, ai_id=ai_id)
     if kind is InteractionType.OBSERVE:
@@ -132,6 +139,69 @@ async def dispatch_envelope(
 # ---------------------------------------------------------------------------
 # Slice 1 — chat
 # ---------------------------------------------------------------------------
+
+
+async def _handle_cognitive_turn(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Run a world scene event without turning task metadata into memory."""
+
+    perceived = envelope.perceived_event
+    cognition_task = envelope.cognition_task
+    expression_contract = envelope.expression_contract
+    if perceived is None or cognition_task is None or expression_contract is None:
+        raise DispatchError(
+            code="invalid_cognitive_turn",
+            detail=(
+                "interaction_type=cognitive_turn requires perceived_event, "
+                "cognition_task, and expression_contract"
+            ),
+        )
+    result = await session.run_turn(
+        perceived.perception,
+        trigger_kind=TurnTriggerKind.SCENE_EVENT,
+        environment_frame=perceived.frame,
+        environment_provenance=perceived.provenance,
+        cognition_task_contract=cognition_task,
+        expression_output_contract=expression_contract,
+    )
+    response_text = getattr(result.response, "text", "") or ""
+    rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+    extra: dict[str, Any] = {
+        "active_regime": getattr(result, "active_regime", None),
+        "active_abstract_action": getattr(result, "active_abstract_action", None),
+        "rationale_tags": list(rationale_tags),
+        "cognitive_turn": {
+            "external_action_id": perceived.action_id,
+            "event_kind": "scene_event",
+            "provenance": perceived.provenance,
+            "cognition_task_kind": cognition_task.kind.value,
+            "required_readouts": [
+                readout.value for readout in cognition_task.required_readouts
+            ],
+            "expression_schema_name": expression_contract.schema_name,
+            "exact_bindings": [
+                {
+                    "json_pointer": binding.json_pointer,
+                    "source": binding.source.value,
+                }
+                for binding in expression_contract.exact_bindings
+            ],
+        },
+    }
+    extra.update(_cognition_extra(session))
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(text_act(response_text),),
+        protocol_version=envelope.protocol_version,
+        extra=extra,
+    )
 
 
 async def _handle_chat(

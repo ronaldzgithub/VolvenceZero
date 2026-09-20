@@ -192,6 +192,10 @@ class MemoryScopeExportError(RuntimeError):
     """The persisted scope failed Memory owner's export validation."""
 
 
+class SessionTemplateBindingMismatchError(ValueError):
+    """A sticky session is being reused with a different template identity."""
+
+
 @dataclass
 class _SessionEntry:
     session: LifeformSession
@@ -213,6 +217,7 @@ class _SessionEntry:
     # Sessions created via the legacy ``factory`` / ``alpha_factory`` path
     # have ``template_context=None`` and cannot be saved as templates.
     template_context: TemplateContext | None = None
+    template_binding: ContentAddressedTemplateBinding | None = None
     # The end-user this session was created for (``user_id`` at create
     # time). Used by the dispatch layer to fail loud when a caller reuses
     # one ``session_id`` for a different end-user (which would otherwise
@@ -847,6 +852,16 @@ class SessionManager:
             raise SessionNotFoundError(session_id)
         return entry.template_context
 
+    def template_binding_for(
+        self, session_id: str
+    ) -> ContentAddressedTemplateBinding | None:
+        """Return the immutable template attestation bound at first create."""
+
+        entry = self._sessions.get(session_id)
+        if entry is None:
+            raise SessionNotFoundError(session_id)
+        return entry.template_binding
+
     def vertical_name_for(self, session_id: str) -> str:
         """Return which vertical built the session's lifeform.
 
@@ -1272,6 +1287,7 @@ class SessionManager:
                 vertical_name=chosen_name,
                 character_id=bound_character_id,
                 template_context=template_context,
+                template_binding=template_binding,
                 end_user_ref=(user_id or ""),
             )
         await self._shutdown_entries(evicted)

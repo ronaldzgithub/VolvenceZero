@@ -55,6 +55,7 @@ from lifeform_service import (
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
+    SessionTemplateBindingMismatchError,
 )
 
 from lifeform_openai_compat.dto import (
@@ -739,6 +740,7 @@ async def _get_or_create_session(
             session_id=session_id,
             user_id=user_id,
             vertical_name=vertical_name,
+            template_binding=template_binding,
         )
     try:
         create_kwargs: dict[str, Any] = {
@@ -760,6 +762,7 @@ async def _get_or_create_session(
             session_id=session_id,
             user_id=user_id,
             vertical_name=vertical_name,
+            template_binding=template_binding,
         )
     except SessionNotFoundError:
         # Pathological case: has_session=False, create raised
@@ -774,6 +777,7 @@ async def _get_and_validate_existing_session(
     session_id: str,
     user_id: str | None,
     vertical_name: str | None,
+    template_binding: ContentAddressedTemplateBinding | None,
 ) -> Any:
     """Fetch a sticky session only after enforcing its isolation bindings."""
 
@@ -793,6 +797,14 @@ async def _get_and_validate_existing_session(
             raise SessionEndUserMismatchError(
                 f"session_id={session_id!r} is bound to user_id={bound!r} "
                 f"but the request carries user_id={user_id!r}"
+            )
+    if template_binding is not None:
+        bound_binding = manager.template_binding_for(session_id)
+        if bound_binding != template_binding:
+            raise SessionTemplateBindingMismatchError(
+                "invalid_session_template_binding_mismatch: "
+                f"session_id={session_id!r} is already bound to a different "
+                "content-addressed template"
             )
     return session
 

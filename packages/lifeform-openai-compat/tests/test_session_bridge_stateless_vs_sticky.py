@@ -102,6 +102,9 @@ class _FakeSessionManager:
         self._sessions: dict[str, _FakeLifeformSession] = {}
         self._session_verticals: dict[str, str] = {}
         self._session_end_users: dict[str, str | None] = {}
+        self._session_template_bindings: dict[
+            str, ContentAddressedTemplateBinding | None
+        ] = {}
         self.create_calls: list[tuple[str | None, str | None]] = []
         self.vertical_calls: list[str | None] = []
         # D22: record the per-call tenant_id the bridge plumbs through.
@@ -137,6 +140,7 @@ class _FakeSessionManager:
         self._sessions[sid] = session
         self._session_verticals[sid] = vertical_name or self.vertical_name
         self._session_end_users[sid] = user_id
+        self._session_template_bindings[sid] = template_binding
         return session
 
     def vertical_name_for(self, session_id: str) -> str:
@@ -144,6 +148,11 @@ class _FakeSessionManager:
 
     def session_end_user(self, session_id: str) -> str | None:
         return self._session_end_users[session_id]
+
+    def template_binding_for(
+        self, session_id: str
+    ) -> ContentAddressedTemplateBinding | None:
+        return self._session_template_bindings[session_id]
 
 
 class _RaceLosingSessionManager(_FakeSessionManager):
@@ -182,6 +191,7 @@ class _RaceLosingSessionManager(_FakeSessionManager):
         self._sessions[sid] = _FakeLifeformSession(session_id=sid)
         self._session_verticals[sid] = self._winner_vertical
         self._session_end_users[sid] = self._winner_user
+        self._session_template_bindings[sid] = template_binding
         raise SessionAlreadyExistsError(sid)
 
 
@@ -566,10 +576,9 @@ async def test_lifeform_complete_tenant_id_defaults_none_when_absent() -> None:
     assert manager.tenant_calls[0] is None
 
 
-async def test_content_addressed_binding_is_forwarded_once_and_sticky() -> None:
+async def test_content_addressed_binding_is_forwarded_once_and_exactly_reused() -> None:
     manager = _FakeSessionManager()
     first_hash = "a" * 64
-    second_hash = "b" * 64
     common = {
         "session_id": "sticky-content-template",
         "dlaas.template_id": "nwtpl_scene_v1_first",
@@ -587,9 +596,8 @@ async def test_content_addressed_binding_is_forwarded_once_and_sticky() -> None:
         ("user", "continue"),
         metadata={
             **common,
-            "dlaas.template_id": "nwtpl_scene_v1_second",
-            "dlaas.template_uri": f"novel-worlds/blobs/{second_hash}.json",
-            "dlaas.template_bundle_sha256": second_hash,
+            "dlaas.template_uri": f"novel-worlds/blobs/{first_hash}.json",
+            "dlaas.template_bundle_sha256": first_hash,
         },
     )
 
@@ -607,6 +615,41 @@ async def test_content_addressed_binding_is_forwarded_once_and_sticky() -> None:
     assert manager._sessions["sticky-content-template"].run_turn_calls == [
         "enter",
         "continue",
+    ]
+
+
+async def test_content_addressed_binding_reuse_rejects_identity_change() -> None:
+    manager = _FakeSessionManager()
+    first_hash = "a" * 64
+    second_hash = "b" * 64
+    first = _request(
+        ("user", "enter"),
+        metadata={
+            "session_id": "sticky-template-conflict",
+            "dlaas.template_id": "nwtpl_scene_v1_first",
+            "dlaas.template_uri": f"novel-worlds/blobs/{first_hash}.json",
+            "dlaas.template_bundle_sha256": first_hash,
+            "dlaas.template_source_sha256": "c" * 64,
+        },
+    )
+    second = _request(
+        ("user", "continue"),
+        metadata={
+            "session_id": "sticky-template-conflict",
+            "dlaas.template_id": "nwtpl_scene_v1_second",
+            "dlaas.template_uri": f"novel-worlds/blobs/{second_hash}.json",
+            "dlaas.template_bundle_sha256": second_hash,
+            "dlaas.template_source_sha256": "c" * 64,
+        },
+    )
+
+    await lifeform_complete(request=first, manager=manager)
+    with pytest.raises(ValueError, match="template_binding_mismatch"):
+        await lifeform_complete(request=second, manager=manager)
+
+    assert len(manager.create_calls) == 1
+    assert manager._sessions["sticky-template-conflict"].run_turn_calls == [
+        "enter"
     ]
 
 

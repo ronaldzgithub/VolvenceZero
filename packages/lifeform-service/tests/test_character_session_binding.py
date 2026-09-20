@@ -274,6 +274,7 @@ async def test_session_manager_loads_exact_content_addressed_path(tmp_path: Path
     )
 
     assert adapter.loaded == [(blob.resolve(), binding)]
+    assert manager.template_binding_for("exact-blob") == binding
 
 
 async def test_launcher_style_manager_loads_exact_namespaced_blob(

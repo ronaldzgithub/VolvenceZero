@@ -26,6 +26,18 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from volvence_zero.cognition_task import CognitionTaskContract
+from volvence_zero.expression_output import ExpressionOutputContract
+
+from dlaas_platform_contracts.cognitive_turn import (
+    CognitiveTurnPerceivedEvent,
+    CognitiveTurnTemplateBinding,
+    cognition_task_from_json,
+    cognition_task_to_json,
+    expression_contract_from_json,
+    expression_contract_to_json,
+)
+
 DEFAULT_PROTOCOL_VERSION = "dlaas/v1"
 
 
@@ -39,6 +51,7 @@ class InteractionType(str, Enum):
     TEACH = "teach"
     TASK = "task"
     COMMAND = "command"
+    COGNITIVE_TURN = "cognitive_turn"
 
 
 class InteractionMode(str, Enum):
@@ -139,6 +152,10 @@ class InteractionEnvelope:
     feedback: FeedbackPayload | None = None
     target_person_ids: tuple[str, ...] = ()
     lang: str = "cn"
+    perceived_event: CognitiveTurnPerceivedEvent | None = None
+    cognition_task: CognitionTaskContract | None = None
+    expression_contract: ExpressionOutputContract | None = None
+    template_binding: CognitiveTurnTemplateBinding | None = None
 
     def __post_init__(self) -> None:
         if not self.contract_id.strip():
@@ -162,6 +179,60 @@ class InteractionEnvelope:
                 raise ValueError(
                     "InteractionEnvelope.target_person_ids entries must be non-empty str"
                 )
+        cognitive_fields = (
+            self.perceived_event,
+            self.cognition_task,
+            self.expression_contract,
+        )
+        if self.interaction_type is InteractionType.COGNITIVE_TURN:
+            if any(value is None for value in cognitive_fields):
+                raise ValueError(
+                    "interaction_type=cognitive_turn requires perceived_event, "
+                    "cognition_task, and expression_contract"
+                )
+            if not isinstance(self.perceived_event, CognitiveTurnPerceivedEvent):
+                raise TypeError(
+                    "InteractionEnvelope.perceived_event must be a "
+                    "CognitiveTurnPerceivedEvent"
+                )
+            if not isinstance(self.cognition_task, CognitionTaskContract):
+                raise TypeError(
+                    "InteractionEnvelope.cognition_task must be a "
+                    "CognitionTaskContract"
+                )
+            if not isinstance(self.expression_contract, ExpressionOutputContract):
+                raise TypeError(
+                    "InteractionEnvelope.expression_contract must be an "
+                    "ExpressionOutputContract"
+                )
+            if self.human_brief:
+                raise ValueError(
+                    "interaction_type=cognitive_turn does not accept human_brief"
+                )
+            if self.structured_context:
+                raise ValueError(
+                    "interaction_type=cognitive_turn does not accept structured_context"
+                )
+        elif any(value is not None for value in cognitive_fields):
+            raise ValueError(
+                "perceived_event, cognition_task, and expression_contract are only "
+                "valid for interaction_type=cognitive_turn"
+            )
+        if (
+            self.template_binding is not None
+            and self.interaction_type is not InteractionType.COGNITIVE_TURN
+        ):
+            raise ValueError(
+                "template_binding is only valid for "
+                "interaction_type=cognitive_turn"
+            )
+        if self.template_binding is not None and not isinstance(
+            self.template_binding, CognitiveTurnTemplateBinding
+        ):
+            raise TypeError(
+                "InteractionEnvelope.template_binding must be a "
+                "CognitiveTurnTemplateBinding"
+            )
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "InteractionEnvelope":
@@ -225,6 +296,26 @@ class InteractionEnvelope:
             feedback=FeedbackPayload.from_json(data.get("feedback")),
             target_person_ids=target_person_ids,
             lang=str(data.get("lang", "cn") or "cn"),
+            perceived_event=(
+                CognitiveTurnPerceivedEvent.from_json(data.get("perceived_event"))
+                if data.get("perceived_event") is not None
+                else None
+            ),
+            cognition_task=(
+                cognition_task_from_json(data.get("cognition_task"))
+                if data.get("cognition_task") is not None
+                else None
+            ),
+            expression_contract=(
+                expression_contract_from_json(data.get("expression_contract"))
+                if data.get("expression_contract") is not None
+                else None
+            ),
+            template_binding=(
+                CognitiveTurnTemplateBinding.from_json(data.get("template_binding"))
+                if data.get("template_binding") is not None
+                else None
+            ),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -241,6 +332,26 @@ class InteractionEnvelope:
             "feedback": self.feedback.to_json() if self.feedback is not None else None,
             "target_person_ids": list(self.target_person_ids),
             "lang": self.lang,
+            "perceived_event": (
+                self.perceived_event.to_json()
+                if self.perceived_event is not None
+                else None
+            ),
+            "cognition_task": (
+                cognition_task_to_json(self.cognition_task)
+                if self.cognition_task is not None
+                else None
+            ),
+            "expression_contract": (
+                expression_contract_to_json(self.expression_contract)
+                if self.expression_contract is not None
+                else None
+            ),
+            "template_binding": (
+                self.template_binding.to_json()
+                if self.template_binding is not None
+                else None
+            ),
         }
 
 

@@ -117,6 +117,7 @@ from dlaas_platform_registry import (
     TenantStore,
 )
 from lifeform_service.app import create_app as create_lifeform_app
+from lifeform_service import ContentAddressedTemplateBinding
 from lifeform_service.operations_brain_routes import (
     OperationsRouteError,
     operations_brain_controller,
@@ -136,6 +137,7 @@ from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
+    SessionTemplateBindingMismatchError,
     SnapshotNotRestorableError,
     TimeNodeNotFoundError,
 )
@@ -3893,15 +3895,31 @@ async def _dispatch_envelope_to_instance(
         )
 
     try:
+        template_binding = _content_addressed_template_binding(envelope)
+    except ValueError as exc:
+        return _json_error(
+            status=400,
+            error="invalid_template_binding",
+            detail=str(exc),
+        )
+
+    try:
         session = await _get_or_create_session(
             manager,
             envelope.session_id,
             user_id=envelope.end_user_ref,
+            template_binding=template_binding,
         )
     except _SessionEndUserMismatch as exc:
         return _json_error(
             status=409,
             error="session_end_user_mismatch",
+            detail=str(exc),
+        )
+    except SessionTemplateBindingMismatchError as exc:
+        return _json_error(
+            status=409,
+            error="session_template_binding_mismatch",
             detail=str(exc),
         )
     except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
@@ -5461,6 +5479,7 @@ async def _get_or_create_session(
     session_id: str,
     *,
     user_id: str | None = None,
+    template_binding: ContentAddressedTemplateBinding | None = None,
 ):
     """Reuse an existing session if present; otherwise create with that id.
 
@@ -5472,7 +5491,13 @@ async def _get_or_create_session(
     try:
         session = await manager.get_session(session_id)
     except SessionNotFoundError:
-        return await manager.create_session(session_id=session_id, user_id=user_id)
+        create_kwargs: dict[str, Any] = {
+            "session_id": session_id,
+            "user_id": user_id,
+        }
+        if template_binding is not None:
+            create_kwargs["template_binding"] = template_binding
+        return await manager.create_session(**create_kwargs)
     if user_id and not _session_end_user_remap_allowed():
         reader = getattr(manager, "session_end_user", None)
         bound = reader(session_id) if callable(reader) else None
@@ -5480,7 +5505,31 @@ async def _get_or_create_session(
             raise _SessionEndUserMismatch(
                 session_id=session_id, bound=bound, requested=user_id
             )
+    if template_binding is not None:
+        bound_binding = manager.template_binding_for(session_id)
+        if bound_binding != template_binding:
+            raise SessionTemplateBindingMismatchError(
+                "session_id="
+                f"{session_id!r} is already bound to a different "
+                "content-addressed template"
+            )
     return session
+
+
+def _content_addressed_template_binding(
+    envelope: InteractionEnvelope,
+) -> ContentAddressedTemplateBinding | None:
+    """Convert the platform wire attestation through the service owner type."""
+
+    binding = envelope.template_binding
+    if binding is None:
+        return None
+    return ContentAddressedTemplateBinding(
+        template_id=binding.template_id,
+        template_uri=binding.template_uri,
+        template_bundle_sha256=binding.template_bundle_sha256,
+        template_source_sha256=binding.template_source_sha256,
+    )
 
 
 def _json_error(
