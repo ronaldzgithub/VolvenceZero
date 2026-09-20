@@ -190,6 +190,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # sessions via ``OwnerHydrationStore``. The contract +
             # error types live in ``vz-contracts.owner_hydration``.
             "owner_hydration",
+            # Typed turn task contract lives in vz-contracts; CaseMemory
+            # consumes it only as an explicit gate over the real perceived
+            # event query.
+            "cognition_task",
         }
     ),
     "vz-temporal": frozenset(
@@ -236,6 +240,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # Out-of-turn owner archive envelope uses the strict canonical
             # JSON codec from vz-contracts.
             "canonical_json",
+            # Request-level task and strict expression delivery contracts
+            # are owned by vz-contracts and only orchestrated here.
+            "cognition_task",
+            "expression_output",
             # #91: Brain wiring installs the SemanticEmbeddingBackend seam
             # (set/reset) when a real transformers substrate runtime is
             # present. The seam + stub fallback live in

@@ -56,6 +56,11 @@ from volvence_zero.credit.gate import (
 )
 from volvence_zero.dialogue_trace import DialogueOutcomeEvidence
 from volvence_zero.environment import EnvironmentEvent
+from volvence_zero.cognition_task import (
+    CognitionRequiredReadout,
+    CognitionTaskContract,
+    MissingRequiredCognitionReadoutError,
+)
 from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalIntegrationResult
@@ -118,6 +123,27 @@ if TYPE_CHECKING:
         OnlineFastSubstrateTurnResult,
         RareHeavyTurnResult,
     )
+
+
+def _require_cognition_task_readouts(
+    *,
+    cognition_task_contract: CognitionTaskContract | None,
+    response_assembly: ResponseAssemblySnapshot | None,
+) -> None:
+    if cognition_task_contract is None:
+        return
+    if (
+        CognitionRequiredReadout.RESPONSE_ACTION_REALIZATION
+        in cognition_task_contract.required_readouts
+        and (
+            response_assembly is None
+            or response_assembly.action_realization is None
+        )
+    ):
+        raise MissingRequiredCognitionReadoutError(
+            "cognition task choose_observable_action requires "
+            "ResponseAssembly.action_realization before expression"
+        )
 
 
 # An ``AgentSessionRunner`` serves exactly one session for one user, so the
@@ -410,6 +436,7 @@ class SessionObservationMixin:
         rare_heavy_result: "RareHeavyTurnResult | None" = None,
         deferred_writeback_result: WritebackResult | None = None,
         queue_state: SessionPostSlowLoopQueueState | None = None,
+        cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> "AgentTurnResult":
         from volvence_zero.agent.session import AgentTurnResult
@@ -539,6 +566,10 @@ class SessionObservationMixin:
             if response_assembly_snapshot is not None
             and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
             else None
+        )
+        _require_cognition_task_readouts(
+            cognition_task_contract=cognition_task_contract,
+            response_assembly=response_assembly,
         )
         steering_intervention_snapshot = integration_result.active_snapshots.get(
             STEERING_INTERVENTION_SLOT

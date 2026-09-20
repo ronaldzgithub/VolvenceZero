@@ -65,6 +65,13 @@ Domain Experience Layer 的目标是为关系陪伴、工程结对、女性情�
 `TemporalAbstractionSnapshot.active_abstract_action` 是无业务语义的控制器身份，不能由
 expression 根据 family id 建立字符串映射。具体行动沿以下正式交换落地：
 
+调用方若明确要求数字生命在当前可观察世界中选择行动，必须通过
+`CognitionTaskContract(kind=choose_observable_action)` 声明任务，并要求
+`response_action_realization` readout。该 typed task 只替代“当前输入是否在请求动作”的
+文本猜测门；实际 `user_input` / perceived environment event 仍是 Memory 与 CaseMemory
+的检索、适用性判断和案例排序 query，task contract 本身不携带候选动作。未提供 typed
+task 时保留 legacy semantic action-request gate；因此普通对话与反思任务行为不变。
+
 1. `CaseMemoryModule` 从 `MemorySnapshot.retrieved_entries` 取得当前 owner-published
    语境，只用统一 semantic-embedding seam 判断是否是具体行动请求，并在已检索的
    reviewed `CaseMemoryRecord` 中选择一个语义近邻。
@@ -76,6 +83,9 @@ expression 根据 family id 建立字符串映射。具体行动沿以下正式�
    `ResponseAssemblySnapshot.action_realization: ResponseActionRealization | None`。
 4. expression 只渲染 `ResponseSpeechPlan` 中的 owner-published action statement；
    禁止重新检索案例、重排 intervention steps 或从自然语言做关键词动作分类。
+5. typed task 若到 expression 前仍没有
+   `ResponseAssemblySnapshot.action_realization`，runtime 必须抛出
+   `MissingRequiredCognitionReadoutError`；M1 不允许 expression 或调用方临时发明动作。
 
 `action_grounding=None` 是冷启动/非行动轮的正常显式状态。恢复旧行为的回滚方式是让
 CaseMemory 不发布 grounding；不需要删除 temporal family、case records 或修改模型权重。
@@ -267,6 +277,9 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 
 ## 变更日志
 
+- 2026-09-20: 新增 typed `choose_observable_action` cognition task。CaseMemory 继续以
+  原始 perceived event 作 query，但不再要求该事件文本本身像动作请求；缺少既有
+  CaseMemory→ResponseAssembly owner readout 时在 expression 前 fail loudly。
 - 2026-08-03: companion overlay 增加产品服务 SHADOW rollout seam：启动前 fail-loud 校验并记录
   asset digest/候选规模，默认仍为 DISABLED，ACTIVE 继续等待独立部署准入。
 - 2026-08-01: 新增 companion additive playbook overlay：真实消费链编译到既有

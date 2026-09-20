@@ -118,6 +118,7 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
     build_user_input_environment_event,
 )
+from volvence_zero.cognition_task import CognitionTaskContract
 from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.integration import (
     _apply_application_prior_writeback,
@@ -1739,6 +1740,7 @@ class AgentSessionRunner(
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
@@ -1869,6 +1871,7 @@ class AgentSessionRunner(
                 config=self._config,
                 substrate_adapter=substrate_adapter,
                 user_input=user_input,
+                cognition_task_contract=cognition_task_contract,
                 application_rare_heavy_state=self._application_rare_heavy_state,
                 domain_knowledge_store=self._domain_knowledge_store,
                 case_memory_store=self._case_memory_store,
@@ -2043,6 +2046,7 @@ class AgentSessionRunner(
             rare_heavy_result=rare_heavy_result,
             deferred_writeback_result=deferred_writeback_result,
             queue_state=self.session_post_queue_state,
+            cognition_task_contract=cognition_task_contract,
             expression_output_contract=expression_output_contract,
         )
 

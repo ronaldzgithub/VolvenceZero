@@ -33,6 +33,7 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentOutcome,
 )
+from volvence_zero.cognition_task import CognitionTaskContract
 from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.evaluation import RelationshipContinuityEvaluationModule
 from volvence_zero.identity_seed import IdentitySeed
@@ -740,12 +741,14 @@ class BrainSession:
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         return await self._runner.run_turn(
             user_input,
             environment_event=environment_event,
             apprenticeship_turn=apprenticeship_turn,
+            cognition_task_contract=cognition_task_contract,
             expression_output_contract=expression_output_contract,
         )
 
@@ -817,6 +820,7 @@ class BrainSession:
         *,
         environment_event: EnvironmentEvent | None = None,
         apprenticeship_turn: bool = False,
+        cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> AgentTurnResult:
         try:
@@ -827,6 +831,7 @@ class BrainSession:
                     user_input,
                     environment_event=environment_event,
                     apprenticeship_turn=apprenticeship_turn,
+                    cognition_task_contract=cognition_task_contract,
                     expression_output_contract=expression_output_contract,
                 )
             )

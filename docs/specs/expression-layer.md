@@ -55,6 +55,13 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
     memory、PE 或 world-state。首次无效时，表达 owner 可在同一 cognitive assembly 上
     做至多一次 format-only retry；无效文本不进入历史。重试仍无效必须失败，禁止补
     默认字段、把玩家动作改写成 NPC 意图，或再跑一次 lifeform turn。
+12. `ExpressionOutputContract.exact_bindings` 可把 JSON Pointer 类型化绑定到一个既有
+    owner readout。M1 唯一允许的 source 是
+    `ResponseAssembly.action_realization.action_statement`。contract 构造时必须确认 pointer
+    在 schema 中逐层 required 且终点为 string；generation 前必须确认 source 存在；
+    generation 后按 Python Unicode string 严格相等校验，禁止 normalization、翻译或改写。
+    一次 format-only retry 可携带该 owner 值，但它只进入 Face，不得成为 cognition、
+    Memory 或 CaseMemory 输入。
 
 ## 工程挑战
 
@@ -118,6 +125,9 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 
 ## 变更日志
 
+- **2026-09-20**: strict schema 增加 typed exact binding；`/intended_action` 可精确绑定
+  ResponseAssembly owner 已发布的 action statement，生成前校验 source/schema，生成后
+  校验逐 Unicode 字符相等，一次 retry 后仍不一致则 fail loudly。
 - **2026-09-20**: 新增 request-level strict schema 表达交付与一次同 assembly
   format-only retry，明确 schema/retry 均不取得角色决策或记忆所有权。
 - **2026-07-31**: 新增 character grounding 表达载体。角色 vertical 可发布一段

@@ -9,11 +9,13 @@ from typing import Any
 import pytest
 
 from volvence_zero.agent.response import (
+    ExpressionExactBindingSourceError,
     LLMResponseSynthesizer,
     ResponseContext,
     StructuredExpressionOutputError,
 )
 from volvence_zero.application.runtime import (
+    ResponseActionRealization,
     ResponseAssemblySnapshot,
     ResponseMode,
     RiskBand,
@@ -23,7 +25,11 @@ from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
 )
-from volvence_zero.expression_output import ExpressionOutputContract
+from volvence_zero.expression_output import (
+    ExpressionBindingSource,
+    ExpressionExactBinding,
+    ExpressionOutputContract,
+)
 from volvence_zero.substrate import (
     GenerationResult,
     SubstrateFingerprint,
@@ -116,7 +122,7 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert runtime.calls[0]["capture_residuals"] is False
 
 
-def _intent_output_contract() -> ExpressionOutputContract:
+def _intent_output_contract(*, exact_action: bool = False) -> ExpressionOutputContract:
     return ExpressionOutputContract(
         schema_name="lifeform_intent_v1",
         schema_json=json.dumps(
@@ -131,6 +137,32 @@ def _intent_output_contract() -> ExpressionOutputContract:
             },
             separators=(",", ":"),
             sort_keys=True,
+        ),
+        exact_bindings=(
+            (
+                ExpressionExactBinding(
+                    json_pointer="/intended_action",
+                    source=(
+                        ExpressionBindingSource.RESPONSE_ACTION_REALIZATION_ACTION_STATEMENT
+                    ),
+                ),
+            )
+            if exact_action
+            else ()
+        ),
+    )
+
+
+def _action_assembly() -> ResponseAssemblySnapshot:
+    return replace(
+        _assembly(),
+        action_realization=ResponseActionRealization(
+            abstract_action="discovered_family_0",
+            source_case_id="case:gate-water-mark",
+            action_labels=("block-door", "signal-retreat"),
+            action_statement="我会先挡在门前，再示意阿兰后退。",
+            grounding_confidence=0.91,
+            description="owner-published action",
         ),
     )
 
@@ -198,6 +230,105 @@ def test_strict_expression_fails_loudly_after_one_retry() -> None:
         )
 
     assert len(runtime.calls) == 2
+
+
+def test_exact_action_binding_retries_then_preserves_owner_unicode() -> None:
+    owner_action = "我会先挡在门前，再示意阿兰后退。"
+    runtime = _SequenceRuntime(
+        [
+            '{"utterance":"我看见了","intended_action":"我去追问来人。"}',
+            json.dumps(
+                {
+                    "utterance": "我看见了",
+                    "intended_action": owner_action,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        ]
+    )
+    context = replace(
+        _context(),
+        expression_output_contract=_intent_output_contract(exact_action=True),
+    )
+
+    response = LLMResponseSynthesizer(runtime=runtime).synthesize(
+        context=context,
+        assembly=_action_assembly(),
+    )
+
+    assert json.loads(response.text)["intended_action"] == owner_action
+    assert len(runtime.calls) == 2
+    first_system = runtime.calls[0]["chat_messages"][0][1]
+    assert "Exact owner-published output bindings" in first_system
+    assert owner_action in first_system
+    retry_messages = runtime.calls[1]["chat_messages"]
+    assert owner_action in retry_messages[-1][1]
+
+
+def test_exact_action_binding_fails_before_generation_without_owner_readout() -> None:
+    runtime = _SequenceRuntime([])
+    context = replace(
+        _context(),
+        expression_output_contract=_intent_output_contract(exact_action=True),
+    )
+
+    with pytest.raises(
+        ExpressionExactBindingSourceError,
+        match="ResponseAssembly.action_realization",
+    ):
+        LLMResponseSynthesizer(runtime=runtime).synthesize(
+            context=context,
+            assembly=_assembly(),
+        )
+
+    assert runtime.calls == []
+
+
+def test_exact_action_binding_cannot_invent_after_retry() -> None:
+    runtime = _SequenceRuntime(
+        [
+            '{"utterance":"一","intended_action":"改写一"}',
+            '{"utterance":"二","intended_action":"改写二"}',
+        ]
+    )
+    context = replace(
+        _context(),
+        expression_output_contract=_intent_output_contract(exact_action=True),
+    )
+
+    with pytest.raises(
+        StructuredExpressionOutputError,
+        match="exact binding mismatch",
+    ):
+        LLMResponseSynthesizer(runtime=runtime).synthesize(
+            context=context,
+            assembly=_action_assembly(),
+        )
+
+    assert len(runtime.calls) == 2
+
+
+def test_exact_binding_requires_required_string_schema_target() -> None:
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"intended_action": {"type": "string"}},
+    }
+
+    with pytest.raises(ValueError, match="must be required"):
+        ExpressionOutputContract(
+            schema_name="invalid_owner_binding",
+            schema_json=json.dumps(schema, separators=(",", ":"), sort_keys=True),
+            exact_bindings=(
+                ExpressionExactBinding(
+                    json_pointer="/intended_action",
+                    source=(
+                        ExpressionBindingSource.RESPONSE_ACTION_REALIZATION_ACTION_STATEMENT
+                    ),
+                ),
+            ),
+        )
 
 
 def test_evidence_profile_captures_normalized_conditioned_runtime_context() -> None:

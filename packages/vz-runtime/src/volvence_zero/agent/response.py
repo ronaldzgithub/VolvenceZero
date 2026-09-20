@@ -12,7 +12,10 @@ from volvence_zero.application.runtime import ResponseAssemblySnapshot, Response
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankLatentCarrier,
 )
-from volvence_zero.expression_output import ExpressionOutputContract
+from volvence_zero.expression_output import (
+    ExpressionBindingSource,
+    ExpressionOutputContract,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -56,10 +59,56 @@ class StructuredExpressionOutputError(RuntimeError):
     """The expression layer exhausted its strict-format retry."""
 
 
+class ExpressionExactBindingSourceError(RuntimeError):
+    """An exact expression binding cannot resolve its owner readout."""
+
+
+def _json_pointer_value(*, value: object, json_pointer: str) -> object:
+    current = value
+    for raw_part in json_pointer[1:].split("/"):
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or part not in current:
+            raise KeyError(json_pointer)
+        current = current[part]
+    return current
+
+
+def _resolve_expression_exact_bindings(
+    *,
+    assembly: ResponseAssemblySnapshot,
+    contract: ExpressionOutputContract,
+) -> tuple[tuple[str, str], ...]:
+    resolved: list[tuple[str, str]] = []
+    for binding in contract.exact_bindings:
+        if (
+            binding.source
+            is ExpressionBindingSource.RESPONSE_ACTION_REALIZATION_ACTION_STATEMENT
+        ):
+            realization = assembly.action_realization
+            if realization is None:
+                raise ExpressionExactBindingSourceError(
+                    "expression exact binding requires "
+                    "ResponseAssembly.action_realization"
+                )
+            source_value = realization.action_statement
+        else:  # pragma: no cover - enum exhaustiveness guard
+            raise ExpressionExactBindingSourceError(
+                f"unsupported expression exact binding source: {binding.source!r}"
+            )
+        if not source_value:
+            raise ExpressionExactBindingSourceError(
+                "expression exact binding source published an empty value: "
+                f"{binding.source.value}"
+            )
+        resolved.append((binding.json_pointer, source_value))
+    return tuple(resolved)
+
+
 def _validate_structured_expression(
     *,
     text: str,
     contract: ExpressionOutputContract,
+    exact_binding_values: tuple[tuple[str, str], ...] = (),
 ) -> str | None:
     try:
         value = json.loads(text)
@@ -73,6 +122,19 @@ def _validate_structured_expression(
     except ValidationError as exc:
         path = ".".join(str(part) for part in exc.absolute_path) or "$"
         return f"schema mismatch at {path}: {exc.message}"
+    for json_pointer, expected_value in exact_binding_values:
+        try:
+            actual_value = _json_pointer_value(
+                value=value,
+                json_pointer=json_pointer,
+            )
+        except KeyError:
+            return f"exact binding target missing at {json_pointer}"
+        if actual_value != expected_value:
+            return (
+                f"exact binding mismatch at {json_pointer}: value must equal "
+                "the owner-published Unicode string"
+            )
     return None
 
 
@@ -692,13 +754,25 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         if assembly is None:
             return super().synthesize(context=context, assembly=assembly)
 
+        contract = context.expression_output_contract
+        exact_binding_values = (
+            _resolve_expression_exact_bindings(
+                assembly=assembly,
+                contract=contract,
+            )
+            if contract is not None and contract.exact_bindings
+            else ()
+        )
+
         system_prompt = build_system_prompt(
             assembly=assembly,
             context=context,
+            exact_binding_values=exact_binding_values,
         )
         chat_messages = build_chat_messages(
             assembly=assembly,
             context=context,
+            exact_binding_values=exact_binding_values,
         )
 
         user_input = context.user_input
@@ -790,12 +864,12 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 **carrier_kwargs,
             )
             candidate = result.text.strip()
-            contract = context.expression_output_contract
             if contract is None:
                 break
             validation_error = _validate_structured_expression(
                 text=candidate,
                 contract=contract,
+                exact_binding_values=exact_binding_values,
             )
             if validation_error is None:
                 break
@@ -805,11 +879,24 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                     f"one format-only retry: {validation_error}"
                 )
             expression_retry_count += 1
+            exact_binding_clause = (
+                " Exact owner bindings: "
+                + json.dumps(
+                    dict(exact_binding_values),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                + "."
+                if exact_binding_values
+                else ""
+            )
             correction = (
                 "Your previous expression did not satisfy the delivery "
                 f"contract ({validation_error}). Re-express the same decision "
                 "and voice as exactly one schema-valid JSON object. Do not "
                 "invent, remove, or change the intended action."
+                + exact_binding_clause
             )
             chat_messages = (
                 *chat_messages,

@@ -204,6 +204,7 @@ def build_system_prompt(
     *,
     assembly: ResponseAssemblySnapshot,
     context: ResponseContext | None = None,
+    exact_binding_values: tuple[tuple[str, str], ...] = (),
 ) -> str:
     """Assemble system prompt from live cognitive state.
 
@@ -234,6 +235,19 @@ def build_system_prompt(
             "not invent missing actions. "
             f"Schema name: {contract.schema_name}. JSON Schema: {schema}"
         )
+        if exact_binding_values:
+            bindings = json.dumps(
+                dict(exact_binding_values),
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            sections.append(
+                "Exact owner-published output bindings for this expression. "
+                "Copy each Unicode value exactly at its JSON Pointer; do not "
+                "paraphrase, normalize, translate, or invent it. "
+                f"Bindings: {bindings}"
+            )
     return "\n\n".join(sections)
 
 
@@ -258,10 +272,12 @@ def build_chat_messages(
     *,
     assembly: ResponseAssemblySnapshot,
     context: ResponseContext | None = None,
+    exact_binding_values: tuple[tuple[str, str], ...] = (),
 ) -> tuple[ChatMessage, ...]:
     system_prompt = build_system_prompt(
         assembly=assembly,
         context=context,
+        exact_binding_values=exact_binding_values,
     )
     user_input = context.user_input if context is not None else ""
     prior_turns = context.prior_turns if context is not None else ()

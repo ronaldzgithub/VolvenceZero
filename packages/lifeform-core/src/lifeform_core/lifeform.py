@@ -64,6 +64,7 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
     build_environment_event,
 )
+from volvence_zero.cognition_task import CognitionTaskContract
 from volvence_zero.expression_output import ExpressionOutputContract
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import (
@@ -2023,6 +2024,7 @@ class LifeformSession:
         environment_provenance: str | None = None,
         environment_consent_context: tuple[str, ...] = (),
         environment_frame: EnvironmentFrame | None = None,
+        cognition_task_contract: CognitionTaskContract | None = None,
         expression_output_contract: ExpressionOutputContract | None = None,
     ) -> Any:
         """Run one turn through the kernel.
@@ -2105,6 +2107,16 @@ class LifeformSession:
                 call_kwargs["expression_output_contract"] = (
                     expression_output_contract
                 )
+            if (
+                cognition_task_contract is not None
+                and "cognition_task_contract" not in signature.parameters
+            ):
+                raise TypeError(
+                    "configured brain session does not support the explicit "
+                    "cognition task contract"
+                )
+            if "cognition_task_contract" in signature.parameters:
+                call_kwargs["cognition_task_contract"] = cognition_task_contract
             result = await run_turn_async(user_input, **call_kwargs)
         finally:
             # Leak-free invariant: restore the prior override state

@@ -55,6 +55,16 @@
 - vitals layer 的 `VitalsSnapshot` 是 lifeform-side 公共契约，由 `VitalsModule` 唯一拥有；**不**作为内核 runtime slot 出现在 §6 注册表
 - `Brain` / `BrainSession` 是内核暴露给 lifeform 层的 stable facade，详见 `docs/specs/core-package-boundary.md`
 
+### 1.1.0 Turn-level cognition / expression contracts（non-slot）
+
+`vz-contracts` 另外拥有两个单 turn、不可变、非 snapshot 的请求契约；它们不进入
+§6 slot 注册表，也不取得任何认知状态所有权：
+
+| Type | owner / producer | dependencies | consumer / invariant |
+|---|---|---|---|
+| `CognitionTaskContract(kind=choose_observable_action, required_readouts=(response_action_realization,))` | 请求编排方构造，type SSOT 为 `vz-contracts` | 只声明要在当前 perceived event 上执行的认知任务，不携带候选动作、结果或记忆 | `CaseMemoryModule` 用 typed kind 替代 action-request 文本猜测门，但仍以真实 `user_input` / perceived event 作 semantic query；`AgentSessionRunner` 在 expression 前要求 `ResponseAssembly.action_realization`，缺失 fail loudly；未提供 contract 时 legacy 行为不变 |
+| `ExpressionOutputContract.exact_bindings` / `ExpressionExactBinding` | 请求编排方声明 pointer/source，source value 由既有 owner 发布 | strict JSON Schema；M1 source 仅 `ResponseAssembly.action_realization.action_statement` | expression 构造前校验 schema path 必需且为 string、生成前解析 owner source、生成后逐 Unicode 字符严格相等；一次 format-only retry 可重复 owner value，但不得把它送回 cognition/memory，也不得发明动作 |
+
 详见 `SPLIT.md` 与 `archetecture.md`。
 
 ### 1.1.1 ETA offline expert-action trajectory（non-runtime）

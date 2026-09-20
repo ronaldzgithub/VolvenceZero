@@ -48,6 +48,7 @@ from volvence_zero.application.storage import (
 )
 from volvence_zero.apprenticeship import ApprenticeshipAlignmentModule
 from volvence_zero.audit import AuditModule
+from volvence_zero.cognition_task import CognitionTaskContract
 from volvence_zero.credit.gate import (
     CreditSnapshot,
     CreditModule,
@@ -1963,6 +1964,7 @@ def build_final_runtime_modules(
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
     user_input: str | None = None,
+    cognition_task_contract: CognitionTaskContract | None = None,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
@@ -2496,9 +2498,12 @@ def build_final_runtime_modules(
         CaseMemoryModule(
             user_input=(
                 user_input
-                if semantic_embedding_backend_status() == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
+                if cognition_task_contract is not None
+                or semantic_embedding_backend_status()
+                == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
                 else None
             ),
+            cognition_task_contract=cognition_task_contract,
             rare_heavy_state=application_rare_heavy_state,
             store=case_memory_store,
             action_applicability_evaluator=(action_applicability_evaluator),
@@ -2611,6 +2616,7 @@ async def run_final_wiring_turn(
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
     user_input: str | None = None,
+    cognition_task_contract: CognitionTaskContract | None = None,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
@@ -2700,6 +2706,7 @@ async def run_final_wiring_turn(
         config=config,
         substrate_adapter=substrate_adapter,
         user_input=user_input,
+        cognition_task_contract=cognition_task_contract,
         application_rare_heavy_state=application_rare_heavy_state,
         domain_knowledge_store=domain_knowledge_store,
         case_memory_store=case_memory_store,

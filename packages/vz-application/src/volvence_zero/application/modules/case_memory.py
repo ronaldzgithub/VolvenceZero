@@ -15,6 +15,7 @@ from enum import Enum
 import math
 from typing import TYPE_CHECKING, Any, Mapping
 
+from volvence_zero.cognition_task import CognitionTaskContract, CognitionTaskKind
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
@@ -94,6 +95,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         self,
         *,
         user_input: str | None = None,
+        cognition_task_contract: CognitionTaskContract | None = None,
         rare_heavy_state: ApplicationRareHeavyState | None = None,
         store: ApplicationCaseMemoryStore | None = None,
         action_applicability_evaluator: (
@@ -104,7 +106,15 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         super().__init__(wiring_level=wiring_level)
         if user_input is not None and not isinstance(user_input, str):
             raise TypeError("CaseMemoryModule user_input must be a string or None.")
+        if cognition_task_contract is not None and not isinstance(
+            cognition_task_contract, CognitionTaskContract
+        ):
+            raise TypeError(
+                "CaseMemoryModule cognition_task_contract must be a "
+                "CognitionTaskContract or None."
+            )
         self._user_input = user_input
+        self._cognition_task_contract = cognition_task_contract
         self._rare_heavy_state = rare_heavy_state
         self._store = store
         self._action_applicability_evaluator = (
@@ -334,6 +344,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 else ()
             ),
             user_input=self._user_input,
+            cognition_task_contract=self._cognition_task_contract,
             abstract_action=retrieval_policy.abstract_action,
             action_applicability_evaluator=(
                 self._action_applicability_evaluator
@@ -414,6 +425,7 @@ def _select_action_grounding(
     records: tuple[CaseMemoryRecord, ...],
     entries: tuple[MemoryEntry, ...],
     user_input: str | None = None,
+    cognition_task_contract: CognitionTaskContract | None = None,
     abstract_action: str | None,
     action_applicability_evaluator: ActionApplicabilityEvaluator,
 ) -> CaseActionGrounding | None:
@@ -431,6 +443,11 @@ def _select_action_grounding(
         entry
         for entry in entries
         if "user_input" in entry.tags and entry.content.strip()
+    )
+    choose_observable_action = (
+        cognition_task_contract is not None
+        and cognition_task_contract.kind
+        is CognitionTaskKind.CHOOSE_OBSERVABLE_ACTION
     )
     if user_input is None:
         if not current_turn_entries:
@@ -454,7 +471,10 @@ def _select_action_grounding(
             ),
         )
         query_text = query_entry.content.strip()
-        if action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT:
+        if (
+            not choose_observable_action
+            and action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT
+        ):
             return None
     else:
         query_text = user_input.strip()
@@ -497,7 +517,7 @@ def _select_action_grounding(
                 )
                 for prototype in _REFLECTIVE_OPINION_PROTOTYPES
             )
-        if (
+        if not choose_observable_action and (
             action_request_alignment < minimum_alignment
             or (
                 backend_state == "backend"
