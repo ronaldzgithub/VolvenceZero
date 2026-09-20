@@ -63,7 +63,7 @@
 | Type | owner / producer | dependencies | consumer / invariant |
 |---|---|---|---|
 | `CognitionTaskContract(kind=choose_observable_action, required_readouts=(response_action_realization,))` | 请求编排方构造，type SSOT 为 `vz-contracts` | 只声明要在当前 perceived event 上执行的认知任务，不携带候选动作、结果或记忆 | `CaseMemoryModule` 用 typed kind 替代 action-request 文本猜测门，但仍以真实 `user_input` / perceived event 作 semantic query；`AgentSessionRunner` 在 expression 前要求 `ResponseAssembly.action_realization`，缺失 fail loudly；未提供 contract 时 legacy 行为不变 |
-| `ExpressionOutputContract.exact_bindings` / `ExpressionExactBinding` | 请求编排方声明 pointer/source，source value 由既有 owner 发布 | strict JSON Schema；M1 source 仅 `ResponseAssembly.action_realization.action_statement` | expression 构造前校验 schema path 必需且为 string、生成前解析 owner source、生成后逐 Unicode 字符严格相等；一次 format-only retry 可重复 owner value，但不得把它送回 cognition/memory，也不得发明动作 |
+| `ExpressionOutputContract.exact_bindings` / `ExpressionExactBinding` | 请求编排方声明 pointer/source，source value 由既有 owner 发布 | strict JSON Schema；M1 source 仅 `ResponseAssembly.action_realization.action_statement` | expression 构造前校验 schema path 必需且为 string、生成前解析 owner source；Face 在可解析 JSON 上按 pointer 投影 owner 的逐 Unicode 原值，再校验完整 schema。投影只覆盖 owner 字段，不能修复无效 JSON、额外字段或其他 model-owned 字段，也不得把 owner value 送回 cognition/memory |
 
 详见 `SPLIT.md` 与 `archetecture.md`。
 

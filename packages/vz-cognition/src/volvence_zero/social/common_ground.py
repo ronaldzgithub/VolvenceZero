@@ -22,6 +22,7 @@ from typing import Any, Mapping, Protocol
 
 from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 from volvence_zero.social_cognition import (
     MAX_COMMON_GROUND_RECURSION_DEPTH,
     BeliefAboutOtherSnapshot,
@@ -162,7 +163,7 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
             role_snapshot=role_snapshot,
             belief_snapshot=belief_snapshot,
         )
-        runtime_atoms = self._runtime_atoms()
+        runtime_atoms = await self._runtime_atoms()
         new_dyad_atoms = (
             *self._dyad_atoms,
             *upstream_atoms,
@@ -356,10 +357,10 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
             del index
         return tuple(atoms)
 
-    def _runtime_atoms(self) -> tuple[CommonGroundAtom, ...]:
+    async def _runtime_atoms(self) -> tuple[CommonGroundAtom, ...]:
         if self._proposal_runtime is None:
             return ()
-        batch = self._proposal_runtime.propose(
+        batch = await self._proposal_runtime.propose_async(
             user_input=self._user_input,
             turn_index=self._turn_index,
         )
@@ -502,6 +503,22 @@ class LLMCommonGroundProposalRuntime:
             description=(
                 f"Structured common-ground runtime emitted "
                 f"{len(proposals)} proposal(s) at turn {turn_index}."
+            ),
+        )
+
+    async def propose_async(
+        self,
+        *,
+        user_input: str | None,
+        turn_index: int,
+    ) -> CommonGroundProposalBatch:
+        if not user_input:
+            return self.propose(user_input=user_input, turn_index=turn_index)
+        return await run_runtime_call(
+            runtime=self._provider,
+            operation=lambda: self.propose(
+                user_input=user_input,
+                turn_index=turn_index,
             ),
         )
 

@@ -312,6 +312,44 @@ async def test_fresh_session_construction_keeps_ledger_heartbeat_alive(
     assert record.status.value == "COMPLETED"
 
 
+async def test_late_heartbeat_recovers_after_synchronous_event_loop_stall(
+    monkeypatch,
+) -> None:
+    store = CognitiveTurnLedgerStore(Registry(), lease_ms=60)
+    request = _request(store)
+    dispatch_calls = 0
+
+    async def blocking_dispatch(*_args, **_kwargs):
+        nonlocal dispatch_calls
+        dispatch_calls += 1
+        time.sleep(0.12)
+        return web.json_response({"status": "ok", "turn": "persisted-once"})
+
+    monkeypatch.setattr(
+        app_module,
+        "_dispatch_envelope_to_instance",
+        blocking_dispatch,
+    )
+    first = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-event-loop-stall",
+    )
+    replay = await app_module._dispatch_keyed_cognitive_turn(
+        request,
+        ai_id="ai-qiao",
+        envelope=_envelope(),
+        idempotency_key="turn-event-loop-stall",
+    )
+
+    assert first.status == replay.status == 200
+    assert _json(first) == {"status": "ok", "turn": "persisted-once"}
+    assert _json(replay) == _json(first)
+    assert replay.headers["Idempotency-Replayed"] == "true"
+    assert dispatch_calls == 1
+
+
 async def test_offloaded_capture_exception_is_unknown_logs_type_and_never_retries(
     monkeypatch,
     caplog,

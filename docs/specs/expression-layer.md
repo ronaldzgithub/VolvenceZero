@@ -59,9 +59,10 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
     owner readout。M1 唯一允许的 source 是
     `ResponseAssembly.action_realization.action_statement`。contract 构造时必须确认 pointer
     在 schema 中逐层 required 且终点为 string；generation 前必须确认 source 存在；
-    generation 后按 Python Unicode string 严格相等校验，禁止 normalization、翻译或改写。
-    一次 format-only retry 可携带该 owner 值，但它只进入 Face，不得成为 cognition、
-    Memory 或 CaseMemory 输入。
+    generation 后由 Face 按 pointer 确定性投影 owner 的 Python Unicode 原值，再校验完整
+    schema，禁止 normalization、翻译或改写。投影只拥有声明的 leaf，不能修复无效 JSON、
+    额外字段、错误的中间对象或其他 model-owned 字段；这些错误仍只允许一次同 assembly
+    format-only retry。owner value 只进入 Face，不得成为 cognition、Memory 或 CaseMemory 输入。
 
 ## 工程挑战
 
@@ -125,6 +126,8 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 
 ## 变更日志
 
+- **2026-09-21**: exact binding 改由 Face 确定性投影 owner-published Unicode 原值后再做
+  完整 schema 校验；小模型不再承担逐字复制 owner action 的职责，未绑定字段仍严格失败。
 - **2026-09-20**: strict schema 增加 typed exact binding；`/intended_action` 可精确绑定
   ResponseAssembly owner 已发布的 action statement，生成前校验 source/schema，生成后
   校验逐 Unicode 字符相等，一次 retry 后仍不一致则 fail loudly。

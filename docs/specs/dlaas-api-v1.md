@@ -187,6 +187,10 @@ generates canonical `event_id`, `scene_id`, and `timestamp_ms`. Those three
 fields are not legal client fields. Unknown cognition kinds, binding sources,
 or interaction modes, incomplete objects, owner-field injection, and any
 `human_brief` / `structured_context` content fail with HTTP 400.
+After the model returns a parseable JSON object, the expression owner projects
+each declared exact-binding leaf from its owner-published readout and then
+validates the complete strict schema. Invalid JSON, unknown fields, invalid
+intermediate objects, and all unbound schema failures remain model errors.
 
 An optional top-level `template_binding` may carry exactly
 `template_id / template_uri / template_bundle_sha256 /
@@ -221,10 +225,13 @@ reserves the key. Missing/unavailable ledger state returns
 `503 cognitive_turn_ledger_unavailable` without running the turn. A different
 payload under the same key returns `409 idempotency_key_payload_conflict`; the
 same payload under a live lease returns `409 cognitive_turn_in_progress`.
-Heartbeats extend only a still-live lease, and completion uses a lease-token +
-unexpired-lease CAS. A completed 2xx or deterministic 4xx response is stored
-verbatim and replayed with `Idempotency-Replayed: true` without another
-`run_turn`.
+Heartbeats and completion use request-hash + `RESERVED` + original lease-token
+CAS. Expiry never transfers execution to a new worker: a peer retry can only
+terminalize the expired row as `OUTCOME_UNKNOWN`. Therefore an event-loop-
+starved original owner may renew or complete late if it wins that serialized
+CAS; if the peer terminalizes first, the old owner fails. A completed 2xx or
+deterministic 4xx response is stored verbatim and replayed with
+`Idempotency-Replayed: true` without another `run_turn`.
 
 Fresh-session template verification, lifeform rebirth, BrainSession creation,
 and scoped-memory hydration are synchronous owner operations executed outside
@@ -235,8 +242,9 @@ single flight: cancelling one HTTP waiter cannot cancel the underlying build,
 and a concurrent cognitive turn reuses the committed session only after the
 same end-user and content-addressed template guards pass.
 
-An expired lease, dispatch/provider exception, upstream 5xx, non-JSON or
-otherwise unrecordable response, or completion CAS failure is never retried.
+An expired lease terminalized by a peer, dispatch/provider exception, upstream
+5xx, non-JSON or otherwise unrecordable response, or completion CAS failure is
+never retried.
 After the parent durably writes `OUTCOME_UNKNOWN`, the first affected request
 and every later request return `409 cognitive_turn_outcome_unknown` with the
 stable `unknown_reason`. If even that terminal write fails, the API returns

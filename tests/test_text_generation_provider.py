@@ -120,6 +120,25 @@ class _FakeModel:
         return _FakeTensor(values=input_ids.values + new)
 
 
+def test_provider_publishes_explicit_or_self_runtime_execution_owner() -> None:
+    pytest.importorskip("torch")
+    from volvence_zero.substrate import HFTextGenerationProvider
+
+    shared_runtime = _FakeModel()
+    bound = HFTextGenerationProvider(
+        model=_FakeModel(),
+        tokenizer=_FakeTokenizer(),
+        runtime_execution_owner=shared_runtime,
+    )
+    standalone = HFTextGenerationProvider(
+        model=_FakeModel(),
+        tokenizer=_FakeTokenizer(),
+    )
+
+    assert bound.runtime_execution_owner is shared_runtime
+    assert standalone.runtime_execution_owner is standalone
+
+
 def test_provider_uses_two_step_chat_template_path() -> None:
     pytest.importorskip("torch")
     from volvence_zero.substrate import HFTextGenerationProvider

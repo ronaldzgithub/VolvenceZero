@@ -189,13 +189,17 @@ class CognitiveTurnLedgerStore:
         now = int(time.time() * 1000.0) if now_ms is None else now_ms
         new_expiry = now + self._lease_ms
         async with self._registry.write_lock:
+            # Expiry never transfers execution to a new owner: a competing
+            # reserve can only terminalize the row as OUTCOME_UNKNOWN.  Let
+            # the original token renew late when its process-local event loop
+            # was starved; the status/token CAS still makes that renewal race
+            # safely against peer terminalization without double execution.
             updated = self._registry.conn.execute(
                 """
                 UPDATE cognitive_turn_ledger
                 SET lease_expires_at_ms = ?, updated_at_ms = ?
                 WHERE contract_id = ? AND ai_id = ? AND idempotency_key = ?
                   AND request_sha256 = ? AND status = ? AND lease_token = ?
-                  AND lease_expires_at_ms > ?
                 """,
                 (
                     new_expiry,
@@ -206,12 +210,11 @@ class CognitiveTurnLedgerStore:
                     reservation.request_sha256,
                     CognitiveTurnLedgerStatus.RESERVED.value,
                     reservation.lease_token,
-                    now,
                 ),
             )
             if updated.rowcount != 1:
                 raise CognitiveTurnLedgerTransitionError(
-                    "cognitive-turn lease cannot be refreshed after expiry or transition"
+                    "cognitive-turn lease cannot be refreshed after transition or ownership loss"
                 )
             record = self.get(
                 contract_id=reservation.contract_id,
@@ -241,6 +244,10 @@ class CognitiveTurnLedgerStore:
             separators=(",", ":"),
         )
         async with self._registry.write_lock:
+            # Completion follows the same ownership rule as late renewal.  A
+            # peer can only terminalize an expired reservation, never acquire
+            # it; status plus the original token therefore remain the
+            # at-most-once CAS even when the wall-clock deadline has passed.
             updated = self._registry.conn.execute(
                 """
                 UPDATE cognitive_turn_ledger
@@ -248,7 +255,6 @@ class CognitiveTurnLedgerStore:
                     updated_at_ms = ?
                 WHERE contract_id = ? AND ai_id = ? AND idempotency_key = ?
                   AND request_sha256 = ? AND status = ? AND lease_token = ?
-                  AND lease_expires_at_ms > ?
                 """,
                 (
                     CognitiveTurnLedgerStatus.COMPLETED.value,
@@ -261,7 +267,6 @@ class CognitiveTurnLedgerStore:
                     reservation.request_sha256,
                     CognitiveTurnLedgerStatus.RESERVED.value,
                     reservation.lease_token,
-                    now,
                 ),
             )
             if updated.rowcount != 1:

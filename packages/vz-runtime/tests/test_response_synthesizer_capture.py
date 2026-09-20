@@ -307,19 +307,11 @@ def test_strict_expression_fails_loudly_after_one_retry() -> None:
     assert len(runtime.calls) == 2
 
 
-def test_exact_action_binding_retries_then_preserves_owner_unicode() -> None:
+def test_exact_action_binding_projects_owner_unicode_without_retry() -> None:
     owner_action = "我会先挡在门前，再示意阿兰后退。"
     runtime = _SequenceRuntime(
         [
             '{"utterance":"我看见了","intended_action":"我去追问来人。"}',
-            json.dumps(
-                {
-                    "utterance": "我看见了",
-                    "intended_action": owner_action,
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
         ]
     )
     context = replace(
@@ -333,12 +325,11 @@ def test_exact_action_binding_retries_then_preserves_owner_unicode() -> None:
     )
 
     assert json.loads(response.text)["intended_action"] == owner_action
-    assert len(runtime.calls) == 2
+    assert len(runtime.calls) == 1
     first_system = runtime.calls[0]["chat_messages"][0][1]
     assert "Exact owner-published output bindings" in first_system
     assert owner_action in first_system
-    retry_messages = runtime.calls[1]["chat_messages"]
-    assert owner_action in retry_messages[-1][1]
+    assert "expression_exact_binding_projections=1" in response.rationale_tags
 
 
 def test_exact_action_binding_fails_before_generation_without_owner_readout() -> None:
@@ -360,11 +351,10 @@ def test_exact_action_binding_fails_before_generation_without_owner_readout() ->
     assert runtime.calls == []
 
 
-def test_exact_action_binding_cannot_invent_after_retry() -> None:
+def test_exact_action_binding_replaces_model_rewrite_without_retry() -> None:
     runtime = _SequenceRuntime(
         [
             '{"utterance":"一","intended_action":"改写一"}',
-            '{"utterance":"二","intended_action":"改写二"}',
         ]
     )
     context = replace(
@@ -372,10 +362,83 @@ def test_exact_action_binding_cannot_invent_after_retry() -> None:
         expression_output_contract=_intent_output_contract(exact_action=True),
     )
 
-    with pytest.raises(
-        StructuredExpressionOutputError,
-        match="exact binding mismatch",
-    ):
+    response = LLMResponseSynthesizer(runtime=runtime).synthesize(
+        context=context,
+        assembly=_action_assembly(),
+    )
+
+    assert json.loads(response.text) == {
+        "utterance": "一",
+        "intended_action": "我会先挡在门前，再示意阿兰后退。",
+    }
+    assert len(runtime.calls) == 1
+
+
+def test_exact_action_binding_projects_missing_nested_unicode_leaf() -> None:
+    owner_action = "我会先挡在门前，再示意阿兰后退。"
+    contract = ExpressionOutputContract(
+        schema_name="nested_lifeform_intent_v1",
+        schema_json=json.dumps(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["delivery"],
+                "properties": {
+                    "delivery": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["utterance", "intended_action"],
+                        "properties": {
+                            "utterance": {"type": "string", "minLength": 1},
+                            "intended_action": {
+                                "type": "string",
+                                "minLength": 1,
+                            },
+                        },
+                    }
+                },
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        exact_bindings=(
+            ExpressionExactBinding(
+                json_pointer="/delivery/intended_action",
+                source=(
+                    ExpressionBindingSource.RESPONSE_ACTION_REALIZATION_ACTION_STATEMENT
+                ),
+            ),
+        ),
+    )
+    runtime = _SequenceRuntime(['{"delivery":{"utterance":"退后。"}}'])
+
+    response = LLMResponseSynthesizer(runtime=runtime).synthesize(
+        context=replace(_context(), expression_output_contract=contract),
+        assembly=_action_assembly(),
+    )
+
+    assert json.loads(response.text) == {
+        "delivery": {
+            "utterance": "退后。",
+            "intended_action": owner_action,
+        }
+    }
+    assert len(runtime.calls) == 1
+
+
+def test_exact_binding_projection_does_not_hide_unowned_extra_property() -> None:
+    runtime = _SequenceRuntime(
+        [
+            '{"utterance":"一","intended_action":"改写","extra":true}',
+            '{"utterance":"二","intended_action":"再改写","extra":true}',
+        ]
+    )
+    context = replace(
+        _context(),
+        expression_output_contract=_intent_output_contract(exact_action=True),
+    )
+
+    with pytest.raises(StructuredExpressionOutputError, match="schema mismatch"):
         LLMResponseSynthesizer(runtime=runtime).synthesize(
             context=context,
             assembly=_action_assembly(),

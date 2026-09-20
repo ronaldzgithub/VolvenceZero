@@ -60,6 +60,32 @@ class SemanticProposalRuntime(ABC):
     ) -> SemanticProposalBatch:
         """Return typed semantic proposals for a single owner slot."""
 
+    async def propose_async(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        """Async owner-facing proposal boundary.
+
+        Deterministic runtimes keep their synchronous implementation. LLM
+        runtimes override this method and route blocking generation through
+        the substrate runtime execution owner.
+        """
+
+        return self.propose(
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+
 
 class NoOpSemanticProposalRuntime(SemanticProposalRuntime):
     runtime_id = "semantic-noop"
@@ -587,6 +613,43 @@ class AdapterSemanticProposalRuntime(SemanticProposalRuntime):
             previous_snapshot=previous_snapshot,
             turn_index=turn_index,
         )
+        return self._merge_adapter_proposals(
+            base_batch=base_batch,
+            target_slot=target_slot,
+            turn_index=turn_index,
+        )
+
+    async def propose_async(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        base_batch = await self._base_runtime.propose_async(
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+        return self._merge_adapter_proposals(
+            base_batch=base_batch,
+            target_slot=target_slot,
+            turn_index=turn_index,
+        )
+
+    def _merge_adapter_proposals(
+        self,
+        *,
+        base_batch: SemanticProposalBatch,
+        target_slot: str,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
         adapter_proposals = tuple(
             proposal
             for event in self._external_events

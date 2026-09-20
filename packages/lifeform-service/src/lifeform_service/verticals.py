@@ -1067,7 +1067,10 @@ def _build_llm_semantic_runtime_from_runtime(
     )
 
     provider = HFTextGenerationProvider(
-        model=model, tokenizer=tokenizer, device=device
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        runtime_execution_owner=runtime,
     )
     return LLMSemanticProposalRuntime(provider=provider)
 
@@ -1088,7 +1091,10 @@ def _build_apprenticeship_extractor_from_runtime(runtime):
     )
 
     provider = HFTextGenerationProvider(
-        model=model, tokenizer=tokenizer, device=device
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        runtime_execution_owner=runtime,
     )
     return LLMGuidanceConstraintExtractor(provider)
 

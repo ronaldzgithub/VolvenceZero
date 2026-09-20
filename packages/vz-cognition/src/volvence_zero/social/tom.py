@@ -41,6 +41,7 @@ from volvence_zero.semantic_state import (
     SemanticProposalBatch,
     SemanticProposalOperation,
     SemanticProposalRuntime,
+    SemanticSnapshotValue,
 )
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
@@ -68,6 +69,7 @@ from volvence_zero.social_cognition import (
     preference_action_outcome_mutation_sha256,
 )
 from volvence_zero.substrate import SubstrateSnapshot
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 
 from .record_store import (
     PendingSocialPrediction,
@@ -129,22 +131,36 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         if self._proposal_runtime is not None:
             substrate_snapshot = upstream.get("substrate")
             memory_snapshot = upstream.get("memory")
-            batch = self._proposal_runtime.propose(
-                target_slot=self.slot_name,
-                user_input=self._user_input,
-                substrate_snapshot=(
+            proposal_kwargs = {
+                "target_slot": self.slot_name,
+                "user_input": self._user_input,
+                "substrate_snapshot": (
                     substrate_snapshot.value
-                    if substrate_snapshot is not None and isinstance(substrate_snapshot.value, SubstrateSnapshot)
+                    if substrate_snapshot is not None
+                    and isinstance(substrate_snapshot.value, SubstrateSnapshot)
                     else None
                 ),
-                memory_snapshot=(
+                "memory_snapshot": (
                     memory_snapshot.value
-                    if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot)
+                    if memory_snapshot is not None
+                    and isinstance(memory_snapshot.value, MemorySnapshot)
                     else None
                 ),
-                previous_snapshot=None,
-                turn_index=self._turn_index,
+                "previous_snapshot": None,
+                "turn_index": self._turn_index,
+            }
+            propose_async = getattr(
+                self._proposal_runtime,
+                "propose_async",
+                None,
             )
+            if callable(propose_async):
+                batch = await propose_async(**proposal_kwargs)
+            else:
+                # Compatibility for deterministic owner-test and adapter
+                # runtimes that predate the async proposal boundary. Real LLM
+                # runtimes implement propose_async and are never run here.
+                batch = self._proposal_runtime.propose(**proposal_kwargs)
             proposals = tuple(
                 proposal
                 for proposal in batch.proposals
@@ -1338,6 +1354,37 @@ class LLMToMProposalRuntime(SemanticProposalRuntime):
             schema_version=1,
             description=(
                 f"Structured ToM runtime emitted {len(proposals)} proposal(s) for {target_slot} at turn {turn_index}."
+            ),
+        )
+
+    async def propose_async(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        if target_slot not in _TOM_TARGET_SLOTS or not user_input:
+            return await self._base.propose_async(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
+            )
+        return await run_runtime_call(
+            runtime=self._provider,
+            operation=lambda: self.propose(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
             ),
         )
 

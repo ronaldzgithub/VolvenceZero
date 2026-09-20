@@ -74,6 +74,7 @@ class HFTextGenerationProvider:
         device: str = "cpu",
         default_max_new_tokens: int = 16,
         use_chat_template: bool = True,
+        runtime_execution_owner: object | None = None,
     ) -> None:
         self._model = model
         self._tokenizer = tokenizer
@@ -83,10 +84,24 @@ class HFTextGenerationProvider:
             use_chat_template
             and getattr(tokenizer, "apply_chat_template", None) is not None
         )
+        # Multiple lifeforms may wrap the same loaded residual runtime in
+        # distinct provider objects. Bind their generation calls back to that
+        # shared owner so the process-local execution gate serializes access to
+        # the one underlying HF model. Standalone/test providers fall back to
+        # their own identity for backwards compatibility.
+        self._runtime_execution_owner = (
+            self if runtime_execution_owner is None else runtime_execution_owner
+        )
         # Lazy import torch so non-substrate callers don't pay the
         # import cost just because the module file exists.
         import torch  # noqa: F401  - imported for side-effect availability check
         self._torch = torch
+
+    @property
+    def runtime_execution_owner(self) -> object:
+        """Shared identity used by the async model-execution gate."""
+
+        return self._runtime_execution_owner
 
     def generate(
         self,

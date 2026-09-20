@@ -113,21 +113,39 @@ async def test_concurrent_reserve_conflict_and_single_completion(tmp_path: Path)
     peer_registry.close()
 
 
-async def test_expired_lease_is_permanently_unknown_and_cannot_complete() -> None:
+async def test_same_owner_can_complete_after_expiry_before_peer_terminalizes() -> None:
     registry = Registry()
     store = CognitiveTurnLedgerStore(registry, lease_ms=100)
     acquired = await store.reserve(request=_request(), idempotency_key="turn-expired", now_ms=1_000)
+    completed = await store.complete(
+        reservation=acquired.record,
+        response_status=200,
+        response_body={"status": "late-owner-result"},
+        now_ms=1_101,
+    )
+    assert completed.status is CognitiveTurnLedgerStatus.COMPLETED
+    replay = await store.reserve(request=_request(), idempotency_key="turn-expired", now_ms=1_102)
+    assert replay.outcome is CognitiveTurnReserveOutcome.REPLAY_COMPLETED
+    assert replay.record.response_body == {"status": "late-owner-result"}
+
+
+async def test_peer_expiry_terminalization_prevents_late_owner_refresh_or_complete() -> None:
+    registry = Registry()
+    store = CognitiveTurnLedgerStore(registry, lease_ms=100)
+    acquired = await store.reserve(request=_request(), idempotency_key="turn-terminal", now_ms=1_000)
+    expired = await store.reserve(request=_request(), idempotency_key="turn-terminal", now_ms=1_101)
+    assert expired.outcome is CognitiveTurnReserveOutcome.OUTCOME_UNKNOWN
+    assert expired.record.unknown_reason == "lease_expired"
+    with pytest.raises(CognitiveTurnLedgerTransitionError):
+        await store.refresh_lease(reservation=acquired.record, now_ms=1_102)
     with pytest.raises(CognitiveTurnLedgerTransitionError):
         await store.complete(
             reservation=acquired.record,
             response_status=200,
             response_body={"status": "too-late"},
-            now_ms=1_101,
+            now_ms=1_102,
         )
-    expired = await store.reserve(request=_request(), idempotency_key="turn-expired", now_ms=1_101)
-    assert expired.outcome is CognitiveTurnReserveOutcome.OUTCOME_UNKNOWN
-    assert expired.record.unknown_reason == "lease_expired"
-    retry = await store.reserve(request=_request(), idempotency_key="turn-expired", now_ms=9_000)
+    retry = await store.reserve(request=_request(), idempotency_key="turn-terminal", now_ms=9_000)
     assert retry.outcome is CognitiveTurnReserveOutcome.OUTCOME_UNKNOWN
 
 
@@ -138,6 +156,24 @@ async def test_heartbeat_renews_live_lease() -> None:
     refreshed = await store.refresh_lease(reservation=acquired.record, now_ms=1_050)
     assert refreshed.lease_expires_at_ms == 1_150
     live = await store.reserve(request=_request(), idempotency_key="turn-slow", now_ms=1_101)
+    assert live.outcome is CognitiveTurnReserveOutcome.IN_PROGRESS
+
+
+async def test_same_owner_can_refresh_after_event_loop_stall() -> None:
+    registry = Registry()
+    store = CognitiveTurnLedgerStore(registry, lease_ms=100)
+    acquired = await store.reserve(request=_request(), idempotency_key="turn-stalled", now_ms=1_000)
+    refreshed = await store.refresh_lease(
+        reservation=acquired.record,
+        now_ms=1_250,
+    )
+    assert refreshed.status is CognitiveTurnLedgerStatus.RESERVED
+    assert refreshed.lease_expires_at_ms == 1_350
+    live = await store.reserve(
+        request=_request(),
+        idempotency_key="turn-stalled",
+        now_ms=1_251,
+    )
     assert live.outcome is CognitiveTurnReserveOutcome.IN_PROGRESS
 
 

@@ -138,6 +138,56 @@ def _validate_structured_expression(
     return None
 
 
+def _project_expression_exact_bindings(
+    *,
+    text: str,
+    exact_binding_values: tuple[tuple[str, str], ...],
+) -> tuple[str, bool]:
+    """Project owner-published fields without repairing model-owned output."""
+
+    if not exact_binding_values:
+        return text, False
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return text, False
+    if not isinstance(value, dict):
+        return text, False
+
+    changed = False
+    for json_pointer, expected_value in exact_binding_values:
+        parts = [
+            raw_part.replace("~1", "/").replace("~0", "~")
+            for raw_part in json_pointer[1:].split("/")
+        ]
+        current: dict[str, object] = value
+        for part in parts[:-1]:
+            child = current.get(part)
+            if child is None:
+                child = {}
+                current[part] = child
+                changed = True
+            if not isinstance(child, dict):
+                return text, False
+            current = child
+        leaf = parts[-1]
+        if current.get(leaf) != expected_value:
+            current[leaf] = expected_value
+            changed = True
+    if not changed:
+        return text, False
+    try:
+        projected = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError):
+        return text, False
+    return projected, True
+
+
 @dataclass(frozen=True)
 class AgentResponse:
     """Final per-turn expression artefact.
@@ -872,6 +922,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             )
         generation_started = time.perf_counter()
         expression_retry_count = 0
+        exact_binding_projection_count = 0
         generation_temperature = (
             0.0
             if context.expression_output_contract is not None
@@ -898,6 +949,12 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             candidate = result.text.strip()
             if contract is None:
                 break
+            candidate, bindings_projected = _project_expression_exact_bindings(
+                text=candidate,
+                exact_binding_values=exact_binding_values,
+            )
+            if bindings_projected:
+                exact_binding_projection_count += 1
             validation_error = _validate_structured_expression(
                 text=candidate,
                 contract=contract,
@@ -974,7 +1031,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 generation_latency_ms=generation_latency_ms,
             )
 
-        generated_text = result.text.strip()
+        generated_text = candidate
         if not generated_text:
             return super().synthesize(context=context, assembly=assembly)
 
@@ -1011,6 +1068,10 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             )
             rationale_parts.append(
                 f"expression_format_retries={expression_retry_count}"
+            )
+            rationale_parts.append(
+                "expression_exact_binding_projections="
+                f"{exact_binding_projection_count}"
             )
         if self._character_id:
             rationale_parts.append(f"character_id={self._character_id}")

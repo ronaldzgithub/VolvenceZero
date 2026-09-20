@@ -169,7 +169,7 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
         memory_value = upstream["memory"].value
         substrate_snapshot = substrate_value if isinstance(substrate_value, SubstrateSnapshot) else None
         memory_snapshot = memory_value if isinstance(memory_value, MemorySnapshot) else None
-        batch = self._proposal_runtime.propose(
+        batch = await self._proposal_runtime.propose_async(
             target_slot=self.slot_name,
             user_input=self._user_input,
             substrate_snapshot=substrate_snapshot,

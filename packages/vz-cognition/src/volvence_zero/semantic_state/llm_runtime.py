@@ -55,6 +55,7 @@ from volvence_zero.semantic_state._llm_proposal_counters import (
     LLMProposalAttemptAccumulator,
 )
 from volvence_zero.substrate import SubstrateSnapshot
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 from volvence_zero.memory import MemorySnapshot
 
 
@@ -737,6 +738,40 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             description=(
                 f"LLM runtime classified turn {turn_index} as "
                 f"{operation.value} for {target_slot}."
+            ),
+        )
+
+    async def propose_async(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        if not user_input or (
+            target_slot != self._commitment_slot_id
+            and target_slot not in _GENERIC_LLM_SLOT_IDS
+        ):
+            return await self._base.propose_async(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
+            )
+        return await run_runtime_call(
+            runtime=self._provider,
+            operation=lambda: self.propose(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
             ),
         )
 

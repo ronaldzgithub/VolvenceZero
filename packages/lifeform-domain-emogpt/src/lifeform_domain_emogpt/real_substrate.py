@@ -206,6 +206,7 @@ def _build_real_substrate_with_optional_llm(
                 model=model,
                 tokenizer=tokenizer,
                 device=substrate_runtime._device,
+                runtime_execution_owner=substrate_runtime,
             )
             llm_semantic_runtime = LLMSemanticProposalRuntime(provider=provider)
 
