@@ -1577,6 +1577,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             session_id=session_id,
             timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
         )
+        candidate_report = self._evaluation_backbone.build_candidate_report(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
+        )
         if prior_session_reports:
             self._evaluation_backbone.run_cross_session_benchmark(
                 suite=CrossSessionBenchmarkSuite(
@@ -1588,7 +1593,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         )
         evolution_judgement = self._evaluation_backbone.judge_evolution_candidate(
             replay_suite_result=replay_result,
-            session_report=session_report,
+            session_report=candidate_report,
             # Cross-session continuity is a read-only evaluation surface.
             # Keep computing it above so the enclosing runtime can publish
             # the longitudinal verdict, but do not let a heterogeneous prior

@@ -1096,6 +1096,45 @@ def _judge_allows_structural_writeback(evolution_judgement: EvolutionJudgement |
     )
 
 
+def _conservative_evolution_judgement(
+    earlier: EvolutionJudgement | None,
+    current: EvolutionJudgement,
+) -> EvolutionJudgement:
+    """Combine online judgements without allowing later evidence to erase risk.
+
+    The joint loop judges the mutation after its optimizer step.  Final wiring
+    adds PE/application/evaluation evidence for the same wave and judges it
+    again.  The final decision must be at least as conservative as either
+    owner-visible judgement; especially, any unsafe category remains a hard
+    structural-writeback block.
+    """
+
+    if earlier is None:
+        return current
+    decision_rank = {
+        EvolutionDecision.PROMOTE: 0,
+        EvolutionDecision.HOLD: 1,
+        EvolutionDecision.ROLLBACK: 2,
+    }
+
+    def rank(judgement: EvolutionJudgement) -> tuple[int, int]:
+        return (
+            1 if judgement.category is JudgementCategory.UNSAFE_MUTATION else 0,
+            decision_rank[judgement.decision],
+        )
+
+    selected = current if rank(current) > rank(earlier) else earlier
+    reasons = tuple(dict.fromkeys((*earlier.reasons, *current.reasons)))
+    return replace(
+        selected,
+        reasons=reasons,
+        description=(
+            f"Conservative same-wave judgement: earlier=({earlier.description}) "
+            f"current=({current.description})"
+        ),
+    )
+
+
 def _apply_temporal_reflection_writeback(
     *,
     temporal_module: TemporalModule | None,
@@ -3019,6 +3058,11 @@ async def run_final_wiring_turn(
             session_id=session_id,
             timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
         )
+        candidate_report = evaluation_module.backbone.build_candidate_report(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
+        )
         cross_session_report = None
         if prior_session_reports:
             cross_session_report = evaluation_module.backbone.run_cross_session_benchmark(
@@ -3030,14 +3074,18 @@ async def run_final_wiring_turn(
         cycle_report = (
             joint_loop_result.cycle_report if isinstance(joint_loop_result, ScheduledJointLoopResult) else None
         )
-        evolution_judgement = cycle_report.evolution_judgement if cycle_report is not None else None
-        if evolution_judgement is None:
-            replay_result = evaluation_module.backbone.run_default_evolution_benchmark(
-                timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
-            )
-            evolution_judgement = evaluation_module.backbone.judge_evolution_candidate(
+        cycle_evolution_judgement = (
+            cycle_report.evolution_judgement
+            if cycle_report is not None
+            else None
+        )
+        replay_result = evaluation_module.backbone.run_default_evolution_benchmark(
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
+        )
+        current_evolution_judgement = (
+            evaluation_module.backbone.judge_evolution_candidate(
                 replay_suite_result=replay_result,
-                session_report=session_report,
+                session_report=candidate_report,
                 # Cross-session continuity is an evaluation readout, not a
                 # learning signal.  Feeding it back into this per-turn judge
                 # made heterogeneous consecutive scenes suppress the next
@@ -3049,6 +3097,11 @@ async def run_final_wiring_turn(
                 # to ``judge_evolution_candidate``.
                 cross_session_report=None,
             )
+        )
+        evolution_judgement = _conservative_evolution_judgement(
+            cycle_evolution_judgement,
+            current_evolution_judgement,
+        )
         judge_allows_structural_writeback = _judge_allows_structural_writeback(evolution_judgement) and (
             reflection_mode is WritebackMode.APPLY
         )

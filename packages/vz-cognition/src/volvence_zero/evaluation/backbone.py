@@ -268,6 +268,58 @@ class EvaluationBackbone:
             description=f"Session evaluation report with {len(session_records)} records.",
         )
 
+    def build_candidate_report(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+    ) -> EvaluationReport:
+        """Build the evidence window for one online mutation candidate.
+
+        A context/session report intentionally accumulates the whole scene for
+        scene-close and longitudinal readouts.  An online evolution decision,
+        however, owns exactly one mutation wave.  Mixing the setting turn,
+        outcome assimilation and earlier integration attempts into that judge
+        makes a change in turn purpose look like candidate regression.  Keep
+        the broad report available, while giving the online judge an explicit
+        wave-bounded surface.  Missing candidate evidence is an integrity
+        error; silently falling back to the full session would reintroduce the
+        boundary violation this method exists to prevent.
+        """
+
+        candidate_records = tuple(
+            record
+            for record in self._records
+            if record.session_id == session_id and record.wave_id == wave_id
+        )
+        if not candidate_records:
+            raise ValueError(
+                "evolution candidate report has no records for "
+                f"session={session_id!r} wave={wave_id!r}"
+            )
+        scores_by_family: dict[str, list[EvaluationRecord]] = {}
+        for record in candidate_records:
+            scores_by_family.setdefault(record.family, []).append(record)
+        alerts = self._alerts_from_records(candidate_records)
+        return EvaluationReport(
+            report_id=str(uuid4()),
+            report_type="candidate",
+            timestamp_ms=timestamp_ms,
+            session_ids=(session_id,),
+            scores_by_family=tuple(
+                (family, tuple(records))
+                for family, records in sorted(scores_by_family.items())
+            ),
+            alerts=alerts,
+            trends=self._longitudinal_trends(candidate_records),
+            recommendations=self._recommendations_from_alerts(alerts),
+            description=(
+                "Online evolution candidate report for "
+                f"wave={wave_id} with {len(candidate_records)} records."
+            ),
+        )
+
     def run_replay_suite(
         self,
         *,
@@ -3139,17 +3191,45 @@ class EvaluationBackbone:
         records: tuple[EvaluationRecord, ...],
         metric_names: tuple[str, ...],
     ) -> float:
-        values = [record.value for record in records if record.metric_name in metric_names]
-        if len(values) < 2:
+        # A report family contains several independently-scaled metrics and a
+        # turn is not required to publish every one of them.  Pooling their raw
+        # values into one sequence makes metric availability/order look like a
+        # temporal change (for example ``0.9, 0.2, 0.9`` was interpreted as a
+        # sharp regression when the second metric was simply absent later).
+        # Compare each metric only with its own history, then aggregate the
+        # comparable deltas.  One-off readouts remain evidence in the report,
+        # but cannot manufacture a trend without a same-metric baseline.
+        values_by_metric_and_wave: dict[str, dict[str, list[float]]] = {
+            metric_name: {} for metric_name in metric_names
+        }
+        for record in records:
+            if record.metric_name in values_by_metric_and_wave:
+                values_by_metric_and_wave[record.metric_name].setdefault(
+                    record.wave_id,
+                    [],
+                ).append(record.value)
+
+        metric_trends: list[float] = []
+        for metric_name in metric_names:
+            values_by_wave = values_by_metric_and_wave[metric_name]
+            wave_values = [
+                sum(values) / len(values)
+                for values in values_by_wave.values()
+            ]
+            if len(wave_values) < 2:
+                continue
+            midpoint = max(len(wave_values) // 2, 1)
+            first_half = wave_values[:midpoint]
+            second_half = wave_values[midpoint:]
+            if not second_half:
+                continue
+            first_mean = sum(first_half) / len(first_half)
+            second_mean = sum(second_half) / len(second_half)
+            metric_trends.append(second_mean - first_mean)
+
+        if not metric_trends:
             return 0.0
-        midpoint = max(len(values) // 2, 1)
-        first_half = values[:midpoint]
-        second_half = values[midpoint:]
-        if not second_half:
-            return 0.0
-        first_mean = sum(first_half) / len(first_half)
-        second_mean = sum(second_half) / len(second_half)
-        return round(second_mean - first_mean, 4)
+        return round(sum(metric_trends) / len(metric_trends), 4)
 
     def _append_records(
         self,

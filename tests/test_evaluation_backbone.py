@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
@@ -700,6 +702,179 @@ def test_evaluation_backbone_can_judge_evolution_candidate():
     assert judgement.replay_passed is True
     assert judgement.reasons
     assert judgement.category
+
+
+def test_session_trend_does_not_compare_different_metric_scales():
+    backbone = EvaluationBackbone()
+    backbone._append_records(
+        session_id="candidate-window",
+        wave_id="wave-1",
+        timestamp_ms=1,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="joint_learning_progress",
+                value=0.9,
+                confidence=1.0,
+                evidence="stable primary metric",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="retrieval_quality",
+                value=0.2,
+                confidence=1.0,
+                evidence="one-off independently scaled metric",
+            ),
+        ),
+    )
+    backbone._append_records(
+        session_id="candidate-window",
+        wave_id="wave-2",
+        timestamp_ms=2,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="joint_learning_progress",
+                value=0.9,
+                confidence=1.0,
+                evidence="same stable primary metric",
+            ),
+        ),
+    )
+
+    report = backbone.build_session_report(
+        session_id="candidate-window",
+        timestamp_ms=3,
+    )
+
+    trends = {
+        (family, metric_name): value
+        for family, metric_name, value in report.trends
+    }
+    assert trends[("learning", "learning_quality")] == 0.0
+
+
+def test_session_trend_weights_each_metric_wave_once():
+    backbone = EvaluationBackbone()
+    for value in (1.0, 0.0):
+        backbone._append_records(
+            session_id="candidate-repeat",
+            wave_id="wave-1",
+            timestamp_ms=1,
+            timescale="turn",
+            scores=(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="joint_learning_progress",
+                    value=value,
+                    confidence=1.0,
+                    evidence="duplicate same-wave readout",
+                ),
+            ),
+        )
+    backbone._append_records(
+        session_id="candidate-repeat",
+        wave_id="wave-2",
+        timestamp_ms=2,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="joint_learning_progress",
+                value=0.5,
+                confidence=1.0,
+                evidence="same next-wave mean",
+            ),
+        ),
+    )
+
+    report = backbone.build_session_report(
+        session_id="candidate-repeat",
+        timestamp_ms=3,
+    )
+
+    trends = {
+        (family, metric_name): value
+        for family, metric_name, value in report.trends
+    }
+    assert trends[("learning", "learning_quality")] == 0.0
+
+
+def test_session_trend_retains_same_metric_regression():
+    backbone = EvaluationBackbone()
+    for wave_id, timestamp_ms, value in (
+        ("wave-1", 1, 0.9),
+        ("wave-2", 2, 0.6),
+    ):
+        backbone._append_records(
+            session_id="candidate-regression",
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            timescale="turn",
+            scores=(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="joint_learning_progress",
+                    value=value,
+                    confidence=1.0,
+                    evidence="same metric changed across waves",
+                ),
+            ),
+        )
+
+    report = backbone.build_session_report(
+        session_id="candidate-regression",
+        timestamp_ms=3,
+    )
+
+    trends = {
+        (family, metric_name): value
+        for family, metric_name, value in report.trends
+    }
+    assert trends[("learning", "learning_quality")] == -0.3
+
+
+def test_candidate_report_is_exactly_wave_bounded_and_fails_when_missing():
+    backbone = EvaluationBackbone()
+    for wave_id, value in (("old-wave", 0.95), ("candidate-wave", 0.55)):
+        backbone._append_records(
+            session_id="candidate-scope",
+            wave_id=wave_id,
+            timestamp_ms=1 if wave_id == "old-wave" else 2,
+            timescale="turn",
+            scores=(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="joint_learning_progress",
+                    value=value,
+                    confidence=1.0,
+                    evidence=wave_id,
+                ),
+            ),
+        )
+
+    report = backbone.build_candidate_report(
+        session_id="candidate-scope",
+        wave_id="candidate-wave",
+        timestamp_ms=3,
+    )
+
+    records = tuple(
+        record
+        for _family, family_records in report.scores_by_family
+        for record in family_records
+    )
+    assert report.report_type == "candidate"
+    assert {record.wave_id for record in records} == {"candidate-wave"}
+    assert all(value == 0.0 for _family, _metric, value in report.trends)
+    with pytest.raises(ValueError, match="has no records"):
+        backbone.build_candidate_report(
+            session_id="candidate-scope",
+            wave_id="missing-wave",
+            timestamp_ms=4,
+        )
 
 
 def test_evaluation_backbone_judge_handles_playbook_confidence_without_delayed_payoffs():

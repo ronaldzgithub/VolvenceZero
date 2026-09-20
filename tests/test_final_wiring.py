@@ -69,11 +69,12 @@ from volvence_zero.application.modules.response_assembly import (
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationBackbone
-from volvence_zero.evaluation import EvolutionDecision
+from volvence_zero.evaluation import EvolutionDecision, EvolutionJudgement, JudgementCategory
 from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.integration import _apply_application_prior_writeback, FinalRolloutConfig, run_final_wiring_turn
+from volvence_zero.integration.final_wiring import _conservative_evolution_judgement
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import (
     build_default_memory_store,
@@ -1175,6 +1176,8 @@ def test_qiao_action_abstraction_retry_reuses_admitted_occurrence():
         "chapter-replay:qiao-records-field-review:outcome:pe:prediction_error:"
         "turn-16:next"
     )
+
+
     first = ExperiencedActionEvidence(
         outcome_id=outcome_id,
         action_id="chapter-replay:qiao-records-field-review:canonical-action",
@@ -1289,6 +1292,50 @@ def test_qiao_action_abstraction_retry_reuses_admitted_occurrence():
         match="stable admission proof",
     ):
         build(proof_drift, prior=admitted)
+
+
+def _evolution_judgement(
+    *,
+    decision: EvolutionDecision,
+    category: JudgementCategory,
+    reason: str,
+) -> EvolutionJudgement:
+    return EvolutionJudgement(
+        decision=decision,
+        category=category,
+        replay_passed=decision is not EvolutionDecision.ROLLBACK,
+        abstraction_trend=0.0,
+        learning_trend=0.0,
+        relationship_trend=0.0,
+        reasons=(reason,),
+        description=reason,
+    )
+
+
+def test_final_evolution_judgement_never_erases_rollback_or_unsafe_evidence():
+    rollback = _evolution_judgement(
+        decision=EvolutionDecision.ROLLBACK,
+        category=JudgementCategory.STYLE_DRIFT,
+        reason="earlier-rollback",
+    )
+    promote = _evolution_judgement(
+        decision=EvolutionDecision.PROMOTE,
+        category=JudgementCategory.REAL_IMPROVEMENT,
+        reason="later-promote",
+    )
+    unsafe = _evolution_judgement(
+        decision=EvolutionDecision.HOLD,
+        category=JudgementCategory.UNSAFE_MUTATION,
+        reason="later-unsafe",
+    )
+
+    retained_rollback = _conservative_evolution_judgement(rollback, promote)
+    retained_unsafe = _conservative_evolution_judgement(promote, unsafe)
+
+    assert retained_rollback.decision is EvolutionDecision.ROLLBACK
+    assert retained_rollback.reasons == ("earlier-rollback", "later-promote")
+    assert retained_unsafe.category is JudgementCategory.UNSAFE_MUTATION
+    assert retained_unsafe.reasons == ("later-promote", "later-unsafe")
 
 
 def test_action_abstraction_rejects_conflicting_duplicate_outcome():
