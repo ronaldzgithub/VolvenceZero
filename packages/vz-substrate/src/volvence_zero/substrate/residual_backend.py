@@ -402,6 +402,18 @@ def build_personal_conditioning_delta(
 class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     """Frozen HF runtime with real middle-layer capture and intervention hooks."""
 
+    @property
+    def runtime_execution_owner(self) -> object:
+        """Canonical identity of the loaded model used for execution."""
+
+        return self._model
+
+    @property
+    def runtime_tokenizer_owner(self) -> object:
+        """Canonical identity of the tokenizer used by this runtime."""
+
+        return self._tokenizer
+
     def __init__(
         self,
         *,

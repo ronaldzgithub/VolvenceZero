@@ -24,7 +24,9 @@ EQ-Bench 3 and similar harnesses POST directly to
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
+import threading
 from typing import Any
 
 import pytest
@@ -111,6 +113,9 @@ class _FakeLifeformSession:
         self.submitted_tool_results.append(dict(kwargs))
         return (str(kwargs["event_id"]),)
 
+    async def drain_session_post_slow_loop(self) -> None:
+        return None
+
 
 def _fake_invoker() -> AffordanceInvoker:
     hint = (
@@ -164,6 +169,7 @@ class _FakeRuntime:
         chat_messages: tuple[tuple[str, str], ...] = (),
         max_new_tokens: int = 256,
         temperature: float = 0.7,
+        **_: Any,
     ) -> _FakeGenerationResult:
         if "available_tools_json" in prompt:
             return _FakeGenerationResult(
@@ -494,6 +500,54 @@ async def test_raw_mode_via_query_param(lifeform_client) -> None:
     body = await resp.json()
     assert body["choices"][0]["message"]["content"] == "raw reply: ping"
     assert body["system_fingerprint"].startswith("raw-substrate:")
+
+
+async def test_raw_mode_keeps_event_loop_responsive(
+    lifeform_client,
+    monkeypatch,
+) -> None:
+    runtime = lifeform_client.app["session_manager"].substrate_runtime
+    assert runtime is not None
+    original_generate = runtime.generate
+    entered = threading.Event()
+    release = threading.Event()
+    heartbeat_before_release = False
+
+    def blocking_generate(*args, **kwargs):
+        entered.set()
+        if not release.wait(timeout=1.0):
+            raise RuntimeError("test raw generation release timed out")
+        return original_generate(*args, **kwargs)
+
+    monkeypatch.setattr(runtime, "generate", blocking_generate)
+
+    async def heartbeat() -> None:
+        nonlocal heartbeat_before_release
+        await asyncio.sleep(0.02)
+        heartbeat_before_release = not release.is_set()
+
+    timer = threading.Timer(0.2, release.set)
+    timer.start()
+    try:
+        heartbeat_task = asyncio.create_task(heartbeat())
+        response_task = asyncio.create_task(
+            lifeform_client.post(
+                "/v1/chat/completions?mode=raw",
+                json={
+                    "model": "lifeform-companion-raw",
+                    "messages": [{"role": "user", "content": "ping"}],
+                },
+            )
+        )
+        assert await asyncio.to_thread(entered.wait, 0.5)
+        response = await response_task
+        await heartbeat_task
+    finally:
+        release.set()
+        timer.join(timeout=1.0)
+
+    assert response.status == 200
+    assert heartbeat_before_release is True
 
 
 async def test_raw_mode_via_header(lifeform_client) -> None:

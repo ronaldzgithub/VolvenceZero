@@ -61,6 +61,7 @@ from typing import Any
 
 from aiohttp import web
 from lifeform_service import StructuredExpressionOutputError
+from volvence_zero.substrate.runtime_execution import run_runtime_call
 
 from lifeform_openai_compat.dto import ChatCompletionRequest
 from lifeform_openai_compat.raw_substrate import (
@@ -246,7 +247,17 @@ async def _dispatch_raw(
 ) -> web.StreamResponse:
     runtime = manager.substrate_runtime
     try:
-        response = raw_substrate_complete(request=parsed, runtime=runtime)
+        if runtime is None:
+            response = raw_substrate_complete(request=parsed, runtime=None)
+        else:
+            response = await run_runtime_call(
+                runtime=runtime,
+                operation=lambda: raw_substrate_complete(
+                    request=parsed,
+                    runtime=runtime,
+                ),
+                operation_kind="raw_substrate_generation",
+            )
     except RawSubstrateUnavailable as exc:
         return _error(
             status=503,
@@ -256,7 +267,10 @@ async def _dispatch_raw(
     except ValueError as exc:
         return _error_from_value_error(exc)
     except Exception as exc:  # pragma: no cover - defensive
-        _LOG.exception("raw substrate path failed: %s", exc)
+        _LOG.error(
+            "raw substrate path failed; cause_type=%s",
+            type(exc).__name__,
+        )
         return _error(
             status=500,
             error="internal_error",

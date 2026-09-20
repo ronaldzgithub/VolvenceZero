@@ -30,6 +30,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from volvence_zero.substrate.runtime_execution import runtime_resource_guard
+
 
 class TextGenerationProvider(Protocol):
     """Minimal text-in / text-out interface.
@@ -87,10 +89,10 @@ class HFTextGenerationProvider:
         # Multiple lifeforms may wrap the same loaded residual runtime in
         # distinct provider objects. Bind their generation calls back to that
         # shared owner so the process-local execution gate serializes access to
-        # the one underlying HF model. Standalone/test providers fall back to
-        # their own identity for backwards compatibility.
+        # the one underlying HF model. Standalone/test providers bind directly
+        # to the injected model identity, so separate wrappers still converge.
         self._runtime_execution_owner = (
-            self if runtime_execution_owner is None else runtime_execution_owner
+            model if runtime_execution_owner is None else runtime_execution_owner
         )
         # Lazy import torch so non-substrate callers don't pay the
         # import cost just because the module file exists.
@@ -103,12 +105,36 @@ class HFTextGenerationProvider:
 
         return self._runtime_execution_owner
 
+    @property
+    def runtime_tokenizer_owner(self) -> object:
+        """Tokenizer identity used by the process-local tokenizer gate."""
+
+        return self._tokenizer
+
     def generate(
         self,
         *,
         prompt: str,
         max_new_tokens: int = 16,
         temperature: float = 0.0,
+    ) -> str:
+        # Some offline/apprenticeship extractors call the provider directly
+        # rather than through ``run_runtime_call``. Keep the same loaded model
+        # and tokenizer protected for that path too. The guard is reentrant,
+        # so async callers already running under the boundary do not deadlock.
+        with runtime_resource_guard(self):
+            return self._generate_guarded(
+                prompt=prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+            )
+
+    def _generate_guarded(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int,
+        temperature: float,
     ) -> str:
         budget = max_new_tokens or self._default_max_new_tokens
         if self._use_chat_template:

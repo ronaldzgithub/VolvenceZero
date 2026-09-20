@@ -11,6 +11,7 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "lifeform-service==0.1.*",
+    "vz-substrate==0.1.*",
     "aiohttp>=3.9",
 ]
 
