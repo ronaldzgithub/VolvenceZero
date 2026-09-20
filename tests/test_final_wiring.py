@@ -67,6 +67,7 @@ from volvence_zero.application.modules.response_assembly import (
 )
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
+from volvence_zero.evaluation import EvaluationBackbone
 from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.environment import EnvironmentActionSchema
@@ -2913,6 +2914,73 @@ def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
     assert "reflection" in result.shadow_snapshots
     assert result.writeback_result is not None
     assert result.writeback_source == "shadow"
+
+
+def test_cross_session_readout_is_not_fed_back_into_online_evolution_judge():
+    class CapturingEvaluationBackbone(EvaluationBackbone):
+        def __init__(self) -> None:
+            super().__init__()
+            self.cross_session_judge_inputs: list[object | None] = []
+
+        def judge_evolution_candidate(self, **kwargs):
+            self.cross_session_judge_inputs.append(
+                kwargs.get("cross_session_report")
+            )
+            return super().judge_evolution_candidate(**kwargs)
+
+    backbone = CapturingEvaluationBackbone()
+    config = FinalRolloutConfig(
+        reflection=WiringLevel.ACTIVE,
+        temporal=WiringLevel.ACTIVE,
+    )
+    asyncio.run(
+        run_final_wiring_turn(
+            config=config,
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="cross-session-readout-seed",
+                feature_surface=(
+                    FeatureSignal(
+                        name="seed_context",
+                        values=(0.25,),
+                        source="adapter",
+                    ),
+                ),
+            ),
+            evaluation_backbone=backbone,
+            reflection_mode=WritebackMode.APPLY,
+            session_id="cross-session-seed",
+            wave_id="cross-session-seed-wave",
+        )
+    )
+    prior_report = backbone.build_session_report(
+        session_id="cross-session-seed",
+        timestamp_ms=100,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=config,
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="cross-session-readout-current",
+                feature_surface=(
+                    FeatureSignal(
+                        name="different_scene_context",
+                        values=(0.9,),
+                        source="adapter",
+                    ),
+                ),
+            ),
+            evaluation_backbone=backbone,
+            prior_session_reports=(prior_report,),
+            reflection_mode=WritebackMode.APPLY,
+            session_id="cross-session-current",
+            wave_id="cross-session-current-wave",
+        )
+    )
+
+    evaluation = result.active_snapshots["evaluation"].value
+    assert evaluation.longitudinal_verdict
+    assert backbone.cross_session_judge_inputs == [None, None]
 
 
 def test_session_post_writeback_keeps_memory_consolidation_when_structure_is_judge_blocked():

@@ -24,6 +24,11 @@ from volvence_zero.application import (
 from volvence_zero.brain import BrainConfig
 from volvence_zero.canonical_json import typed_to_json
 from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.evaluation import (
+    EvolutionDecision,
+    EvolutionJudgement,
+    JudgementCategory,
+)
 from volvence_zero.memory import (
     FileSystemPersistenceBackend,
     build_default_memory_store,
@@ -31,6 +36,9 @@ from volvence_zero.memory import (
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state.llm_runtime import (
     LLMSemanticProposalRuntime,
+)
+from lifeform_domain_character.chapter_replay import (
+    _evolution_allows_structural_writeback,
 )
 
 
@@ -55,6 +63,34 @@ def _bake_config() -> LifeformConfig:
             rare_heavy_enabled=False,
         )
     )
+
+
+@pytest.mark.parametrize(
+    ("decision", "category", "expected"),
+    (
+        (EvolutionDecision.PROMOTE, JudgementCategory.REAL_IMPROVEMENT, True),
+        (EvolutionDecision.HOLD, JudgementCategory.INSUFFICIENT_EVIDENCE, True),
+        (EvolutionDecision.HOLD, JudgementCategory.UNSAFE_MUTATION, False),
+        (EvolutionDecision.ROLLBACK, JudgementCategory.STYLE_DRIFT, False),
+    ),
+)
+def test_chapter_integration_retries_until_structural_writeback_is_allowed(
+    decision: EvolutionDecision,
+    category: JudgementCategory,
+    expected: bool,
+) -> None:
+    judgement = EvolutionJudgement(
+        decision=decision,
+        category=category,
+        replay_passed=True,
+        abstraction_trend=0.1,
+        learning_trend=0.1,
+        relationship_trend=0.1,
+        reasons=("focused structural-writeback gate test",),
+        description="test judgement",
+    )
+
+    assert _evolution_allows_structural_writeback(judgement) is expected
 
 
 class _ReviewedCrossChapterAbstractionProvider:

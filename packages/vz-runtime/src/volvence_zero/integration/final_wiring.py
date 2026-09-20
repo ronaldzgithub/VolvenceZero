@@ -3038,7 +3038,16 @@ async def run_final_wiring_turn(
             evolution_judgement = evaluation_module.backbone.judge_evolution_candidate(
                 replay_suite_result=replay_result,
                 session_report=session_report,
-                cross_session_report=cross_session_report,
+                # Cross-session continuity is an evaluation readout, not a
+                # learning signal.  Feeding it back into this per-turn judge
+                # made heterogeneous consecutive scenes suppress the next
+                # scene's bounded background-slow writeback merely because
+                # their report mix differed.  Keep publishing the verdict
+                # below, but leave online structural gating to the replay
+                # suite and current-session evidence.  Explicit offline
+                # evaluators may still pass a cross-session report directly
+                # to ``judge_evolution_candidate``.
+                cross_session_report=None,
             )
         judge_allows_structural_writeback = _judge_allows_structural_writeback(evolution_judgement) and (
             reflection_mode is WritebackMode.APPLY

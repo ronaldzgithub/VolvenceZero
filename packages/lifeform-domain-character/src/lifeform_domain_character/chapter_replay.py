@@ -22,6 +22,7 @@ from volvence_zero.environment import (
     EnvironmentMeasurement,
     EnvironmentOutcome,
 )
+from volvence_zero.evaluation import EvolutionDecision, JudgementCategory
 
 from lifeform_domain_character.chapter_experience import (
     ChapterCoverageKind,
@@ -606,6 +607,12 @@ class ChapterLiveThroughDriver:
                 and candidate_cycle.policy_update_applied
             ):
                 learning_cycle = candidate_cycle
+            if (
+                learning_cycle is not None
+                and _evolution_allows_structural_writeback(
+                    integration_result.evolution_judgement
+                )
+            ):
                 break
             replay_report = integration_result.runtime_replay_report
             if replay_report is None or replay_report.wiring_level != "active":
@@ -823,6 +830,26 @@ def _controller_code(
         if name == track_name:
             return tuple(float(value) for value in code)
     return ()
+
+
+def _evolution_allows_structural_writeback(judgement: Any) -> bool:
+    """Mirror the kernel's structural-writeback decision without bypassing it.
+
+    An Internal-RL optimizer step and a background-slow structural writeback
+    are separate lifecycle events.  The chapter driver used to stop as soon
+    as the former happened, even when that turn's evolution judgement had
+    explicitly blocked the latter.  Continue bounded integration turns until
+    the same public judgement that the kernel uses says the scene may write;
+    the eventual slow-loop proof still requires an actually applied temporal
+    operation, so a blocked or exhausted scene remains a hard failure.
+    """
+
+    if judgement is None:
+        return False
+    return judgement.decision is EvolutionDecision.PROMOTE or (
+        judgement.decision is EvolutionDecision.HOLD
+        and judgement.category is not JudgementCategory.UNSAFE_MUTATION
+    )
 
 
 __all__ = [
