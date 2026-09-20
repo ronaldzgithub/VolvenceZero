@@ -219,6 +219,22 @@ def raw_substrate_complete(
         )
 
     system_context, prompt, history = split_messages(request.messages)
+    # ``OpenWeightResidualRuntime.generate`` treats a non-empty
+    # ``chat_messages`` tuple as the complete message stream to render through
+    # the tokenizer's chat template.  Passing only ``history`` silently drops
+    # both the system instruction and the current turn; passing an empty tuple
+    # for a normal system+user request bypasses the chat template altogether.
+    # Reconstitute the complete canonical stream while keeping the split
+    # fields for runtimes that still inspect them and for usage accounting.
+    runtime_messages: list[tuple[str, str]] = []
+    if system_context.strip():
+        runtime_messages.append(("system", system_context))
+    runtime_messages.extend(history)
+    if prompt.strip():
+        last_role = request.messages[-1].role
+        runtime_messages.append(
+            ("system" if last_role == "developer" else last_role, prompt)
+        )
 
     gen = request.generation
     max_new = gen.max_tokens if gen.max_tokens is not None else _DEFAULT_MAX_NEW_TOKENS
@@ -227,7 +243,7 @@ def raw_substrate_complete(
     result = runtime.generate(
         prompt=prompt,
         system_context=system_context,
-        chat_messages=history,
+        chat_messages=tuple(runtime_messages),
         max_new_tokens=max_new,
         temperature=temperature,
         # Raw pass-through never reads the residual capture; skipping it

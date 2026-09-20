@@ -118,6 +118,7 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
   最新 token，避免全序列 mean 与末 token 的口径错配；zero control 的
   downstream effect 必须在浮点容差内严格为 0。
 - 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
+- OpenAI-compatible `mode=raw` adapter 必须把 system/developer、历史消息与当前消息重组为完整有序的 `chat_messages` 后交给 substrate runtime；不能只传历史或在无历史时传空 tuple，否则 instruct tokenizer 会丢失 system/current turn 或绕过 chat template。`prompt/system_context` 仍保留作兼容和 usage 记账，但完整消息流是生成输入的权威表示。
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
 - 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认 continual learner 主路径只把该 surface 作为 review / rare-heavy / experimental evidence；显式 experimental live-mutation runner 才会在通过 schedule + gate 后触发 bounded live substrate mutation，显式 frozen runner 则只发布 proposal / evidence
 - `FinalRolloutConfig` 当前默认采用 widened application rollout：`case_memory`、`strategy_playbook`、`experience_fast_prior`、`experience_consolidation` 默认随主链开启；其中 `experience_consolidation` 继续是 session-owned post surface，而不是 final wiring DAG 中的第二 owner
@@ -230,6 +231,7 @@ substrate trace。它不是 runtime slot，也不是 prediction、PE、credit、
 
 ## 变更日志
 
+- 2026-09-20: 明确 raw OpenAI adapter 必须向 substrate runtime 传递完整规范化消息流，修复标准 system+user 请求绕过 instruct chat template、以及多轮请求丢失 system/current turn 的合同缺口。
 - 2026-07-30: 新增 Gate 4/5/6 共享 settled trace 的 out-of-turn export 边界，
   冻结两 turn typed outcome settlement、scoped prediction ref、append/resume
   与 whole-partition consumer 纪律；未新增 runtime slot。

@@ -65,6 +65,7 @@ class _FakeRuntime:
         chat_messages: tuple[tuple[str, str], ...] = (),
         max_new_tokens: int = 256,
         temperature: float = 0.7,
+        capture_residuals: bool = True,
     ) -> _FakeGenerationResult:
         self.last_call = {
             "prompt": prompt,
@@ -72,6 +73,7 @@ class _FakeRuntime:
             "chat_messages": chat_messages,
             "max_new_tokens": max_new_tokens,
             "temperature": temperature,
+            "capture_residuals": capture_residuals,
         }
         return _FakeGenerationResult(
             text=self.canned_text, token_count=self.canned_token_count
@@ -172,7 +174,11 @@ def test_raw_passthrough_forwards_messages_to_runtime_generate() -> None:
     assert runtime.last_call is not None
     assert runtime.last_call["system_context"] == "Be supportive."
     assert runtime.last_call["prompt"] == "I feel low."
-    assert runtime.last_call["chat_messages"] == ()
+    assert runtime.last_call["chat_messages"] == (
+        ("system", "Be supportive."),
+        ("user", "I feel low."),
+    )
+    assert runtime.last_call["capture_residuals"] is False
 
     # Response shape is OpenAI-compatible.
     assert response.model == "raw-substrate-test"
@@ -259,10 +265,28 @@ def test_raw_passthrough_history_preserves_role_order() -> None:
     assert runtime.last_call["system_context"] == "warm"
     assert runtime.last_call["prompt"] == "u3"
     assert runtime.last_call["chat_messages"] == (
+        ("system", "warm"),
         ("user", "u1"),
         ("assistant", "a1"),
         ("user", "u2"),
         ("assistant", "a2"),
+        ("user", "u3"),
+    )
+
+
+def test_raw_passthrough_keeps_the_current_assistant_continuation() -> None:
+    runtime = _FakeRuntime()
+    request = _request_from_messages(
+        ("system", "Continue exactly where the assistant stopped."),
+        ("user", "Count to three."),
+        ("assistant", "One, two"),
+    )
+    raw_substrate_complete(request=request, runtime=runtime)
+    assert runtime.last_call is not None
+    assert runtime.last_call["chat_messages"] == (
+        ("system", "Continue exactly where the assistant stopped."),
+        ("user", "Count to three."),
+        ("assistant", "One, two"),
     )
 
 
