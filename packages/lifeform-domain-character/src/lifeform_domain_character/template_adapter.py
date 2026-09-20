@@ -39,14 +39,17 @@ What this is NOT:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import pathlib
+import re
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from lifeform_core import Lifeform, LifeformConfig, LifeformSession
 from lifeform_service.templates import (
+    ContentAddressedTemplateBinding,
     TemplateContext,
     TemplateMetadata,
     VerticalTemplateAdapter,
@@ -71,6 +74,13 @@ from lifeform_domain_character.template_save import (
 if TYPE_CHECKING:
     from volvence_zero.memory import IdentityProvider, MemoryStore
     from volvence_zero.substrate import OpenWeightResidualRuntime
+
+
+_SCENE_TEMPLATE_ID_PATTERN = re.compile(
+    r"^nwtpl_scene_v1_"
+    r"(?P<checkpoint>[0-9a-f]{64})_"
+    r"(?P<artifact>[0-9a-f]{64})$"
+)
 
 
 @dataclass(frozen=True)
@@ -277,6 +287,39 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
             reviewed_profile_overlay=None,
         )
 
+    def build_session_context_from_content_addressed_template(
+        self,
+        *,
+        template_path: pathlib.Path,
+        binding: ContentAddressedTemplateBinding,
+        runtime: "OpenWeightResidualRuntime | None",
+        identity_provider: "IdentityProvider | None",
+        memory_scope_root_dir: str | None,
+        alpha_enabled: bool,
+    ) -> tuple[Lifeform, TemplateContext]:
+        """Reincarnate one exact Novel Worlds pre-scene blob.
+
+        The whole-file digest and source attestation are checked before the
+        typed template is handed to ``give_birth``. Passing the in-memory
+        template forward is intentional: the bytes are read exactly once, so
+        a mutable alias or a second path lookup cannot replace the verified
+        object between admission and session construction.
+        """
+
+        template = _load_content_addressed_scene_template(
+            template_path=template_path,
+            binding=binding,
+        )
+        return self._build_session_context_from_template_path(
+            template_path=template_path,
+            runtime=runtime,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            alpha_enabled=alpha_enabled,
+            reviewed_profile_overlay=None,
+            loaded_template=template,
+        )
+
     def _build_session_context_from_template_path(
         self,
         *,
@@ -286,6 +329,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         memory_scope_root_dir: str | None,
         alpha_enabled: bool,
         reviewed_profile_overlay: CharacterSoulProfile | None = None,
+        loaded_template: LifeformTemplate | None = None,
     ) -> tuple[Lifeform, TemplateContext]:
         synthesizer = self._build_synthesizer(
             runtime, repair_alpha_enabled=alpha_enabled
@@ -302,7 +346,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         # another user's lived memories. Non-alpha keeps the full
         # checkpoint for studio-style replay continuity.
         bundle: RebirthBundle = give_birth(
-            template_path,
+            loaded_template if loaded_template is not None else template_path,
             reviewed_profile_overlay=reviewed_profile_overlay,
             config=config,
             substrate_runtime=runtime,
@@ -441,6 +485,63 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         return LifeformConfig(
             brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
         )
+
+
+def _load_content_addressed_scene_template(
+    *,
+    template_path: pathlib.Path,
+    binding: ContentAddressedTemplateBinding,
+) -> LifeformTemplate:
+    expected_filename = f"{binding.template_bundle_sha256}.json"
+    if template_path.name != expected_filename:
+        raise ValueError(
+            "content-addressed scene template filename does not match its "
+            "bundle digest"
+        )
+    data = template_path.read_bytes()
+    actual_digest = hashlib.sha256(data).hexdigest()
+    if actual_digest != binding.template_bundle_sha256:
+        raise ValueError(
+            "content-addressed scene template whole-file SHA-256 mismatch"
+        )
+    template = LifeformTemplate.from_json_bytes(data)
+    manifest = template.manifest
+    if manifest.template_id != binding.template_id:
+        raise ValueError(
+            "content-addressed scene template manifest template_id mismatch"
+        )
+    id_match = _SCENE_TEMPLATE_ID_PATTERN.fullmatch(manifest.template_id)
+    if id_match is None:
+        raise ValueError(
+            "content-addressed scene template id does not match the scene-v1 "
+            "checkpoint/artifact contract"
+        )
+    expected_provenance = (
+        f"scene-source:{binding.template_source_sha256}",
+        f"checkpoint:{id_match.group('checkpoint')}",
+        f"artifact:{id_match.group('artifact')}",
+        "compiler:scene-bake-v2",
+    )
+    if tuple(manifest.replay_provenance.split(" + ")) != expected_provenance:
+        raise ValueError(
+            "content-addressed scene template source attestation mismatch"
+        )
+    if manifest.character_id != template.profile.profile_id:
+        raise ValueError(
+            "content-addressed scene template character/profile identity mismatch"
+        )
+    if (
+        manifest.source_arc_id is not None
+        or not manifest.preserve_memory
+        or template.evolved_profile is not None
+        or template.replay_report is not None
+        or template.memory_checkpoint is None
+    ):
+        raise ValueError(
+            "content-addressed scene template violates the pre-scene bundle "
+            "contract"
+        )
+    return template
 
 
 def _wrap_payload(payload: _CharacterContextPayload) -> TemplateContext:

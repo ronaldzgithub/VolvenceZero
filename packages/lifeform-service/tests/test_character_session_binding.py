@@ -10,7 +10,10 @@ from lifeform_service.character_packages import (
     CharacterSessionBinding,
 )
 from lifeform_service.session_manager import CharacterSelectionError, SessionManager
-from lifeform_service.templates import TemplateContext
+from lifeform_service.templates import (
+    ContentAddressedTemplateBinding,
+    TemplateContext,
+)
 from lifeform_service.vertical_registry import VerticalRegistry
 from lifeform_service.verticals import VerticalSpec
 from volvence_zero.runtime import WiringLevel
@@ -60,6 +63,24 @@ class _CharacterAdapter:
         life = _Lifeform()
         self.lifeforms.append(life)
         return life, TemplateContext(payload={"template_path": str(template_path)})
+
+
+class _ContentAddressedAdapter:
+    def __init__(self) -> None:
+        self.loaded: list[tuple[Path, ContentAddressedTemplateBinding]] = []
+
+    def build_session_context_from_content_addressed_template(
+        self,
+        *,
+        template_path: Path,
+        binding: ContentAddressedTemplateBinding,
+        runtime,
+        identity_provider,
+        memory_scope_root_dir,
+        alpha_enabled: bool,
+    ):
+        self.loaded.append((template_path, binding))
+        return _Lifeform(), TemplateContext(payload={"template_path": str(template_path)})
 
 
 def _spec(name: str, *, adapter=None, character_id: str = "") -> VerticalSpec:
@@ -214,3 +235,73 @@ async def test_disabled_or_missing_default_manifest_cannot_be_bypassed_by_omissi
 
     with pytest.raises(CharacterSelectionError, match="default character_id"):
         await manager.create_session(session_id="missing-default")
+
+
+async def test_session_manager_loads_exact_content_addressed_path(tmp_path: Path) -> None:
+    digest = "a" * 64
+    blob = tmp_path / "novel-worlds" / "blobs" / f"{digest}.json"
+    blob.parent.mkdir(parents=True)
+    blob.write_text("{}", encoding="utf-8")
+    binding = ContentAddressedTemplateBinding(
+        template_id="nwtpl_scene_v1_exact",
+        template_uri=f"novel-worlds/blobs/{digest}.json",
+        template_bundle_sha256=digest,
+        template_source_sha256="b" * 64,
+    )
+    adapter = _ContentAddressedAdapter()
+    registry = VerticalRegistry.from_mapping(
+        (
+            VerticalSpec(
+                name="novel-worlds-character",
+                factory=lambda _runtime: _Lifeform(),
+                has_temporal_bootstrap=False,
+                has_regime_bootstrap=False,
+                template_adapter=adapter,
+                template_subdir="novel-worlds",
+            ),
+        ),
+        default_name="novel-worlds-character",
+    )
+    manager = SessionManager(
+        vertical_registry=registry,
+        templates_root_dir=tmp_path,
+        idle_eviction_seconds=None,
+    )
+
+    await manager.create_session(
+        session_id="exact-blob",
+        template_binding=binding,
+    )
+
+    assert adapter.loaded == [(blob.resolve(), binding)]
+
+
+async def test_launcher_style_manager_loads_exact_namespaced_blob(
+    tmp_path: Path,
+) -> None:
+    digest = "c" * 64
+    namespace_root = tmp_path / "novel-worlds"
+    blob = namespace_root / "blobs" / f"{digest}.json"
+    blob.parent.mkdir(parents=True)
+    blob.write_text("{}", encoding="utf-8")
+    binding = ContentAddressedTemplateBinding(
+        template_id="nwtpl_scene_v1_launcher",
+        template_uri=f"novel-worlds/blobs/{digest}.json",
+        template_bundle_sha256=digest,
+        template_source_sha256="d" * 64,
+    )
+    adapter = _ContentAddressedAdapter()
+    manager = SessionManager(
+        lifeform_factory=lambda _runtime: _Lifeform(),
+        vertical_name="novel-worlds-character",
+        template_adapter=adapter,
+        templates_root_dir=namespace_root,
+        idle_eviction_seconds=None,
+    )
+
+    await manager.create_session(
+        session_id="launcher-exact-blob",
+        template_binding=binding,
+    )
+
+    assert adapter.loaded == [(blob.resolve(), binding)]

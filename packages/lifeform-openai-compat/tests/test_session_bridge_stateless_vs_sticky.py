@@ -30,6 +30,8 @@ from lifeform_openai_compat import (
     lifeform_complete,
     reserved_metadata_keys,
 )
+from lifeform_openai_compat.session_bridge import SessionEndUserMismatchError
+from lifeform_service import ContentAddressedTemplateBinding
 
 
 # ---------------------------------------------------------------------------
@@ -91,10 +93,12 @@ class _FakeSessionManager:
         self.vertical_name = vertical_name
         self._sessions: dict[str, _FakeLifeformSession] = {}
         self._session_verticals: dict[str, str] = {}
+        self._session_end_users: dict[str, str | None] = {}
         self.create_calls: list[tuple[str | None, str | None]] = []
         self.vertical_calls: list[str | None] = []
         # D22: record the per-call tenant_id the bridge plumbs through.
         self.tenant_calls: list[str | None] = []
+        self.template_binding_calls: list[ContentAddressedTemplateBinding | None] = []
 
     async def has_session(self, session_id: str) -> bool:
         return session_id in self._sessions
@@ -108,12 +112,14 @@ class _FakeSessionManager:
         session_id: str | None = None,
         user_id: str | None = None,
         template_id: str | None = None,  # noqa: ARG002 - parity with real signature
+        template_binding: ContentAddressedTemplateBinding | None = None,
         tenant_id: str | None = None,
         vertical_name: str | None = None,
     ) -> _FakeLifeformSession:
         sid = session_id or "auto-fake"
         self.create_calls.append((sid, user_id))
         self.tenant_calls.append(tenant_id)
+        self.template_binding_calls.append(template_binding)
         self.vertical_calls.append(vertical_name)
         if sid in self._sessions:
             from lifeform_service import SessionAlreadyExistsError
@@ -122,10 +128,53 @@ class _FakeSessionManager:
         session = _FakeLifeformSession(session_id=sid)
         self._sessions[sid] = session
         self._session_verticals[sid] = vertical_name or self.vertical_name
+        self._session_end_users[sid] = user_id
         return session
 
     def vertical_name_for(self, session_id: str) -> str:
         return self._session_verticals[session_id]
+
+    def session_end_user(self, session_id: str) -> str | None:
+        return self._session_end_users[session_id]
+
+
+class _RaceLosingSessionManager(_FakeSessionManager):
+    """Simulate another request winning between has and create."""
+
+    def __init__(
+        self,
+        *,
+        winner_vertical: str,
+        winner_user: str | None,
+    ) -> None:
+        super().__init__()
+        self._winner_vertical = winner_vertical
+        self._winner_user = winner_user
+
+    async def has_session(self, session_id: str) -> bool:  # noqa: ARG002
+        return False
+
+    async def create_session(
+        self,
+        *,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        template_id: str | None = None,
+        template_binding: ContentAddressedTemplateBinding | None = None,
+        tenant_id: str | None = None,
+        vertical_name: str | None = None,
+    ) -> _FakeLifeformSession:
+        from lifeform_service import SessionAlreadyExistsError
+
+        sid = session_id or "auto-race"
+        self.create_calls.append((sid, user_id))
+        self.tenant_calls.append(tenant_id)
+        self.template_binding_calls.append(template_binding)
+        self.vertical_calls.append(vertical_name)
+        self._sessions[sid] = _FakeLifeformSession(session_id=sid)
+        self._session_verticals[sid] = self._winner_vertical
+        self._session_end_users[sid] = self._winner_user
+        raise SessionAlreadyExistsError(sid)
 
 
 def _request(
@@ -265,6 +314,41 @@ def test_derive_session_id_different_system_diverges() -> None:
     assert res_a.session_id != res_b.session_id
 
 
+def test_derive_session_id_separates_content_addressed_templates() -> None:
+    messages = (
+        ("system", "same scene"),
+        ("user", "same action"),
+    )
+    common = {
+        "dlaas.template_id": "nwtpl_scene_v1_same-logical-id",
+        "dlaas.template_source_sha256": "c" * 64,
+    }
+    first = "a" * 64
+    second = "b" * 64
+    res_a = derive_session_id(
+        _request(
+            *messages,
+            metadata={
+                **common,
+                "dlaas.template_uri": f"novel-worlds/blobs/{first}.json",
+                "dlaas.template_bundle_sha256": first,
+            },
+        )
+    )
+    res_b = derive_session_id(
+        _request(
+            *messages,
+            metadata={
+                **common,
+                "dlaas.template_uri": f"novel-worlds/blobs/{second}.json",
+                "dlaas.template_bundle_sha256": second,
+            },
+        )
+    )
+
+    assert res_a.session_id != res_b.session_id
+
+
 # ---------------------------------------------------------------------------
 # extract_user_input
 # ---------------------------------------------------------------------------
@@ -317,6 +401,15 @@ def test_reserved_metadata_keys_includes_session_id_and_user_id() -> None:
 def test_reserved_metadata_keys_includes_tenant_id() -> None:
     # D22: tenant_id is interpreted by the bridge (two-layer scope).
     assert "tenant_id" in reserved_metadata_keys()
+
+
+def test_reserved_metadata_keys_include_content_addressed_template_attestation() -> None:
+    assert {
+        "dlaas.template_id",
+        "dlaas.template_uri",
+        "dlaas.template_bundle_sha256",
+        "dlaas.template_source_sha256",
+    }.issubset(reserved_metadata_keys())
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +558,131 @@ async def test_lifeform_complete_tenant_id_defaults_none_when_absent() -> None:
     assert manager.tenant_calls[0] is None
 
 
+async def test_content_addressed_binding_is_forwarded_once_and_sticky() -> None:
+    manager = _FakeSessionManager()
+    first_hash = "a" * 64
+    second_hash = "b" * 64
+    common = {
+        "session_id": "sticky-content-template",
+        "dlaas.template_id": "nwtpl_scene_v1_first",
+        "dlaas.template_source_sha256": "c" * 64,
+    }
+    first = _request(
+        ("user", "enter"),
+        metadata={
+            **common,
+            "dlaas.template_uri": f"novel-worlds/blobs/{first_hash}.json",
+            "dlaas.template_bundle_sha256": first_hash,
+        },
+    )
+    second = _request(
+        ("user", "continue"),
+        metadata={
+            **common,
+            "dlaas.template_id": "nwtpl_scene_v1_second",
+            "dlaas.template_uri": f"novel-worlds/blobs/{second_hash}.json",
+            "dlaas.template_bundle_sha256": second_hash,
+        },
+    )
+
+    await lifeform_complete(request=first, manager=manager)
+    await lifeform_complete(request=second, manager=manager)
+
+    assert len(manager.create_calls) == 1
+    assert len(manager.template_binding_calls) == 1
+    assert manager.template_binding_calls[0] == ContentAddressedTemplateBinding(
+        template_id="nwtpl_scene_v1_first",
+        template_uri=f"novel-worlds/blobs/{first_hash}.json",
+        template_bundle_sha256=first_hash,
+        template_source_sha256="c" * 64,
+    )
+    assert manager._sessions["sticky-content-template"].run_turn_calls == [
+        "enter",
+        "continue",
+    ]
+
+
+async def test_content_addressed_binding_is_all_or_nothing() -> None:
+    manager = _FakeSessionManager()
+    with pytest.raises(ValueError, match="requires all four fields"):
+        await lifeform_complete(
+            request=_request(
+                ("user", "enter"),
+                metadata={
+                    "session_id": "partial-content-template",
+                    "dlaas.template_id": "nwtpl_scene_v1_partial",
+                    "dlaas.template_uri": f"novel-worlds/blobs/{'a' * 64}.json",
+                },
+            ),
+            manager=manager,
+        )
+    assert manager.create_calls == []
+
+
+async def test_scene_template_id_alone_never_falls_back_to_alias() -> None:
+    manager = _FakeSessionManager()
+
+    with pytest.raises(ValueError, match="requires all four fields"):
+        await lifeform_complete(
+            request=_request(
+                ("user", "enter"),
+                metadata={
+                    "session_id": "scene-id-only",
+                    "dlaas.template_id": f"nwtpl_scene_v1_{'a' * 64}_{'b' * 64}",
+                },
+            ),
+            manager=manager,
+        )
+
+    assert manager.create_calls == []
+
+
+@pytest.mark.parametrize(
+    "present_key",
+    (
+        "dlaas.template_uri",
+        "dlaas.template_bundle_sha256",
+        "dlaas.template_source_sha256",
+    ),
+)
+async def test_empty_content_binding_field_never_falls_back_to_alias(
+    present_key: str,
+) -> None:
+    manager = _FakeSessionManager()
+
+    with pytest.raises(ValueError, match="requires all four fields"):
+        await lifeform_complete(
+            request=_request(
+                ("user", "enter"),
+                metadata={
+                    "session_id": "empty-content-template",
+                    present_key: "",
+                },
+            ),
+            manager=manager,
+        )
+
+    assert manager.create_calls == []
+
+
+async def test_logical_template_id_alone_keeps_legacy_selector_path() -> None:
+    manager = _FakeSessionManager()
+
+    await lifeform_complete(
+        request=_request(
+            ("user", "enter"),
+            metadata={
+                "session_id": "legacy-logical-template",
+                "dlaas.template_id": "legacy-template-id",
+            },
+        ),
+        manager=manager,
+    )
+
+    assert len(manager.create_calls) == 1
+    assert manager.template_binding_calls == [None]
+
+
 async def test_lifeform_complete_passes_selected_vertical_to_create_session() -> None:
     manager = _FakeSessionManager()
     request = _request(
@@ -496,6 +714,42 @@ async def test_lifeform_complete_rejects_explicit_cross_vertical_reuse() -> None
             request=request,
             manager=manager,
             vertical_name="companion-cold",
+        )
+
+
+async def test_create_race_rejects_cross_vertical_winner() -> None:
+    manager = _RaceLosingSessionManager(
+        winner_vertical="companion-cold",
+        winner_user="alice",
+    )
+    request = _request(
+        ("user", "hi"),
+        metadata={"session_id": "raced-vertical", "user_id": "alice"},
+    )
+
+    with pytest.raises(ValueError, match="invalid_session_vertical_mismatch"):
+        await lifeform_complete(
+            request=request,
+            manager=manager,
+            vertical_name="companion",
+        )
+
+
+async def test_create_race_rejects_cross_user_winner() -> None:
+    manager = _RaceLosingSessionManager(
+        winner_vertical="companion",
+        winner_user="bob",
+    )
+    request = _request(
+        ("user", "hi"),
+        metadata={"session_id": "raced-user", "user_id": "alice"},
+    )
+
+    with pytest.raises(SessionEndUserMismatchError, match="user_id='bob'"):
+        await lifeform_complete(
+            request=request,
+            manager=manager,
+            vertical_name="companion",
         )
 
 

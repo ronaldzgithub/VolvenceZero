@@ -66,6 +66,7 @@ from lifeform_service.session_manager import (
     TimeNodeNotFoundError,
     TimeNodeSnapshot,
 )
+from lifeform_service.templates import ContentAddressedTemplateBinding
 from lifeform_service.verticals import (
     COMPANION_ABLATION_VERTICAL_NAMES,
     VerticalSpec,
@@ -79,6 +80,7 @@ __all__ = (
     "CharacterRuntimeAssets",
     "CharacterSelectionError",
     "CharacterSessionBinding",
+    "ContentAddressedTemplateBinding",
     "EinsteinBundleResolution",
     "FigureBundleNotFound",
     "FigureBundleStore",

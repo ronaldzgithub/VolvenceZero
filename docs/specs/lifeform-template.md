@@ -15,6 +15,15 @@
 - 每个 `LifeformTemplate` 携带 `schema_version: int`；当前写出 v2，显式支持读取 v1/v2，`give_birth` 对其他版本抛 `IncompatibleTemplateVersion`，禁止跨版本静默加载。
 - `integrity_hash` 是 SHA-256，覆盖**身份载荷**：manifest（除 hash 字段）+ profile + evolved_profile + vitals_bootstrap + vitals_drive_levels + application_state。`memory_checkpoint` 与 `replay_report` 因含动态 id（`checkpoint_id`、float drive levels）不在身份 hash 内，但它们各有自己的 schema 校验。
 - v2 manifest 增加 `preserve_memory`；开启时 `give_birth` 不得被 alpha 模式的 `skip_memory_restore` 跳过，用于需要保留角色正典前世记忆的 vertical。
+- Novel Worlds scene-entry consumer 必须同时消费
+  `dlaas.template_id / template_uri / template_bundle_sha256 /
+  template_source_sha256`。URI 只接受
+  `novel-worlds/blobs/<whole-file-sha256>.json`，解析后不得越出配置的
+  templates root；adapter 对精确 bytes 复算 whole-file hash，并核对 scene-v1
+  template id、checkpoint/artifact/source provenance、当前
+  `compiler:scene-bake-v2` 身份与 manifest
+  integrity 后才可 `give_birth`。该路径禁止生成 `<template_id>.json` alias、
+  禁止缺字段时回退逻辑 id。
 - `give_birth` 默认 `verify_integrity=True`；只有调试 tampered 模板时才允许显式关闭。
 - 重生时 vitals `initial_level` **必须**用模板保存的 `vitals_drive_levels`，让新实例从"上辈子的体感"启动而不是从 spec 默认值。
 - LLM-assisted 提取（profile / scene）只产 *candidate*；转换为 typed artifact 必须经 `review_*_candidate` 显式人审入口（reviewer + locator 双必填）。
@@ -64,6 +73,9 @@ flowchart LR
 **产出的输出**：
 
 - 单个 JSON 文件（`<output_dir>/<template_id>.json`）含全部 schema-versioned 字段 + `integrity_hash`
+- Novel Worlds scene-entry 发布单元为
+  `<templates-root>/novel-worlds/blobs/<whole-file-sha256>.json`；逻辑
+  `template_id` 只作 manifest 身份，不作路径定位
 - `LifeformTemplate` typed dataclass（in-memory 形式可直接进 `give_birth`）
 - 重生路径返回 `RebirthBundle`：`Lifeform` + 用到的 stores + 原始模板（审计回溯）
 
@@ -87,5 +99,6 @@ flowchart LR
 
 ## 变更日志
 
+- 2026-09-20: 增加 Novel Worlds scene-entry 四字段内容寻址 consumer 合同；冻结精确 URI、whole-file/source attestation、root containment 与无 alias/fallback 规则。
 - 2026-08-01: 对账当前 schema v2；记录 v1/v2 读取兼容与 `preserve_memory` 语义。
 - 2026-05-09: 初始版本。Lifeform Template + Birth Pipeline 完整落地（waves T1-T11）；schema_version=1。

@@ -30,6 +30,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Protocol, TYPE_CHECKING, runtime_checkable
 
 
@@ -37,6 +38,106 @@ if TYPE_CHECKING:
     from lifeform_core import Lifeform, LifeformSession
     from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
+
+
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_NOVEL_WORLDS_BLOB_PATTERN = re.compile(
+    r"^novel-worlds/blobs/(?P<digest>[0-9a-f]{64})\.json$"
+)
+
+
+@dataclass(frozen=True)
+class ContentAddressedTemplateBinding:
+    """Caller attestation for one immutable Novel Worlds template blob.
+
+    The logical ``template_id`` is deliberately insufficient to locate the
+    bytes. ``template_uri`` names the exact content-addressed object under the
+    configured service templates root, while the two hashes bind the whole
+    file and its reviewed pre-scene source respectively.
+    """
+
+    template_id: str
+    template_uri: str
+    template_bundle_sha256: str
+    template_source_sha256: str
+
+    def __post_init__(self) -> None:
+        if not self.template_id or self.template_id != self.template_id.strip():
+            raise ValueError(
+                "invalid_template_binding: template_id must be non-empty "
+                "without surrounding whitespace"
+            )
+        for field_name, value in (
+            ("template_bundle_sha256", self.template_bundle_sha256),
+            ("template_source_sha256", self.template_source_sha256),
+        ):
+            if _SHA256_PATTERN.fullmatch(value) is None:
+                raise ValueError(
+                    f"invalid_template_binding: {field_name} must be 64 "
+                    "lowercase hexadecimal characters"
+                )
+        match = _NOVEL_WORLDS_BLOB_PATTERN.fullmatch(self.template_uri)
+        if match is None:
+            raise ValueError(
+                "invalid_template_binding: template_uri must exactly match "
+                "novel-worlds/blobs/<64-lowercase-hex>.json"
+            )
+        if match.group("digest") != self.template_bundle_sha256:
+            raise ValueError(
+                "invalid_template_binding: template_uri filename digest does "
+                "not match template_bundle_sha256"
+            )
+
+    def resolve_under(
+        self,
+        root_dir: Path,
+        *,
+        mounted_namespace: str | None = None,
+    ) -> Path:
+        """Resolve the exact blob and reject traversal or symlink escape.
+
+        ``mounted_namespace`` is for the legacy single-vertical manager whose
+        configured root is already ``<service-root>/novel-worlds``. It removes
+        exactly that URI namespace component; it never probes both layouts.
+        """
+
+        try:
+            resolved_root = root_dir.resolve(strict=True)
+        except OSError as exc:
+            raise FileNotFoundError(
+                f"configured templates root is unavailable: {root_dir}"
+            ) from exc
+        if not resolved_root.is_dir():
+            raise NotADirectoryError(
+                f"configured templates root is not a directory: {resolved_root}"
+            )
+        uri_parts = self.template_uri.split("/")
+        if mounted_namespace is not None:
+            if mounted_namespace != "novel-worlds" or uri_parts[0] != mounted_namespace:
+                raise ValueError(
+                    "invalid_template_binding: mounted template namespace does "
+                    "not match template_uri"
+                )
+            uri_parts = uri_parts[1:]
+        requested = root_dir.joinpath(*uri_parts)
+        try:
+            resolved = requested.resolve(strict=True)
+        except OSError as exc:
+            raise FileNotFoundError(
+                f"content-addressed template blob is unavailable: {self.template_uri}"
+            ) from exc
+        try:
+            resolved.relative_to(resolved_root)
+        except ValueError as exc:
+            raise ValueError(
+                "invalid_template_binding: template_uri resolves outside the "
+                "configured templates root"
+            ) from exc
+        if not resolved.is_file():
+            raise ValueError(
+                "invalid_template_binding: resolved template blob is not a file"
+            )
+        return resolved
 
 
 @dataclass(frozen=True)
@@ -196,8 +297,31 @@ class CharacterPackageTemplateAdapter(Protocol):
     ) -> "tuple[Lifeform, TemplateContext]": ...
 
 
+@runtime_checkable
+class ContentAddressedTemplateAdapter(Protocol):
+    """Capability for consuming an exact attested template blob.
+
+    The service resolves the caller's URI under its configured root. The
+    vertical adapter remains responsible for verifying the exact bytes and
+    interpreting the template-owned manifest/source attestation.
+    """
+
+    def build_session_context_from_content_addressed_template(
+        self,
+        *,
+        template_path: Path,
+        binding: ContentAddressedTemplateBinding,
+        runtime: "OpenWeightResidualRuntime | None",
+        identity_provider: "IdentityProvider | None",
+        memory_scope_root_dir: str | None,
+        alpha_enabled: bool,
+    ) -> "tuple[Lifeform, TemplateContext]": ...
+
+
 __all__ = [
     "CharacterPackageTemplateAdapter",
+    "ContentAddressedTemplateAdapter",
+    "ContentAddressedTemplateBinding",
     "TemplateContext",
     "TemplateMetadata",
     "VerticalTemplateAdapter",

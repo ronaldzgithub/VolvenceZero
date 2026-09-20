@@ -61,6 +61,8 @@ from lifeform_service.substrate_registry import (
 )
 from lifeform_service.templates import (
     CharacterPackageTemplateAdapter,
+    ContentAddressedTemplateAdapter,
+    ContentAddressedTemplateBinding,
     TemplateContext,
     VerticalTemplateAdapter,
 )
@@ -960,6 +962,7 @@ class SessionManager:
         session_id: str | None = None,
         user_id: str | None = None,
         template_id: str | None = None,
+        template_binding: ContentAddressedTemplateBinding | None = None,
         vertical_name: str | None = None,
         character_id: str | None = None,
         tenant_id: str | None = None,
@@ -979,6 +982,9 @@ class SessionManager:
         * non-empty + adapter present — route through
           ``adapter.build_session_context_from_template`` so the
           session inherits the saved profile / drives.
+        * ``template_binding`` — load only the exact content-addressed blob
+          named by the caller's four-field attestation. This path never
+          constructs or consults a mutable ``<template_id>.json`` alias.
 
         ``tenant_id`` (D22): optional per-call tenant override for the
         two-layer scope binding. When two-layer scope is active it takes
@@ -1098,7 +1104,56 @@ class SessionManager:
             adapter_dir = self.templates_dir_for(chosen_name)
 
             template_context: TemplateContext | None = None
-            if character_binding is not None:
+            if template_binding is not None:
+                if template_id is not None and template_id.strip():
+                    raise ValueError(
+                        "template_id and template_binding are mutually exclusive"
+                    )
+                if character_binding is not None:
+                    raise CharacterSelectionError(
+                        "content-addressed template binding cannot override a "
+                        "character manifest's pinned template."
+                    )
+                if not isinstance(adapter, ContentAddressedTemplateAdapter):
+                    raise TemplatesNotSupportedError(
+                        f"vertical {chosen_name!r} cannot load content-addressed "
+                        "templates"
+                    )
+                if self._templates_root_dir is None or adapter_dir is None:
+                    raise TemplatesNotSupportedError(
+                        f"vertical {chosen_name!r} has no configured templates root"
+                    )
+                if chosen_spec.template_subdir == "":
+                    if self._templates_root_dir.name != "novel-worlds":
+                        raise TemplatesNotSupportedError(
+                            f"vertical {chosen_name!r} legacy template root is "
+                            "not the novel-worlds namespace"
+                        )
+                    template_path = template_binding.resolve_under(
+                        self._templates_root_dir,
+                        mounted_namespace="novel-worlds",
+                    )
+                else:
+                    expected_vertical_dir = self._templates_root_dir / "novel-worlds"
+                    if adapter_dir.resolve() != expected_vertical_dir.resolve():
+                        raise TemplatesNotSupportedError(
+                            f"vertical {chosen_name!r} is not bound to the "
+                            "novel-worlds template namespace"
+                        )
+                    template_path = template_binding.resolve_under(
+                        self._templates_root_dir
+                    )
+                life, template_context = (
+                    adapter.build_session_context_from_content_addressed_template(
+                        template_path=template_path,
+                        binding=template_binding,
+                        runtime=runtime,
+                        identity_provider=identity_provider,
+                        memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                        alpha_enabled=alpha_enabled,
+                    )
+                )
+            elif character_binding is not None:
                 if template_id is not None and template_id.strip():
                     raise CharacterSelectionError(
                         "template_id cannot override a character manifest's "

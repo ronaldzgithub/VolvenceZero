@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from lifeform_service import (
+    ContentAddressedTemplateBinding,
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
@@ -144,8 +145,13 @@ def derive_session_id(
         # transcript), use the first message of any role.
         messages[0].content if messages else "",
     )
+    binding = _content_addressed_template_binding(request.metadata)
+    binding_identity = (
+        binding.template_bundle_sha256 if binding is not None else ""
+    )
     derivation_input = (
-        f"{vertical_name}|{request.model}|{system_context}|{first_user_msg}"
+        f"{vertical_name}|{request.model}|{binding_identity}|"
+        f"{system_context}|{first_user_msg}"
     )
     digest = hashlib.sha256(derivation_input.encode("utf-8")).hexdigest()
     return SessionResolution(
@@ -165,6 +171,48 @@ def _fresh_auto_session_id() -> str:
     the SAME messages array again in a follow-up.
     """
     return f"{_AUTO_SESSION_ID_PREFIX}{uuid.uuid4().hex[:_AUTO_SESSION_ID_HEX_LEN]}"
+
+
+def _content_addressed_template_binding(
+    metadata: dict[str, str],
+) -> ContentAddressedTemplateBinding | None:
+    """Parse the all-or-nothing Novel Worlds blob attestation."""
+
+    required = (
+        "dlaas.template_id",
+        "dlaas.template_uri",
+        "dlaas.template_bundle_sha256",
+        "dlaas.template_source_sha256",
+    )
+    template_id = metadata.get("dlaas.template_id", "").strip()
+    # A scene-v1 identity is itself an explicit declaration of the Novel
+    # Worlds contract, so it may never fall back to a mutable logical alias.
+    # Other template ids retain the legacy selector path. Presence of any
+    # immutable attestation field also opts into the four-field contract,
+    # even when the supplied value is empty or whitespace.
+    scene_identity_declared = template_id.startswith("nwtpl_scene_v1_")
+    if not scene_identity_declared and not any(
+        key in metadata for key in required[1:]
+    ):
+        return None
+    missing = tuple(
+        key for key in required if not metadata.get(key, "").strip()
+    )
+    if missing:
+        raise ValueError(
+            "invalid_template_binding: content-addressed template metadata "
+            f"requires all four fields; missing={missing!r}"
+        )
+    return ContentAddressedTemplateBinding(
+        template_id=template_id,
+        template_uri=metadata["dlaas.template_uri"].strip(),
+        template_bundle_sha256=metadata[
+            "dlaas.template_bundle_sha256"
+        ].strip(),
+        template_source_sha256=metadata[
+            "dlaas.template_source_sha256"
+        ].strip(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -342,13 +390,19 @@ async def lifeform_complete(
     # one. Without this the session falls back to the vertical default
     # profile and the character's trained memory_checkpoint never loads.
     # Only applies on first create_session for this session_id.
-    template_id = request.metadata.get("dlaas.template_id", "").strip() or None
+    template_binding = _content_addressed_template_binding(request.metadata)
+    template_id = (
+        None
+        if template_binding is not None
+        else request.metadata.get("dlaas.template_id", "").strip() or None
+    )
 
     session = await _get_or_create_session(
         manager=manager,
         session_id=resolution.session_id,
         user_id=user_id,
         template_id=template_id,
+        template_binding=template_binding,
         tenant_id=tenant_id,
         vertical_name=selected_vertical,
     )
@@ -623,6 +677,7 @@ async def _get_or_create_session(
     session_id: str,
     user_id: str | None,
     template_id: str | None = None,
+    template_binding: ContentAddressedTemplateBinding | None = None,
     tenant_id: str | None = None,
     vertical_name: str | None = None,
 ) -> Any:
@@ -643,41 +698,67 @@ async def _get_or_create_session(
     """
 
     if await manager.has_session(session_id):
-        session = await manager.get_session(session_id)
-        if vertical_name:
-            bound_vertical = manager.vertical_name_for(session_id)
-            if bound_vertical != vertical_name:
-                raise ValueError(
-                    "invalid_session_vertical_mismatch: "
-                    f"session_id={session_id!r} is bound to "
-                    f"vertical={bound_vertical!r} but the request selected "
-                    f"vertical={vertical_name!r}"
-                )
-        if user_id and not _session_end_user_remap_allowed():
-            reader = getattr(manager, "session_end_user", None)
-            bound = reader(session_id) if callable(reader) else None
-            if bound is not None and bound != user_id:
-                raise SessionEndUserMismatchError(
-                    f"session_id={session_id!r} is bound to user_id={bound!r} "
-                    f"but the request carries user_id={user_id!r}"
-                )
-        return session
-    try:
-        return await manager.create_session(
+        return await _get_and_validate_existing_session(
+            manager=manager,
             session_id=session_id,
             user_id=user_id,
-            template_id=template_id,
-            tenant_id=tenant_id,
             vertical_name=vertical_name,
         )
+    try:
+        create_kwargs: dict[str, Any] = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "template_id": template_id,
+            "tenant_id": tenant_id,
+            "vertical_name": vertical_name,
+        }
+        if template_binding is not None:
+            create_kwargs["template_binding"] = template_binding
+        return await manager.create_session(**create_kwargs)
     except SessionAlreadyExistsError:
-        # Lost the race; fall back to the existing session.
-        return await manager.get_session(session_id)
+        # Lost the race. The winner may belong to another vertical or
+        # end-user, so apply exactly the same isolation checks as the
+        # ordinary existing-session path before exposing it.
+        return await _get_and_validate_existing_session(
+            manager=manager,
+            session_id=session_id,
+            user_id=user_id,
+            vertical_name=vertical_name,
+        )
     except SessionNotFoundError:
         # Pathological case: has_session=False, create raised
         # NotFound (rare; would mean LifeformFactory returned None).
         # Surface as a clean ValueError for the router to map to 500.
         raise
+
+
+async def _get_and_validate_existing_session(
+    *,
+    manager: SessionManager,
+    session_id: str,
+    user_id: str | None,
+    vertical_name: str | None,
+) -> Any:
+    """Fetch a sticky session only after enforcing its isolation bindings."""
+
+    session = await manager.get_session(session_id)
+    if vertical_name:
+        bound_vertical = manager.vertical_name_for(session_id)
+        if bound_vertical != vertical_name:
+            raise ValueError(
+                "invalid_session_vertical_mismatch: "
+                f"session_id={session_id!r} is bound to "
+                f"vertical={bound_vertical!r} but the request selected "
+                f"vertical={vertical_name!r}"
+            )
+    if user_id and not _session_end_user_remap_allowed():
+        bound = manager.session_end_user(session_id)
+        if bound is not None and bound != user_id:
+            raise SessionEndUserMismatchError(
+                f"session_id={session_id!r} is bound to user_id={bound!r} "
+                f"but the request carries user_id={user_id!r}"
+            )
+    return session
 
 
 def reserved_metadata_keys() -> tuple[str, ...]:
@@ -691,9 +772,19 @@ def reserved_metadata_keys() -> tuple[str, ...]:
     * ``tenant_id`` — passed through to ``create_session(tenant_id=...)``
       so the two-layer ``{tenant}:{end_user}`` scope partitions memory
       per tenant (D22)
-    * ``dlaas.template_id`` — baked LifeformTemplate id; selects the
-      reincarnation template on first ``create_session`` (NW9)
+    * ``dlaas.template_id`` — logical baked LifeformTemplate id
+    * ``dlaas.template_uri`` / ``dlaas.template_bundle_sha256`` /
+      ``dlaas.template_source_sha256`` — all-or-nothing immutable scene
+      template attestation; selects the exact blob on first create
 
     All other keys are stored on the request DTO unchanged.
     """
-    return ("session_id", "user_id", "tenant_id", "dlaas.template_id")
+    return (
+        "session_id",
+        "user_id",
+        "tenant_id",
+        "dlaas.template_id",
+        "dlaas.template_uri",
+        "dlaas.template_bundle_sha256",
+        "dlaas.template_source_sha256",
+    )
